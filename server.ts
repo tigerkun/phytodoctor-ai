@@ -12,6 +12,9 @@ const PORT = process.env.PORT || 3000;
 // Increase payload size for images
 app.use(express.json({ limit: '10mb' }));
 
+// Health check for Render
+app.get('/healthz', (_req, res) => res.sendStatus(200));
+
 // Gemini Initialization
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
