@@ -358,8 +358,10 @@ export function HeroSection({
                 </div>
               </motion.div>
             </div>
+          </div>
           )}
         </motion.div>
+
 
         {/* Right Panel - Garden Pulse */}
         <motion.div
