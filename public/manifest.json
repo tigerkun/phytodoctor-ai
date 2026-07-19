@@ -1,0 +1,27 @@
+{
+  "short_name": "PhytoGuard",
+  "name": "PhytoGuard: Botanical Specialist AI",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3233/3233483.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#1A1C19",
+  "background_color": "#F9F9F7",
+  "description": "Professional-grade AI diagnostic laboratory and digital specimen collection for indoor horticulturalists.",
+  "orientation": "portrait",
+  "categories": ["lifestyle", "utilities"],
+  "screenshots": [
+    {
+      "src": "https://images.unsplash.com/photo-1545239351-ef35f43d514b?auto=format&fit=crop&q=80&w=1000",
+      "type": "image/jpg",
+      "sizes": "1000x1200",
+      "form_factor": "wide"
+    }
+  ]
+}

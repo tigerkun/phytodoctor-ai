@@ -1,0 +1,137 @@
+@theme {
+  /* Typography */
+  --font-serif: "Cormorant Garamond", serif;   /* Display headings only — weight 300-600 */
+  --font-sans: "Plus Jakarta Sans", sans-serif; /* All UI text */
+
+
+  /* Typography Transitions */
+  --transition-speed: 0.3s;
+  --transition-ease: ease-in-out;
+
+  /* Border Radius Scale — single source of truth */
+  --radius-sm: 0.5rem;    /* 8px  — badges, inputs */
+  --radius-md: 1rem;      /* 16px — cards */
+  --radius-lg: 1.5rem;    /* 24px — panels, drawers */
+  --radius-xl: 2rem;      /* 32px — hero, modals */
+
+  /* Z-Index Scale — prevents stacking context wars */
+  --z-base: 0;
+  --z-content: 10;
+  --z-ambient: 15;
+  --z-nav: 20;
+  --z-drawer: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+  --z-cursor: 60;
+
+  /* Map Design System Colors to Tailwind v4 Classes */
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-tertiary: var(--bg-tertiary);
+  --color-bg-glass: var(--bg-glass);
+  
+  --color-text-bark: var(--text-bark);
+  --color-text-stone: var(--text-stone);
+  --color-text-muted: var(--text-muted);
+  
+  --color-moss: var(--moss);
+  --color-moss-light: var(--moss-light);
+  --color-moss-dark: var(--moss-dark);
+  
+  --color-terracotta: var(--terracotta);
+  --color-terracotta-light: var(--terracotta-light);
+  
+  --color-gold: var(--gold);
+  --color-gold-light: var(--gold-light);
+  
+  --color-sage: var(--sage);
+  --color-sage-light: var(--sage-light);
+
+  --color-border-light: var(--border-light);
+  --color-border-medium: var(--border-medium);
+}
+
+/* === GLOBAL COLOR SYSTEM === */
+/* Paste this into :root in your global CSS. Every component must use these. No hardcoded hexes anywhere. */
+:root {
+  /* === BACKGROUNDS === */
+  --bg-primary: #FAF7F2;              /* Warm cream — main page background */
+  --bg-secondary: #F5F0E8;            /* Slightly deeper cream — cards, sections */
+  --bg-tertiary: #EDE8DF;             /* Warm gray — subtle separators, hover states */
+  --bg-glass: rgba(255, 253, 250, 0.82); /* Card backgrounds — warm white with transparency */
+  --bg-glass-night: rgba(35, 32, 29, 0.78); /* Night mode card backgrounds */
+  
+  /* === AMBIENT TIME OF DAY GRADIENTS === */
+  --gradient-dawn: linear-gradient(180deg, #FBE8C4 0%, #A8C9A8 100%);
+  --gradient-morning: linear-gradient(180deg, #A8C9A8 0%, #FAF7F2 100%);
+  --gradient-afternoon: linear-gradient(180deg, #FAF7F2 0%, #FBE8C4 100%);
+  --gradient-dusk: linear-gradient(180deg, #C4704B 0%, #1E2326 100%);
+  --gradient-night: linear-gradient(180deg, #1E2326 0%, #0F1419 100%);
+  --gradient-late-night: linear-gradient(180deg, #0F1419 0%, #161A1D 100%);
+  
+  /* === TEXT === */
+  --text-bark: #2C2419;               /* Rich coffee — headings, primary text */
+  --text-stone: #6B5E51;              /* Warm taupe — body text, descriptions */
+  --text-muted: #9C8E80;              /* Soft stone — captions, timestamps, hints */
+  --text-inverse: #F5F0E8;            /* Cream on dark — night mode text */
+  
+  /* === ACCENTS === */
+  --moss: #5A7D5A;                    /* Living moss — primary actions, success, nav active */
+  --moss-light: #8FB58F;              /* Pale moss — hover states, secondary accents */
+  --moss-dark: #3D5A3D;               /* Deep moss — pressed states */
+  --terracotta: #C4704B;              /* Warm clay — CTAs, alerts, streaks, warmth */
+  --terracotta-light: #D98A6B;        /* Light terracotta — hover, glow */
+  --gold: #D4A843;                    /* Harvest gold — rewards, seeds, achievements */
+  --gold-light: #E8C97A;              /* Pale gold — highlights, shimmer */
+  --sage: #A8B5A0;                    /* Soft sage — secondary text, icons, borders */
+  --sage-light: #C5D1BF;              /* Pale sage — backgrounds, tags */
+  
+  /* === FUNCTIONAL COLORS === */
+  --health-thriving: #5A9E5A;         /* Vibrant green — 90-100 health */
+  --health-healthy: #8FB58F;          /* Soft green — 70-89 health */
+  --health-stressed: #D4A843;         /* Amber — 50-69 health */
+  --health-critical: #C45B4A;         /* Terracotta-red — 0-49 health */
+  
+  /* === BORDERS & SHADOWS === */
+  --border-light: rgba(44, 36, 25, 0.06);     /* Subtle warm borders */
+  --border-medium: rgba(44, 36, 25, 0.12);     /* Card borders */
+  --border-glow: rgba(90, 125, 90, 0.15);    /* Moss glow on focus/hover */
+  --shadow-sm: 0 1px 3px rgba(44, 36, 25, 0.04);
+  --shadow-md: 0 4px 12px rgba(44, 36, 25, 0.08);
+  --shadow-lg: 0 8px 24px rgba(44, 36, 25, 0.12);
+  --shadow-xl: 0 16px 48px rgba(44, 36, 25, 0.16);
+  --shadow-glow-moss: 0 0 20px rgba(90, 125, 90, 0.2);
+  --shadow-glow-terracotta: 0 0 20px rgba(196, 112, 75, 0.2);
+  
+  /* === ANIMATION TIMING === */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+  --duration-ambient: 8000ms;
+  --theme-transition: all 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === NIGHT MODE OVERRIDES === */
+:root[data-theme="night"] {
+  --bg-primary: #0F1419;              /* Deep slate/midnight */
+  --bg-secondary: #161A1D;            /* Dark charcoal */
+  --bg-tertiary: #1E2326;             /* Medium charcoal */
+  --bg-glass: rgba(22, 26, 29, 0.82);  /* Transparent dark charcoal */
+  
+  --text-bark: #FAF7F2;               /* Cream for readability */
+  --text-stone: #A8B5A0;              /* Soft sage for secondary descriptions */
+  --text-muted: #7E8D76;              /* Muted green-gray */
+  
+  --border-light: rgba(255, 255, 255, 0.06);
+  --border-medium: rgba(255, 255, 255, 0.12);
+  --border-glow: rgba(143, 181, 143, 0.15);
+  
+  --moss: #8FB58F;                    /* Slightly lighter/more glowing green in night */
+  --moss-light: #A8C9A8;
+  --moss-dark: #709470;
+  
+  --terracotta: #E07A5F;              /* Brighter terracotta for dark background contrast */
+  --terracotta-light: #EB9A83;
+}

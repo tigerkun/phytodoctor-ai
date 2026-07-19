@@ -1,0 +1,11 @@
+{
+  "name": "Botanical Guardian v1.0",
+  "description": "Production-ready preventive plant health platform. Secure, offline-first health tracking with deterministic visual drift detection and species-specific profiling.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

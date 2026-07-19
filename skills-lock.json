@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "vertaaux": {
+      "source": "VertaaUX/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/vertaaux/SKILL.md",
+      "computedHash": "0320114d146183e96e7751ba46c3f9214de070be7c36d0358a5e289741b9e10a"
+    }
+  }
+}

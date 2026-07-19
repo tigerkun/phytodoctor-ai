@@ -1,0 +1,62 @@
+/* Transition helpers for smooth day/night changes */
+.transition-colors {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 1.2s;
+}
+
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 1.2s;
+}
+
+/* Ensure background gradients transition smoothly */
+.bg-gradient-transition {
+  transition: background 1.2s ease;
+}
+
+/* For elements that should maintain their position during transitions */
+.transition-preserve {
+  transition: transform 1.2s ease, opacity 1.2s ease;
+}
+
+/* Specific transitions for animated elements */
+.ambient-transition {
+  transition: opacity 1.2s ease-in-out;
+}
+
+/* Text transitions */
+.text-transition {
+  transition: color 1.2s ease;
+}
+
+/* Border transitions */
+.border-transition {
+  transition: border-color 1.2s ease;
+}
+
+/* Shadow transitions */
+.shadow-transition {
+  transition: box-shadow 1.2s ease;
+}
+
+/* Transform transitions (for scaling, moving, etc.) */
+.transform-transition {
+  transition: transform 1.2s ease;
+}
+
+/* Opacity transitions */
+.opacity-transition {
+  transition: opacity 1.2s ease;
+}
+
+/* Ensure root element transitions properly */
+html {
+  transition: background-color 1.2s ease, color 1.2s ease;
+}
+
+/* Body transitions */
+body {
+  transition: background-color 1.2s ease, color 1.2s ease, background-image 1.2s ease;
+}

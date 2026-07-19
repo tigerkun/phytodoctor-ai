@@ -1,0 +1,158 @@
+/* ─── Canopy System: 50 high-density leaf particles ─────────────────────── */
+@keyframes canopy-fall {
+  0%   { transform: translateY(-12vh) translateX(0)    rotate(0deg)   scale(0.85); opacity: 0; }
+  20%  { transform: translateY(20vh)  translateX(35px)  rotate(80deg)  scale(1.08); opacity: 0.85; }
+  40%  { transform: translateY(42vh)  translateX(-30px) rotate(200deg) scale(1.12); opacity: 0.9; }
+  60%  { transform: translateY(65vh)  translateX(50px)  rotate(310deg) scale(1.05); opacity: 0.85; }
+  80%  { transform: translateY(88vh)  translateX(-20px) rotate(400deg) scale(0.95); opacity: 0.6; }
+  100% { transform: translateY(115vh) translateX(10px)  rotate(500deg) scale(0.85); opacity: 0; }
+}
+
+/* ─── The 50 canopy leaf particles ─────────────────────────────────────── */
+.canopy-leaf {
+  position: absolute;
+  border-radius: 0 100% 0 100%;
+  pointer-events: none;
+  opacity: 0;
+  animation: canopy-fall infinite ease-in-out backwards;
+  will-change: transform, opacity;
+  box-shadow: 0 0 6px rgba(82, 121, 111, 0.25);
+  filter: drop-shadow(0 2px 4px rgba(27, 67, 50, 0.18));
+  backface-visibility: hidden;
+  top: -60px;
+}
+
+/* ─── Petal fall — 2x former density (24 petals) ─────────────────────── */
+@keyframes petal-fall {
+  0%   { transform: translateY(-6vh)  rotate(0deg)   scale(0.8); opacity: 0;    }
+  10%  { opacity: 0.65; }
+  85%  { opacity: 0.55; }
+  100% { transform: translateY(108vh) rotate(720deg) scale(0.6); opacity: 0;    }
+}
+
+.petal {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: radial-gradient(circle, #FFB7C5 0%, #FFC0CB 100%);
+  border-radius: 50% 0 50% 50%;
+  filter: blur(0.5px);
+  animation: petal-fall linear infinite backwards;
+  box-shadow: 0 0 5px rgba(255,183,197,0.35);
+  top: -20px;
+}
+
+/* ─── Pollen drift — 2x former density (8 particles) ─────────────────── */
+@keyframes pollen-drift {
+  0%   { transform: translate(-3vw, -5vh)  rotate(0deg)   scale(0.7); opacity: 0;  }
+  15%  { opacity: 0.55; }
+  85%  { opacity: 0.45; }
+  100% { transform: translate(8vw, -105vh) rotate(540deg) scale(0.5); opacity: 0;  }
+}
+
+.pollen {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: radial-gradient(circle, #FFFACD 0%, #FFE55C 100%);
+  border-radius: 50%;
+  filter: blur(0.5px);
+  animation: pollen-drift linear infinite backwards;
+  box-shadow: 0 0 4px rgba(255,250,205,0.50);
+}
+
+/* ─── Light rays — 2x width + brighter ─────────────────────────────────── */
+@keyframes ray-shift {
+  0%, 100% { transform: rotate(-8deg) scaleY(1);   opacity: 0.50; }
+  40%       { transform: rotate( 6deg) scaleY(1.1); opacity: 0.75; }
+  70%       { transform: rotate(-4deg) scaleY(0.9); opacity: 0.55; }
+}
+
+.light-ray {
+  position: absolute;
+  top: -15%;
+  width: 55vw;
+  height: 160vh;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.28) 0%,
+    rgba(255,255,255,0.08) 40%,
+    transparent 100%
+  );
+  transform-origin: top center;
+  animation: ray-shift 12s ease-in-out infinite backwards;
+  pointer-events: none;
+  filter: blur(0.5px);
+}
+
+/* ─── Sway — bolder movement ─────────────────────────────────────────── */
+@keyframes sway {
+  0%, 100% { transform: rotate(-4deg) scale(1);    }
+  35%       { transform: rotate( 3deg) scale(1.02); }
+  70%       { transform: rotate(-2deg) scale(0.98); }
+}
+
+/* ─── Globe context — subtle green tint for particles to foreground ─────── */
+.ambient-canvas-tint {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 80% 60% at 50% 40%,
+    rgba(93, 112, 82, 0.04) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── Ambient base styles ───────────────────────────────────────────────── */
+.ambient-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+  background: transparent;
+}
+
+.ambient-depth-layer {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 65% 55% at 25% 75%, rgba(255,248,200,0.72) 0%, transparent 65%),
+    radial-gradient(ellipse 45% 60% at 80% 25%, rgba(255,248,200,0.48) 0%, transparent 60%);
+  animation: gentle-bloom 16s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.leaf-overlay {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-image: url('https://www.transparenttextures.com/patterns/leaves.png');
+  opacity: 0.055;
+  animation: sway 10s ease-in-out infinite;
+}
+
+/* ─── gentle-bloom: slower, wider radial pulse ───────────────────────── */
+@keyframes gentle-bloom {
+  0%, 100% { opacity: 0.22; transform: scale(1)    translate(0,   0) rotate(0deg);   }
+  50%       { opacity: 0.42; transform: scale(1.12) translate(-2%, 2%) rotate(5deg); }
+}
+
+.animate-gentle-bloom {
+  animation: gentle-bloom 16s ease-in-out infinite;
+}
+
+/* ─── dapple-overlay: brighter, more diffuse ───────────────────────────── */
+.dapple-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 60%, rgba(255,248,210,0.75) 0%, transparent 65%),
+    radial-gradient(ellipse 50% 65% at 80% 30%, rgba(255,248,210,0.55) 0%, transparent 60%);
+  animation: gentle-bloom 20s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: 1;
+}

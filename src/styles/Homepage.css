@@ -1,0 +1,135 @@
+/* Homepage-specific styles using the new garden palette */
+
+/* Ensure smooth transitions for theme changes */
+* {
+  transition: background-color 1.2s ease,
+              color 1.2s ease,
+              border-color 1.2s ease,
+              box-shadow 1.2s ease;
+}
+
+/* Override transition for specific elements that need different timing */
+.ambient-background,
+.floating-elements {
+  transition: opacity 1.2s ease-in-out;
+}
+
+/* Ensure text remains readable during transitions */
+.text-bark {
+  color: var(--text-bark);
+}
+
+.text-stone {
+  color: var(--text-stone);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+/* Card backgrounds */
+.card-bg {
+  background-color: var(--bg-card);
+}
+
+/* Accent colors */
+.moss {
+  color: var(--moss);
+}
+
+.terracotta {
+  color: var(--terracotta);
+}
+
+.gold {
+  color: var(--gold);
+}
+
+/* Health colors */
+.health-good {
+  color: var(--health-good);
+}
+
+.health-warn {
+  color: var(--health-warn);
+}
+
+.health-bad {
+  color: var(--health-bad);
+}
+
+/* Glow effects */
+.glow {
+  box-shadow: 0 0 20px var(--moss);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .hero-section {
+    flex-direction: column;
+  }
+  
+  .hero-section > * {
+    width: 100% !important;
+    min-height: auto !important;
+  }
+  
+  .suggestions-carousel {
+    padding-bottom: 20px;
+  }
+  
+  .suggestions-carousel > div {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Animation for day/night transition of ambient elements */
+.day-to-night .ambient-background .cloud-layer,
+.day-to-night .ambient-background .sun-rays,
+.day-to-night .ambient-background .pollen-layer {
+  opacity: 0;
+  transition: opacity 1.2s ease-out;
+}
+
+.night-to-day .ambient-background .star-layer,
+.night-to-day .ambient-background .moon,
+.night-to-day .ambient-background .firefly-layer {
+  opacity: 0;
+  transition: opacity 1.2s ease-out;
+}
+
+/* Floating elements transition */
+.day-to-night .floating-elements .bird-layer,
+.day-to-night .floating-elements .leaf-layer,
+.day-to-night .floating-elements .butterfly,
+.day-to-night .floating-elements .gardener {
+  opacity: 0;
+  transition: opacity 1.2s ease-out;
+}
+
+.night-to-day .floating-elements .firefly-layer-night,
+.night-to-day .floating-elements .moth,
+.night-to-day .floating-elements .owl,
+.night-to-day .floating-elements .gardener-night {
+  opacity: 0;
+  transition: opacity 1.2s ease-out;
+}
+
+/* Apply the background gradient via the root element */
+html[data-theme="day"] {
+  --bg-color: var(--bg-cream);
+}
+
+html[data-theme="night"] {
+  --bg-color: var(--bg-cream); /* Note: we are using --bg-cream for night too, which is now dark */
+}
+
+/* Apply background gradient */
+body[data-theme="day"] {
+  background: var(--bg-cream);
+}
+
+body[data-theme="night"] {
+  background: var(--bg-cream);
+}

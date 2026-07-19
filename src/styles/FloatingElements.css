@@ -1,0 +1,256 @@
+.floating-elements {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Day: Bird layer */
+.bird-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.bird {
+  position: absolute;
+  width: 60px;
+  height: 40px;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60"><path fill="%232D2A26" d="M0,30 Q25,10 50,30 T100,30"/></svg>');
+  background-size: contain;
+  background-repeat: no-repeat;
+  opacity: 0.7;
+  animation: bird-fly 15s linear infinite;
+}
+
+.bird:nth-child(2) {
+  animation-delay: 5s;
+  width: 50px;
+  height: 33px;
+  top: 20%;
+  left: -15%;
+}
+
+.bird:nth-child(3) {
+  animation-delay: 10s;
+  width: 70px;
+  height: 47px;
+  top: 10%;
+  left: -25%;
+}
+
+@keyframes bird-fly {
+  0% {
+    transform: translateX(-100%) translateY(0);
+  }
+  100% {
+    transform: translateX(120vw) translateY(0);
+  }
+}
+
+/* Day: Falling leaves */
+.leaf-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.falling-leaf {
+  position: absolute;
+  top: -10%;
+  width: 30px;
+  height: 30px;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30"><path fill="%235A7A5A" d="M15,0 C22,5 22,15 15,20 C8,15 8,5 15,0 Z"/></svg>');
+  background-size: contain;
+  opacity: 0.6;
+  animation: leaf-fall 10s ease-in-out infinite;
+}
+
+.falling-leaf:nth-child(even) {
+  animation-delay: 5s;
+  left: 20%;
+}
+
+.falling-leaf:nth-child(odd) {
+  left: 60%;
+}
+
+@keyframes leaf-fall {
+  0% {
+    transform: translateY(-10%) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  90% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(110vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* Day: Butterfly */
+.butterfly {
+  position: absolute;
+  bottom: 20%;
+  left: 50%;
+  width: 40px;
+  height: 30px;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 30"><path fill="%235A7A5A" d="M20,0 C15,-5 10,5 10,15 C10,25 20,30 20,30 C20,30 25,25 25,15 C25,5 20,0 20,0 Z"/><path fill="%235A7A5A" d="M20,0 C25,-5 30,5 30,15 C30,25 20,30 20,30 C20,30 15,25 15,15 C15,5 20,0 20,0 Z"/></svg>');
+  background-size: contain;
+  opacity: 0.7;
+  animation: butterfly 6s ease-in-out infinite;
+}
+
+@keyframes butterfly {
+  0%, 100% {
+    transform: translate(-50%, 0) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -10px) scale(1.1);
+  }
+}
+
+/* Day: Gardener waving */
+.gardener {
+  position: absolute;
+  bottom: 10%;
+  right: 10%;
+  width: 50px;
+  height: 60px;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 60"><path fill="%232D2A26" d="M25,0 C20,5 20,15 25,20 C30,15 30,5 25,0 Z M25,20 C20,25 20,35 25,40 C30,35 30,25 25,20 Z M25,40 C20,45 20,55 25,60 C30,55 30,45 25,40 Z"/></svg>');
+  background-size: contain;
+  opacity: 0.8;
+  animation: gardener-wave 3s ease-in-out infinite;
+}
+
+@keyframes gardener-wave {
+  0%, 100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  50% {
+    transform: translateX(-10px) rotate(10deg);
+  }
+}
+
+/* Night: Firefly layer */
+.firefly-layer-night {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.firefly-night {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: radial-gradient(circle, #a8b5a0 0%, rgba(168, 181, 160, 0) 70%);
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(168, 181, 160, 0.5);
+  opacity: 0;
+  animation: firefly-float-night 5s ease-in-out infinite;
+}
+
+.firefly-night:nth-child(odd) {
+  animation-delay: 2.5s;
+}
+
+@keyframes firefly-float-night {
+  0%, 100% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    opacity: 0.7;
+    transform: translate(30px, -30px) rotate(45deg);
+  }
+}
+
+/* Night: Moth circling light */
+.moth {
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  width: 30px;
+  height: 20px;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 20"><path fill="%23A8B5A0" d="M15,0 C10,-5 5,5 5,15 C5,25 15,30 15,30 C15,30 20,25 20,15 C20,5 15,0 15,0 Z"/></svg>');
+  background-size: contain;
+  opacity: 0.6;
+  animation: moth-circle 10s linear infinite;
+}
+
+@keyframes moth-circle {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* Night: Owl blinking */
+.owl {
+  position: absolute;
+  top: 10%;
+  right: 10%;
+  width: 50px;
+  height: 50px;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50"><path fill="%232D2A26" d="M25,5 C20,5 15,10 15,20 C15,30 25,40 35,30 35,20 30,10 25,5 Z M18,20 C16,18 16,22 18,20 Z M32,20 C30,18 30,22 32,20 Z"/></svg>');
+  background-size: contain;
+  opacity: 0.7;
+  animation: owl-blink 4s ease-in-out infinite;
+}
+
+@keyframes owl-blink {
+  0%, 100% {
+    transform: scaleY(1);
+  }
+  20%, 30% {
+    transform: scaleY(0.1);
+  }
+}
+
+/* Night: Gardener with lantern */
+.gardener-night {
+  position: absolute;
+  bottom: 10%;
+  left: 10%;
+  width: 50px;
+  height: 60px;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 60"><path fill="%23F5F0E8" d="M25,0 C20,5 20,15 25,20 C30,15 30,5 25,0 Z M25,20 C20,25 20,35 25,40 C30,35 30,25 25,20 Z M25,40 C20,45 20,55 25,60 C30,55 30,45 25,40 Z M22,10 L28,10 L28,20 L22,20 Z M25,0 L25,-10"/></svg>');
+  background-size: contain;
+  opacity: 0.8;
+  animation: gardener-night-sway 4s ease-in-out infinite;
+}
+
+@keyframes gardener-night-sway {
+  0%, 100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  50% {
+    transform: translateX(5px) rotate(-5deg);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .bird {
+    width: 50px;
+    height: 33px;
+  }
+  
+  .gardener,
+  .gardener-night {
+    width: 40px;
+    height: 48px;
+  }
+  
+  .owl {
+    width: 40px;
+    height: 40px;
+  }
+}
