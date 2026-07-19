@@ -15,7 +15,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const isAuthPage = location.pathname === '/auth';
+  const isAuthPage = location.pathname.startsWith('/auth');
 
   // Auth guard: redirect to /auth if not logged in
   React.useEffect(() => {

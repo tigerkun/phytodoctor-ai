@@ -177,11 +177,8 @@ export default function Profile() {
                  </button>
               </div>
               
-              <div className="space-y-4">
-                 <ActivityItem type="checkin" title="Deep Check-in" time="2h ago" seeds={15} />
-                 <ActivityItem type="arena" title="Care-Off Victory" time="6h ago" seeds={100} />
-                 <ActivityItem type="market" title="Purchased Frame" time="Yesterday" seeds={-250} />
-                 <ActivityItem type="growth" title="Level Up: Fern" time="2 days ago" seeds={50} />
+              <div className="space-y-4 text-center">
+                 <p className="text-sm text-garden-earth/50 italic py-4">No recent activity found. Start logging check-ins to build your history!</p>
               </div>
 
               {/* Settings & Danger Zone */}
@@ -192,20 +189,20 @@ export default function Profile() {
                 </h3>
                 
                 <button 
-                  onClick={async () => {
-                    if (confirm('Are you sure you want to log out?')) {
+                  onClick={() => {
+                    if (confirm('Are you sure you want to sign out?')) {
                       localStorage.removeItem('botanical_guardian_auth_token');
                       localStorage.removeItem('botanical_guardian_onboarded');
-                      // Reset profile so next login is clean
-                      await db.userProfile.clear();
-                      await db.plants.clear();
-                      await db.cards.clear();
+                      localStorage.removeItem('botanical_guardian_userId');
+                      localStorage.removeItem('botanical_guardian_user_email');
+                      localStorage.removeItem('botanical_guardian_user_name');
+                      // We DO NOT clear the DB here because IndexedDB stores multi-user data.
                       window.location.href = '/auth';
                     }
                   }}
                   className="w-full py-4 px-6 bg-red-50 text-red-600 font-bold rounded-2xl flex items-center justify-between hover:bg-red-100 transition-colors"
                 >
-                  <span>Sign Out & Clear Local Data</span>
+                  <span>Sign Out</span>
                   <LogOut size={18} />
                 </button>
               </div>
