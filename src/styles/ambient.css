@@ -156,3 +156,8 @@
   pointer-events: none;
   z-index: 1;
 }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) translateX(0px); }
+  50% { transform: translateY(-30px) translateX(15px); }
+}

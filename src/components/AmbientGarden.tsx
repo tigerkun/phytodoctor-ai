@@ -1,21 +1,21 @@
 import React from 'react';
 import { useEcoMode } from '../hooks/useEcoMode';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
+import { motion, AnimatePresence } from 'framer-motion';
 import '../styles/ambient.css';
 
 /**
  * AmbientGarden
- * Global Full-Viewport Canopy Layer — 50 high-visibility mid-sage leaf nodes
- * falling with @keyframes canopy-fall physics spec (7s–15s, ease-in-out).
- *
- * Total particle call: 50 canopy leaves + 20 petals + 8 pollen + 5 light rays
- * = 83 animated particles continuously looping across the viewport.
+ * A majestic 4-state background layer (Morning, Day, City, Night).
+ * Renders distinct visual moods and particle systems based on the ambientScene.
  */
 export default function AmbientGarden() {
   const { shouldDisableAnimations } = useEcoMode();
-  const { theme } = useDayNightTheme();
+  const { ambientScene } = useDayNightTheme();
+  
   if (shouldDisableAnimations) return null;
-  // 16 leaf particles — staggered layout + speed/delay variance for a subtle background drift
+
+  // ── Canopy Leaves ──
   const leaves = [
     { left: 5,   duration:  9.5, delay: 0.0  },
     { left: 12,  duration: 12.0, delay: 2.5  },
@@ -29,142 +29,199 @@ export default function AmbientGarden() {
     { left: 72,  duration:  8.5, delay: 4.5  },
     { left: 80,  duration: 12.5, delay: 13.0 },
     { left: 88,  duration: 10.0, delay: 8.0  },
-    { left: 95,  duration: 14.0, delay: 15.0 },
-    { left: 15,  duration: 11.0, delay: 17.5 },
-    { left: 55,  duration:  9.8, delay: 19.0 },
-    { left: 75,  duration: 13.5, delay: 21.0 },
   ];
 
-  // Rich mid-sage / deep-green palette — saturated for cream (#FDFCF6) readability
   const leafTints = [
-    'rgba(82, 121, 111, 0.85)',   // #52796F — primary mid-sage
+    'rgba(82, 121, 111, 0.85)',   // primary mid-sage
     'rgba(61,  99,  83, 0.82)',   // deep forest green
-    'rgba(93, 154, 106, 0.80)',   // #5D9E72 — live sage
-    'rgba(45,  80,  65, 0.88)',   // near-black forest
-    'rgba(116,165,127, 0.78)',   // #74A57F — bright sage
+    'rgba(93, 154, 106, 0.80)',   // live sage
+    'rgba(116,165,127, 0.78)',    // bright sage
   ];
 
   return (
     <div className="ambient-container" aria-hidden="true" id="ambient-garden-root">
+      
+      {/* ── Base Texture Overlay ── */}
       <div className="leaf-overlay" id="ambient-leaf-overlay" />
 
-      {/* ── Canopy: 16 falling organic leaf nodes ─────────────────── */}
-      {leaves.map((leaf, i) => {
-        const size = 24 + ((i * 7) % 33); // 24–57px spread
-        const tint = leafTints[i % leafTints.length];
-        return (
-          <div
-            key={`canopy-leaf-${i}`}
-            className="canopy-leaf"
-            style={{
-              left: `${leaf.left}%`,
-              animationDuration: `${leaf.duration}s`,
-              animationDelay: `${leaf.delay}s`,
-              width: `${size}px`,
-              height: `${size}px`,
-              borderRadius: '0 100% 0 100%',
-              background: `radial-gradient(circle, ${tint} 0%, ${tint.replace(/[\d.]+\)$/, '0.10)')} 60%, transparent 100%)`,
-              opacity: 0,
-            }}
-          />
-        );
-      })}
+      {/* ── MORNING SCENE ── */}
+      {ambientScene === 'morning' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 2 }}>
+          {/* Soft Golden Sunrise Gradient */}
+          <div className="absolute inset-0 bg-gradient-to-br from-[#FFE5B4]/40 via-transparent to-[#FFB7C5]/20 pointer-events-none mix-blend-overlay" />
+          
+          {/* Light Rays */}
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={`morning-ray-${i}`}
+              className="light-ray"
+              style={{
+                left: `${10 + i * 25}%`,
+                animationDelay: `${i * 3}s`,
+                opacity: 0.3 + Math.random() * 0.3,
+                width: `${40 + Math.random() * 20}vw`,
+                background: 'linear-gradient(180deg, rgba(255,235,180,0.8) 0%, rgba(255,235,180,0) 100%)',
+              }}
+            />
+          ))}
 
-      {/* ── 12 Floating Petals ──────────────────────────────────── */}
-      {Array.from({ length: 12 }).map((_, i) => (
-        <div
-          key={`petal-${i}`}
-          className="petal"
-          style={{
-            left: `${(i * 23 + 3) % 100}%`,
-            animationDuration: `${8 + Math.random() * 10}s`,
-            animationDelay: `${Math.random() * 15}s`,
-            opacity: 0.40 + Math.random() * 0.30,
-          }}
-        />
-      ))}
+          {/* Drifting Pollen */}
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div
+              key={`morning-pollen-${i}`}
+              className="pollen"
+              style={{
+                left: `${(i * 17) % 100}%`,
+                bottom: `${(Math.random() * 30)}%`,
+                animationDuration: `${12 + Math.random() * 10}s`,
+                animationDelay: `${Math.random() * 10}s`,
+                opacity: 0.5 + Math.random() * 0.4,
+              }}
+            />
+          ))}
+          
+          {/* Floating Petals */}
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={`morning-petal-${i}`}
+              className="petal"
+              style={{
+                left: `${(i * 29) % 100}%`,
+                animationDuration: `${10 + Math.random() * 8}s`,
+                animationDelay: `${Math.random() * 15}s`,
+                opacity: 0.6 + Math.random() * 0.3,
+              }}
+            />
+          ))}
+        </motion.div>
+      )}
 
-      {/* ── 6 Drifting Pollen Particles ───────────────────────────── */}
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div
-          key={`pollen-${i}`}
-          className="pollen"
-          style={{
-            left: `${(i * 19 + 7) % 100}%`,
-            bottom: `${(Math.random() * 25).toFixed(0)}%`,
-            animationDuration: `${16 + Math.random() * 12}s`,
-            animationDelay: `${Math.random() * 18}s`,
-            opacity: 0.35 + Math.random() * 0.30,
-          }}
-        />
-      ))}
 
-      {theme === 'day' ? (
-        <>
-          {/* ── Day: 3 Visible Sunlight Rays ─────────────────────────────────── */}
+      {/* ── DAY SCENE ── */}
+      {ambientScene === 'day' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 2 }}>
+          {/* Crisp Light Green Depth Haze */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#FDFCF6]/0 via-transparent to-garden-cream/40 pointer-events-none" />
+          
+          {/* Dappled Sunlight */}
+          <div className="dapple-overlay opacity-[0.85] mix-blend-soft-light" />
+          
+          {/* Falling Leaves */}
+          {leaves.map((leaf, i) => {
+            const size = 28 + ((i * 7) % 30);
+            const tint = leafTints[i % leafTints.length];
+            return (
+              <div
+                key={`day-leaf-${i}`}
+                className="canopy-leaf"
+                style={{
+                  left: `${leaf.left}%`,
+                  animationDuration: `${leaf.duration}s`,
+                  animationDelay: `${leaf.delay}s`,
+                  width: `${size}px`,
+                  height: `${size}px`,
+                  background: `radial-gradient(circle, ${tint} 0%, ${tint.replace(/[\d.]+\)$/, '0.10)')} 60%, transparent 100%)`,
+                }}
+              />
+            );
+          })}
+          
+          {/* Bold Sun Rays */}
           {Array.from({ length: 3 }).map((_, i) => (
             <div
-              key={`ray-${i}`}
+              key={`day-ray-${i}`}
               className="light-ray"
               style={{
                 left: `${15 + i * 30}%`,
                 animationDelay: `${i * 4}s`,
-                opacity: 0.40 + Math.random() * 0.25,
-                width: `${30 + Math.random() * 20}vw`,
-                background: 'linear-gradient(180deg, rgba(255,245,210,0.8) 0%, rgba(255,245,210,0) 100%)',
+                opacity: 0.5 + Math.random() * 0.2,
+                width: `${35 + Math.random() * 20}vw`,
+                background: 'linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 100%)',
               }}
             />
           ))}
+        </motion.div>
+      )}
 
-          {/* ── Day: Gentle green depth-haze over viewport ── */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#FDFCF6]/0 via-transparent to-garden-cream/30 pointer-events-none transition-colors duration-1000" />
 
-          {/* ── Day: Dappled sunlight overlay ────────────────────────────── */}
-          <div className="dapple-overlay opacity-[0.75] mix-blend-soft-light transition-opacity duration-1000" />
-        </>
-      ) : (
-        <>
-          {/* ── Night: Moonlight Glow ─────────────────────────────────── */}
-          <div className="absolute top-0 right-[20%] w-[50vw] h-[50vw] bg-indigo-500/20 rounded-full blur-[120px] pointer-events-none mix-blend-screen transition-opacity duration-1000" />
-          <div className="absolute top-[-10%] right-[25%] w-[30vw] h-[30vw] bg-blue-300/30 rounded-full blur-[80px] pointer-events-none mix-blend-screen transition-opacity duration-1000" />
+      {/* ── CITY SCENE ── */}
+      {ambientScene === 'city' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 2 }}>
+          {/* Neon Twilight Glow */}
+          <div className="absolute inset-0 bg-gradient-to-br from-[#120B21]/80 via-[#1A1230]/70 to-[#0F1C2E]/90 pointer-events-none" />
+          
+          {/* Vaporwave / Neon Light Blooms */}
+          <div className="absolute top-[-10%] left-[10%] w-[40vw] h-[40vw] bg-pink-500/10 rounded-full blur-[100px] pointer-events-none mix-blend-screen" />
+          <div className="absolute bottom-[-10%] right-[10%] w-[50vw] h-[50vw] bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
+          <div className="absolute top-[30%] right-[-10%] w-[30vw] h-[30vw] bg-purple-500/10 rounded-full blur-[80px] pointer-events-none mix-blend-screen" />
 
-          {/* ── Night: Deep Indigo Depth-Haze ── */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0B1021]/60 via-transparent to-[#0B1021]/80 pointer-events-none transition-colors duration-1000" />
-
-          {/* ── Night: Fireflies (Replaces Pollen glow) ── */}
-          {Array.from({ length: 15 }).map((_, i) => (
+          {/* Urban Digital Sparks (Recolored Pollen) */}
+          {Array.from({ length: 20 }).map((_, i) => (
             <div
-              key={`firefly-${i}`}
-              className="absolute w-1.5 h-1.5 bg-green-200 rounded-full blur-[1px]"
+              key={`city-spark-${i}`}
+              className="pollen"
               style={{
-                left: `${Math.random() * 100}%`,
-                bottom: `${Math.random() * 60}%`,
-                animation: `float ${8 + Math.random() * 10}s infinite ease-in-out`,
-                animationDelay: `${Math.random() * 5}s`,
-                opacity: 0.4 + Math.random() * 0.6,
-                boxShadow: '0 0 8px 2px rgba(134, 239, 172, 0.8)',
+                left: `${(i * 11) % 100}%`,
+                bottom: `${(Math.random() * 50)}%`,
+                animationDuration: `${8 + Math.random() * 8}s`,
+                animationDelay: `${Math.random() * 10}s`,
+                opacity: 0.4 + Math.random() * 0.5,
+                background: i % 2 === 0 
+                  ? 'radial-gradient(circle, #00FFFF 0%, #0088FF 100%)' 
+                  : 'radial-gradient(circle, #FF00FF 0%, #AA00FF 100%)',
+                boxShadow: i % 2 === 0 ? '0 0 8px #00FFFF' : '0 0 8px #FF00FF'
               }}
             />
           ))}
+        </motion.div>
+      )}
 
-          {/* ── Night: Stars ── */}
+
+      {/* ── NIGHT SCENE ── */}
+      {ambientScene === 'night' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 2 }}>
+          {/* Deep Indigo Space Haze */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#040814]/90 via-[#0A1128]/80 to-[#040814]/95 pointer-events-none" />
+          
+          {/* Moonlight Glow */}
+          <div className="absolute top-[-5%] right-[15%] w-[40vw] h-[40vw] bg-blue-300/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
+          
+          {/* Stars */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-             {Array.from({ length: 30 }).map((_, i) => (
+             {Array.from({ length: 45 }).map((_, i) => (
                <div
                  key={`star-${i}`}
-                 className="absolute w-0.5 h-0.5 bg-white rounded-full"
+                 className="absolute w-[2px] h-[2px] bg-white rounded-full"
                  style={{
                    left: `${Math.random() * 100}%`,
                    top: `${Math.random() * 100}%`,
                    opacity: Math.random(),
-                   animation: `pulse ${2 + Math.random() * 3}s infinite`,
-                   animationDelay: `${Math.random() * 5}s`
+                   animation: `pulse ${1.5 + Math.random() * 3}s infinite`,
+                   animationDelay: `${Math.random() * 5}s`,
+                   boxShadow: Math.random() > 0.8 ? '0 0 4px 1px rgba(255,255,255,0.8)' : 'none'
                  }}
                />
              ))}
           </div>
-        </>
+
+          {/* Fireflies */}
+          {Array.from({ length: 18 }).map((_, i) => (
+            <div
+              key={`night-firefly-${i}`}
+              className="absolute w-1.5 h-1.5 bg-[#A7F3D0] rounded-full blur-[1px]"
+              style={{
+                left: `${Math.random() * 100}%`,
+                bottom: `${Math.random() * 60}%`,
+                animation: `float ${7 + Math.random() * 8}s infinite ease-in-out`,
+                animationDelay: `${Math.random() * 5}s`,
+                opacity: 0.3 + Math.random() * 0.7,
+                boxShadow: '0 0 10px 2px rgba(16, 185, 129, 0.8)',
+              }}
+            />
+          ))}
+        </motion.div>
       )}
+
     </div>
   );
 }
