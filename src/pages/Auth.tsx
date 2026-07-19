@@ -95,7 +95,7 @@ export default function Auth() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Full Name"
-                    className="w-full pl-12 pr-4 py-4 bg-white/50 border border-[var(--garden-olive)]/20 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/30 focus:border-[var(--garden-sage)]/50 transition-all font-medium"
+                    className="w-full pl-12 pr-4 py-4 bg-white/70 text-gray-900 placeholder-gray-500 border border-[var(--garden-olive)]/30 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/50 focus:border-[var(--garden-sage)] transition-all font-bold"
                   />
                 </motion.div>
               )}
@@ -109,7 +109,7 @@ export default function Auth() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email Address"
-                className="w-full pl-12 pr-4 py-4 bg-white/50 border border-[var(--garden-olive)]/20 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/30 focus:border-[var(--garden-sage)]/50 transition-all font-medium"
+                className="w-full pl-12 pr-4 py-4 bg-white/70 text-gray-900 placeholder-gray-500 border border-[var(--garden-olive)]/30 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/50 focus:border-[var(--garden-sage)] transition-all font-bold"
               />
             </div>
 
@@ -121,7 +121,7 @@ export default function Auth() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
-                className="w-full pl-12 pr-4 py-4 bg-white/50 border border-[var(--garden-olive)]/20 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/30 focus:border-[var(--garden-sage)]/50 transition-all font-medium"
+                className="w-full pl-12 pr-4 py-4 bg-white/70 text-gray-900 placeholder-gray-500 border border-[var(--garden-olive)]/30 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/50 focus:border-[var(--garden-sage)] transition-all font-bold"
               />
             </div>
 
