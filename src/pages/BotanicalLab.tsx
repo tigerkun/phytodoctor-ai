@@ -173,8 +173,9 @@ export default function BotanicalLab() {
   const { transitionTo } = usePageTransition();
 
   // Real Database Hooks
-  const profile = useLiveQuery(() => GameService.getProfile());
-  const dbPlants = useLiveQuery(() => db.plants.toArray()) || [];
+  const userId = GameService.getUserId();
+  const profile = useLiveQuery(() => GameService.getProfile(userId), [userId]);
+  const dbPlants = useLiveQuery(() => db.plants.where('userId').equals(userId).toArray(), [userId]) || [];
   const checkins = useLiveQuery(() => db.checkins.toArray()) || [];
 
   // Update tab if URL params change

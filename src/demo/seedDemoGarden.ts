@@ -121,14 +121,17 @@ export const DEMO_PROFILES = {
   }
 };
 
-export async function seedDemoGarden(profileKey: keyof typeof DEMO_PROFILES) {
+export async function seedDemoGarden(profileKey: keyof typeof DEMO_PROFILES, realUserId?: string) {
   const profileData = DEMO_PROFILES[profileKey];
+  const userId = realUserId ?? profileData.userId;
+
   
   // Seed User Profile
+  const storedName = localStorage.getItem('botanical_guardian_user_name') || profileData.username;
   await db.userProfile.put({
-    userId: profileData.userId,
-    username: profileData.username,
-    avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileData.username}`,
+    userId,
+    username: storedName,
+    avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${storedName}`,
     equippedTitle: profileKey === 'priya' ? 'Rarity Hunter' : profileKey === 'arjun' ? 'Consistent Caretaker' : 'The Comeback Kid',
     seeds: profileData.seeds,
     currentStreak: profileData.currentStreak,
@@ -146,7 +149,7 @@ export async function seedDemoGarden(profileKey: keyof typeof DEMO_PROFILES) {
     
     const plant: Plant = {
       id: plantId,
-      userId: profileData.userId,
+      userId,
       name: p.name,
       species: p.species,
       acquiredAt,
@@ -173,7 +176,7 @@ export async function seedDemoGarden(profileKey: keyof typeof DEMO_PROFILES) {
     // Create card with specific level/stats
     await db.cards.add({
         id: crypto.randomUUID(),
-        userId: profileData.userId,
+        userId,
         plantId,
         species: p.species,
         commonName: p.name,
@@ -233,9 +236,7 @@ export async function seedDemoGarden(profileKey: keyof typeof DEMO_PROFILES) {
     }
   }
 
-  // Set this user as active in localStorage for demo browsing
-  localStorage.setItem('botanical_guardian_userId', profileData.userId);
-  localStorage.setItem('botanical_guardian_demo_mode', 'true');
+  // Auth.tsx already sets localStorage keys — nothing to do here
 }
 
 export async function clearDemoData() {

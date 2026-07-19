@@ -1,9 +1,6 @@
 import React, { ReactNode } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import {
-  ShieldCheck, Star, Sword, Activity, ShoppingBag, MessageCircle, User, Sprout, X, Microscope
-} from 'lucide-react';
-import SystemAudit from './SystemAudit';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { MessageCircle } from 'lucide-react';
 import { NavigationBar } from './home/NavigationBar';
 import MobileBottomNav from './home/MobileBottomNav';
 import CursorGlow from './home/CursorGlow';
@@ -17,7 +14,16 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
-  const isActive = (path: string) => location.pathname === path;
+  const navigate = useNavigate();
+  const isAuthPage = location.pathname === '/auth';
+
+  // Auth guard: redirect to /auth if not logged in
+  React.useEffect(() => {
+    const token = localStorage.getItem('botanical_guardian_auth_token');
+    if (!token && !isAuthPage) {
+      navigate('/auth', { replace: true });
+    }
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen flex flex-col font-sans relative overflow-x-hidden" id="app-shell" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
@@ -25,15 +31,19 @@ export default function Layout({ children }: LayoutProps) {
       <CursorGlow />
       <Leafify />
       <PageTransitionProvider>
-        <NavigationBar />
-        <MobileBottomNav />
-        
+        {/* Only show nav when authenticated */}
+        {!isAuthPage && (
+          <>
+            <NavigationBar />
+            <MobileBottomNav />
+          </>
+        )}
+
         <main className="flex-grow relative z-10 w-full min-w-0 pb-28 md:pb-12 overflow-x-visible overflow-y-auto">
           {children}
         </main>
 
-        
-        <Footer />
+        {!isAuthPage && <Footer />}
       </PageTransitionProvider>
     </div>
   );

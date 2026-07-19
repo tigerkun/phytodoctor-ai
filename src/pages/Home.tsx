@@ -11,6 +11,7 @@ import SanctuaryHub from '@/components/home/SanctuaryHub';
 import { GardenCoach } from '@/components/home/GardenCoach';
 import { PlantGallery } from '@/components/home/PlantGallery';
 import { PlantProfileDrawer } from '@/components/home/PlantProfileDrawer';
+import { QuickstartGuide } from '@/components/home/QuickstartGuide';
 import { useTimeOfDay, getBackgroundGradient, type TimePeriod } from '@/hooks/useTimeOfDay';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
 import { useEcoMode } from '@/hooks/useEcoMode';
@@ -352,44 +353,13 @@ export default function HomePage() {
   const [timePeriodOverride, setTimePeriodOverride] = useState<TimePeriod | null>(null);
   const activeTimePeriod = timePeriodOverride || timeOfDay;
 
-  // Real database hooks
-  const dbPlants = useLiveQuery(() => db.plants.toArray());
-  const profile = useLiveQuery(() => GameService.getProfile());
+  // Real database hooks — scoped to current user
+  const userId = GameService.getUserId();
+  const dbPlants = useLiveQuery(() => db.plants.where('userId').equals(userId).toArray(), [userId]);
+  const profile = useLiveQuery(() => GameService.getProfile(userId), [userId]);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const forceRefreshProfile = () => setProfileRefreshKey(prev => prev + 1);
 
-  // Initialize DB with starter plants if empty
-  useEffect(() => {
-    async function initializeGarden() {
-      if (dbPlants && dbPlants.length === 0) {
-        const starterPlants = getMockPlants().map(p => ({
-          id: p.id,
-          userId: GameService.getUserId(),
-          species: p.species,
-          name: p.nickname,
-          status: 'Stable' as const,
-          guardianScore: p.healthScore,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          photoUrl: p.image,
-          checkInTime: 'recently',
-          acquiredAt: new Date(),
-          soilType: 'loamy' as const,
-          soilPh: 6.5,
-          potSize: 'Medium',
-          potMaterial: 'terracotta' as const,
-          location: 'Living Room',
-          latitude: null,
-          longitude: null,
-          hardinessZone: null,
-          baselineSignature: null,
-          isDemo: true
-        }));
-        await db.plants.bulkAdd(starterPlants);
-      }
-    }
-    initializeGarden();
-  }, [dbPlants]);
 
   // Map database plants — useMemo prevents recalculation on every render
   const mappedPlants = useMemo(() =>
@@ -495,6 +465,12 @@ export default function HomePage() {
           onAddPlant={() => {
             transitionTo('/lab?tab=dex', 'Botanical Lab');
           }}
+        />
+
+        {/* Quickstart Usage Manual & Top-Up Guide */}
+        <QuickstartGuide 
+          onAddPlant={() => transitionTo('/lab?tab=dex', 'Botanical Lab')}
+          onRefreshProfile={forceRefreshProfile}
         />
 
         {/* Sanctuary Hub */}

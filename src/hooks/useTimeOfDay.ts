@@ -58,7 +58,8 @@ export function useTimeOfDay() {
   }, [theme]);
 
   const getGreeting = () => {
-    const name = 'Priya';
+    const raw = localStorage.getItem('botanical_guardian_user_name') || '';
+    const name = raw.split(' ')[0] || 'Guardian';
     switch (timePeriod) {
       case 'dawn':
         return `Good morning, ${name}. Your garden is starting to wake up.`;

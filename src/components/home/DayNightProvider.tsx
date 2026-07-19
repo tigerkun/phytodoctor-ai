@@ -1,86 +1,90 @@
 import React, { createContext, useEffect, useState } from 'react';
 
+// 4 ambient scene modes as seen in the UI
 export type Theme = 'day' | 'night';
+export type AmbientScene = 'morning' | 'day' | 'city' | 'night';
 
 export interface DayNightContextType {
   theme: Theme;
+  ambientScene: AmbientScene;
+  setAmbientScene: (scene: AmbientScene) => void;
   toggleTheme: () => void;
   isAutomatic: boolean;
 }
 
 export const DayNightContext = createContext<DayNightContextType | undefined>(undefined);
 
-function getTimeOfDay(): Theme {
-  const now = new Date();
-  const hours = now.getHours();
-  
-  // 6 AM - 6 PM = day, 6 PM - 6 AM = night
+function getAutoTheme(): Theme {
+  const hours = new Date().getHours();
   return hours >= 6 && hours < 18 ? 'day' : 'night';
 }
 
+function getAutoScene(): AmbientScene {
+  const hours = new Date().getHours();
+  if (hours >= 5 && hours < 11) return 'morning';
+  if (hours >= 11 && hours < 19) return 'day';
+  return 'night';
+}
+
+// Map scene to base theme for CSS variable switching
+const SCENE_THEME: Record<AmbientScene, Theme> = {
+  morning: 'day',
+  day: 'day',
+  city: 'night',
+  night: 'night',
+};
+
 export function DayNightProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>('day');
-  const [manualOverride, setManualOverride] = useState<Theme | null>(null);
+  const [ambientScene, setAmbientSceneState] = useState<AmbientScene>('day');
   const [isAutomatic, setIsAutomatic] = useState(true);
   const [mounted, setMounted] = useState(false);
 
-  // Initialize theme on mount
+  // Initialize on mount
   useEffect(() => {
-    const storedTheme = localStorage.getItem('theme-override') as Theme | null;
-    const storedIsAutomatic = localStorage.getItem('theme-automatic');
-    
-    if (storedTheme) {
-      setManualOverride(storedTheme);
-      setTheme(storedTheme);
+    const storedScene = localStorage.getItem('ambient-scene') as AmbientScene | null;
+    if (storedScene && ['morning', 'day', 'city', 'night'].includes(storedScene)) {
+      setAmbientSceneState(storedScene);
+      setTheme(SCENE_THEME[storedScene]);
       setIsAutomatic(false);
     } else {
-      const autoTheme = getTimeOfDay();
-      setTheme(autoTheme);
+      setAmbientSceneState(getAutoScene());
+      setTheme(getAutoTheme());
       setIsAutomatic(true);
     }
-    
     setMounted(true);
   }, []);
 
   // Apply theme to DOM
   useEffect(() => {
     if (!mounted) return;
-
     const root = document.documentElement;
     root.setAttribute('data-theme', theme);
-    root.style.transition = 'all 1.2s ease-in-out';
+    root.style.transition = 'background 1.2s ease-in-out, color 1.2s ease-in-out';
   }, [theme, mounted]);
 
-  const toggleTheme = () => {
-    setManualOverride(prev => {
-      if (prev === null) {
-        // Switch to manual override
-        const newTheme = theme === 'day' ? 'night' : 'day';
-        setTheme(newTheme);
-        setIsAutomatic(false);
-        localStorage.setItem('theme-override', newTheme);
-        localStorage.removeItem('theme-automatic');
-        return newTheme;
-      } else {
-        // Reset to automatic
-        const autoTheme = getTimeOfDay();
-        setTheme(autoTheme);
-        setIsAutomatic(true);
-        localStorage.removeItem('theme-override');
-        localStorage.removeItem('theme-automatic');
-        return null;
-      }
-    });
+  const setAmbientScene = (scene: AmbientScene) => {
+    setAmbientSceneState(scene);
+    setTheme(SCENE_THEME[scene]);
+    setIsAutomatic(false);
+    localStorage.setItem('ambient-scene', scene);
   };
 
-  const value: DayNightContextType = {
-    theme,
-    toggleTheme,
-    isAutomatic
+  const toggleTheme = () => {
+    if (!isAutomatic) {
+      // Reset to auto
+      setAmbientSceneState(getAutoScene());
+      setTheme(getAutoTheme());
+      setIsAutomatic(true);
+      localStorage.removeItem('ambient-scene');
+    } else {
+      const newScene: AmbientScene = theme === 'day' ? 'night' : 'day';
+      setAmbientScene(newScene);
+    }
   };
 
   return (
-    <DayNightContext.Provider value={value}>
+    <DayNightContext.Provider value={{ theme, ambientScene, setAmbientScene, toggleTheme, isAutomatic }}>
       {children}
     </DayNightContext.Provider>
   );

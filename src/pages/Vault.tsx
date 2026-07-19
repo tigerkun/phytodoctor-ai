@@ -27,8 +27,9 @@ const TEMPLATE_SPECIES = [
 
 export default function VaultPage() {
   const { info, error, success, toast } = useToast();
-  const profile = useLiveQuery(() => GameService.getProfile());
-  const dbPlants = useLiveQuery(() => db.plants.toArray()) || [];
+  const userId = GameService.getUserId();
+  const profile = useLiveQuery(() => GameService.getProfile(userId), [userId]);
+  const dbPlants = useLiveQuery(() => db.plants.where('userId').equals(userId).toArray(), [userId]) || [];
   const seeds = profile?.seeds ?? 0;
 
   // Combine DB plants and default templates for dropdown selection

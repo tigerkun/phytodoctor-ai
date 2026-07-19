@@ -36,8 +36,9 @@ const SUPPLIES = [
 ];
 
 export default function Shop() {
-  const profile = useLiveQuery(() => GameService.getProfile());
-  const plants = useLiveQuery(() => db.plants.toArray()) || [];
+  const userId = GameService.getUserId();
+  const profile = useLiveQuery(() => GameService.getProfile(userId), [userId]);
+  const plants = useLiveQuery(() => db.plants.where('userId').equals(userId).toArray(), [userId]) || [];
 
   const { success } = useToast();
 

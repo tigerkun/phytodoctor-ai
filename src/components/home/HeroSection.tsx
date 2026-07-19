@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTimeOfDay, type TimePeriod } from '@/hooks/useTimeOfDay';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
+import type { AmbientScene } from '@/components/home/DayNightProvider';
 import { useEcoMode } from '@/hooks/useEcoMode';
 import { useParallax } from '@/hooks/useScrollBehavior';
 import { triggerHaptic, playAudio } from '@/utils/hapticAudio';
@@ -35,7 +36,7 @@ export function HeroSection({
   onTimePeriodChange
 }: HeroSectionProps) {
   const { greeting } = useTimeOfDay();
-  const { theme } = useDayNightTheme();
+  const { theme, ambientScene, setAmbientScene } = useDayNightTheme();
   const { shouldDisableAnimations } = useEcoMode();
   const parallaxRef = useParallax(0.3);
 
@@ -93,7 +94,7 @@ export function HeroSection({
       className="relative pt-12 pb-20 px-4"
     >
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Panel - Plant of the Day */}
+        {/* Left Panel - Plant of the Day OR Empty Sanctuary State */}
         <motion.div
           ref={parallaxRef}
           className="lg:col-span-2"
@@ -101,9 +102,34 @@ export function HeroSection({
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3, duration: 0.6 }}
         >
-          <div
-            className="relative rounded-3xl overflow-hidden backdrop-blur-2xl border border-border-light bg-bg-secondary transition-all duration-300 hover:shadow-2xl"
-          >
+          {totalPlants === 0 ? (
+            <div className="relative rounded-3xl p-10 backdrop-blur-2xl border border-border-light bg-bg-secondary text-center flex flex-col items-center justify-center min-h-[420px] shadow-lg">
+              <div className="w-20 h-20 rounded-full bg-moss/10 flex items-center justify-center text-4xl mb-6 shadow-inner">
+                🪴
+              </div>
+              <h2 className="text-3xl font-serif font-bold text-text-bark mb-3">
+                No Plants in Your Sanctuary Yet
+              </h2>
+              <p className="text-sm text-text-stone max-w-md mb-8 leading-relaxed">
+                Add your first plant specimen to begin deterministic HSV drift detection, daily health logging, earning seed rewards, and generating AI clinical diagnostic reports!
+              </p>
+              <motion.button
+                onClick={onAddPlant}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="px-8 py-4 rounded-full font-bold text-white shadow-lg flex items-center gap-2"
+                style={{
+                  background: 'linear-gradient(135deg, var(--moss) 0%, var(--moss-light) 100%)',
+                  boxShadow: '0 10px 25px rgba(90, 125, 90, 0.3)'
+                }}
+              >
+                🌱 Add Your First Plant
+              </motion.button>
+            </div>
+          ) : (
+            <div
+              className="relative rounded-3xl overflow-hidden backdrop-blur-2xl border border-border-light bg-bg-secondary transition-all duration-300 hover:shadow-2xl"
+            >
             {/* Vine border animation */}
             {!shouldDisableAnimations && (
               <motion.svg
@@ -332,7 +358,7 @@ export function HeroSection({
                 </div>
               </motion.div>
             </div>
-          </div>
+          )}
         </motion.div>
 
         {/* Right Panel - Garden Pulse */}
@@ -361,23 +387,23 @@ export function HeroSection({
               </span>
               <div className="flex items-center justify-between gap-1.5 bg-bg-tertiary/40 p-1.5 rounded-xl border border-border-light">
                 {([
-                  { id: 'dawn', icon: '🌅', label: 'Dawn' },
-                  { id: 'morning', icon: '☀️', label: 'Noon' },
-                  { id: 'dusk', icon: '🌇', label: 'Dusk' },
-                  { id: 'night', icon: '🌌', label: 'Night' }
-                ] as const).map((period) => (
+                  { id: 'morning' as AmbientScene, icon: '🌅', label: 'Morning' },
+                  { id: 'day'     as AmbientScene, icon: '☀️', label: 'Day' },
+                  { id: 'city'   as AmbientScene, icon: '🌇', label: 'City' },
+                  { id: 'night'  as AmbientScene, icon: '🌌', label: 'Night' }
+                ]).map((scene) => (
                   <motion.button
-                    key={period.id}
+                    key={scene.id}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => {
                       triggerHaptic('light');
-                      onTimePeriodChange(period.id);
+                      setAmbientScene(scene.id);
                     }}
-                    title={period.label}
-                    className={`flex items-center justify-center w-8 h-8 rounded-lg text-lg transition-all focus:outline-none ${currentTimePeriod === period.id ? 'bg-moss text-white shadow-md' : 'hover:bg-bg-tertiary text-text-bark/70'}`}
+                    title={scene.label}
+                    className={`flex items-center justify-center w-8 h-8 rounded-lg text-lg transition-all focus:outline-none ${ambientScene === scene.id ? 'bg-moss text-white shadow-md' : 'hover:bg-bg-tertiary text-text-bark/70'}`}
                   >
-                    {period.icon}
+                    {scene.icon}
                   </motion.button>
                 ))}
               </div>

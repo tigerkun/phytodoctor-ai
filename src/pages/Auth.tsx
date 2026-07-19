@@ -13,6 +13,8 @@ export default function Auth() {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const DEMO_EMAIL = 'tejasgaur94@gmail.com';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || (!isLogin && !name)) return;
@@ -21,16 +23,33 @@ export default function Auth() {
     // Simulate network delay
     await new Promise(r => setTimeout(r, 800));
     
-    // Set mock auth token
-    localStorage.setItem('botanical_guardian_auth_token', 'mock_token_' + Date.now());
+    // Derive a stable, unique userId from email
+    const userId = btoa(email.toLowerCase().trim()).replace(/=/g, '');
     
-    // Mark as onboarded and ensure profile exists
+    // Set auth state
+    localStorage.setItem('botanical_guardian_auth_token', 'mock_token_' + Date.now());
+    localStorage.setItem('botanical_guardian_userId', userId);
+    localStorage.setItem('botanical_guardian_user_email', email.toLowerCase().trim());
+    localStorage.setItem('botanical_guardian_user_name', name || email.split('@')[0]);
     localStorage.setItem('botanical_guardian_onboarded', '1');
-    await GameService.ensureProfile();
+    
+    // Seed demo garden only for the demo account, and only on first login
+    if (email.toLowerCase().trim() === DEMO_EMAIL) {
+      const { seedDemoGarden } = await import('../demo/seedDemoGarden');
+      const { db } = await import('../db/database');
+      const existingPlants = await db.plants.where('userId').equals(userId).count();
+      if (existingPlants === 0) {
+        await seedDemoGarden('priya', userId);
+      }
+    } else {
+      // Ensure a fresh empty profile exists for this user
+      await GameService.ensureProfile(userId);
+    }
     
     setLoading(false);
     navigate('/');
   };
+
 
   return (
     <PageWrapper className="min-h-[85vh] flex items-center justify-center p-6 relative overflow-hidden">
