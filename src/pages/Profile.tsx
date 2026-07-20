@@ -70,7 +70,7 @@ export default function Profile() {
            <motion.div 
              initial={{ opacity: 0, scale: 0.9 }}
              animate={{ opacity: 1, scale: 1 }}
-             className="bg-white p-10 rounded-[3.5rem] border border-garden-olive/10 shadow-2xl shadow-garden-earth/5 relative overflow-hidden"
+             className="bg-white/90 backdrop-blur-xl p-10 rounded-[3.5rem] border border-white shadow-2xl shadow-garden-earth/5 relative overflow-hidden"
            >
               <div className="absolute top-0 right-0 p-8 text-garden-sage/5 -rotate-12">
                  <Shield size={160} />
@@ -142,6 +142,21 @@ export default function Profile() {
               <StatCard label="Mythics" value={mythicCount.toString()} icon={<Award size={14} />} color="text-purple-500" />
               <StatCard label="Streak" value={`${profile.currentStreak}d`} icon={<TrendingUp size={14} />} color="text-orange-500" />
            </div>
+
+           {/* Guardian Logistics */}
+           <motion.div 
+             initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+             className="bg-white/90 backdrop-blur-xl p-8 rounded-[3rem] border border-white shadow-xl shadow-garden-earth/5"
+           >
+              <h3 className="font-serif text-xl font-bold text-garden-earth mb-6 flex items-center gap-2">
+                 <User size={18} className="text-garden-sage" /> Guardian Logistics
+              </h3>
+              <div className="space-y-2">
+                 <DetailRow label="Experience" value={profile.experienceLevel ? profile.experienceLevel.charAt(0).toUpperCase() + profile.experienceLevel.slice(1) : 'Not Specified'} />
+                 <DetailRow label="Environment" value={profile.environment ? profile.environment.charAt(0).toUpperCase() + profile.environment.slice(1) : 'Not Specified'} />
+                 <DetailRow label="Gender" value={profile.gender ? profile.gender.charAt(0).toUpperCase() + profile.gender.slice(1) : 'Not Specified'} />
+              </div>
+           </motion.div>
         </div>
 
         {/* Right Columns: Achievement & History */}
@@ -152,7 +167,7 @@ export default function Profile() {
              <StreakWidget compact={false} />
            </div>
 
-           <section className="bg-white p-12 rounded-[4rem] border border-garden-olive/10 shadow-xl shadow-garden-earth/5">
+           <section className="bg-white/90 backdrop-blur-xl p-12 rounded-[4rem] border border-white shadow-xl shadow-garden-earth/5">
               <div className="flex items-center justify-between mb-8">
                  <h3 className="font-serif text-3xl font-bold text-garden-earth">Distinctions</h3>
                  <span className="text-[10px] font-black uppercase tracking-widest text-garden-earth/20">Protocol Badges</span>
@@ -166,7 +181,7 @@ export default function Profile() {
               </div>
            </section>
 
-           <section className="bg-white p-12 rounded-[4rem] border border-garden-olive/10 shadow-xl shadow-garden-earth/5">
+           <section className="bg-white/90 backdrop-blur-xl p-12 rounded-[4rem] border border-white shadow-xl shadow-garden-earth/5">
               <div className="flex items-center justify-between mb-8">
                  <h3 className="font-serif text-3xl font-bold text-garden-earth">Recent Activity</h3>
                  <button 
@@ -215,9 +230,9 @@ export default function Profile() {
 
 function StatCard({ label, value, icon, color }: { label: string, value: string, icon: any, color: string }) {
   return (
-    <div className="bg-white p-6 rounded-[2.5rem] border border-garden-olive/10 shadow-xl shadow-garden-earth/5">
+    <div className="bg-white/90 backdrop-blur-md p-6 rounded-[2.5rem] border border-white shadow-xl shadow-garden-earth/5 transition-transform hover:-translate-y-1 hover:shadow-2xl">
        <div className={`${color} mb-3`}>{icon}</div>
-       <div className="text-[8px] font-black uppercase tracking-widest text-garden-earth/30 mb-1">{label}</div>
+       <div className="text-[8px] font-black uppercase tracking-widest text-garden-earth/40 mb-1">{label}</div>
        <div className="text-xl font-black text-garden-earth">{value}</div>
     </div>
   );
@@ -255,4 +270,11 @@ function ActivityItem({ type, title, time, seeds }: { type: string, title: strin
     </div>
   );
 }
-
+function DetailRow({ label, value }: { label: string, value: string }) {
+  return (
+    <div className="flex items-center justify-between py-4 border-b border-garden-olive/10 last:border-0 hover:bg-garden-cream/20 px-4 -mx-4 rounded-2xl transition-colors">
+      <span className="text-xs font-black uppercase tracking-widest text-garden-earth/40">{label}</span>
+      <span className="text-sm font-bold text-garden-earth">{value}</span>
+    </div>
+  );
+}

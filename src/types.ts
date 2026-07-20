@@ -87,6 +87,9 @@ export interface UserGameProfile {
   totalXP: number;
   tier: 'free' | 'pro';
   discoveredSpecies: string[];
+  gender?: string;
+  experienceLevel?: 'novice' | 'intermediate' | 'expert';
+  environment?: 'indoor' | 'outdoor' | 'greenhouse' | 'mixed';
   isDemo?: boolean;
 }
 

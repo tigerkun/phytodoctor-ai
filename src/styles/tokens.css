@@ -49,6 +49,14 @@
 
   --color-border-light: var(--border-light);
   --color-border-medium: var(--border-medium);
+
+  /* Mapping for older garden-* utility classes used in some components */
+  --color-garden-cream: #faf7f2;
+  --color-garden-slate: #6b5e51;
+  --color-garden-earth: #2c2419;
+  --color-garden-coral: #d4755a;
+  --color-garden-sage: #5a7d5a;
+  --color-garden-olive: #8fb58f;
 }
 
 /* === GLOBAL COLOR SYSTEM === */

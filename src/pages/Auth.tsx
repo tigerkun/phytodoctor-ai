@@ -7,10 +7,13 @@ import { GameService } from '../services/gameService';
 
 export default function Auth() {
   const navigate = useNavigate();
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [gender, setGender] = useState('');
+  const [experienceLevel, setExperienceLevel] = useState('');
+  const [environment, setEnvironment] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -45,7 +48,7 @@ export default function Auth() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || (!isLogin && !name)) return;
+    if (!email || !password || (!isLogin && (!name || !gender || !experienceLevel || !environment))) return;
     if (!validateForm()) return;
     
     setLoading(true);
@@ -73,6 +76,16 @@ export default function Auth() {
     } else {
       // Ensure a fresh empty profile exists for this user
       await GameService.ensureProfile(userId);
+    }
+    
+    if (!isLogin) {
+      const { db } = await import('../db/database');
+      await db.userProfile.update(userId, {
+        username: name || email.split('@')[0],
+        gender,
+        experienceLevel: experienceLevel as any,
+        environment: environment as any
+      });
     }
     
     setLoading(false);
@@ -122,15 +135,61 @@ export default function Auth() {
                   exit={{ opacity: 0, height: 0, scale: 0.9 }}
                   className="relative"
                 >
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input
-                    type="text"
-                    required={!isLogin}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Full Name"
-                    className="w-full pl-12 pr-4 py-4 bg-white/80 text-gray-900 placeholder-gray-400 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/50 focus:border-[var(--garden-sage)] transition-all font-bold shadow-sm"
-                  />
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input
+                      type="text"
+                      required={!isLogin}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Full Name"
+                      className="w-full pl-12 pr-4 py-4 bg-white/80 text-gray-900 placeholder-gray-400 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/50 focus:border-[var(--garden-sage)] transition-all font-bold shadow-sm"
+                    />
+                  </div>
+
+                  <div className="relative mt-4">
+                    <select
+                      required={!isLogin}
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                      className={`w-full px-4 py-4 bg-white/80 ${gender ? 'text-gray-900' : 'text-gray-400'} border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/50 focus:border-[var(--garden-sage)] transition-all font-bold shadow-sm appearance-none`}
+                    >
+                      <option value="" disabled>Select Gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="non-binary">Non-binary</option>
+                      <option value="prefer-not-to-say">Prefer not to say</option>
+                    </select>
+                  </div>
+
+                  <div className="relative mt-4">
+                    <select
+                      required={!isLogin}
+                      value={experienceLevel}
+                      onChange={(e) => setExperienceLevel(e.target.value)}
+                      className={`w-full px-4 py-4 bg-white/80 ${experienceLevel ? 'text-gray-900' : 'text-gray-400'} border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/50 focus:border-[var(--garden-sage)] transition-all font-bold shadow-sm appearance-none`}
+                    >
+                      <option value="" disabled>Experience Level</option>
+                      <option value="novice">Novice (Just starting)</option>
+                      <option value="intermediate">Intermediate (Keep most alive)</option>
+                      <option value="expert">Expert (Jungle owner)</option>
+                    </select>
+                  </div>
+
+                  <div className="relative mt-4">
+                    <select
+                      required={!isLogin}
+                      value={environment}
+                      onChange={(e) => setEnvironment(e.target.value)}
+                      className={`w-full px-4 py-4 bg-white/80 ${environment ? 'text-gray-900' : 'text-gray-400'} border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/50 focus:border-[var(--garden-sage)] transition-all font-bold shadow-sm appearance-none`}
+                    >
+                      <option value="" disabled>Primary Environment</option>
+                      <option value="indoor">Indoor</option>
+                      <option value="outdoor">Outdoor</option>
+                      <option value="greenhouse">Greenhouse</option>
+                      <option value="mixed">Mixed</option>
+                    </select>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
