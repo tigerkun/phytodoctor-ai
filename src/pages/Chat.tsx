@@ -41,8 +41,8 @@ export default function Chat() {
         userMessage
       ]).then(response => {
         setMessages(prev => [...prev, { role: 'model', content: response }]);
-      }).catch(() => {
-        setMessages(prev => [...prev, { role: 'model', content: "The AI Assistant needs a Gemini API key to work. Add GEMINI_API_KEY to your .env file and restart the server." }]);
+      }).catch((err: any) => {
+        setMessages(prev => [...prev, { role: 'model', content: "I'm having trouble connecting to my botanical knowledge base right now. Please try again later or check your API configuration." }]);
       }).finally(() => {
         setLoading(false);
       });
@@ -97,7 +97,7 @@ export default function Chat() {
       const response = await chatWithGardener([...messages, userMessage]);
       setMessages(prev => [...prev, { role: 'model', content: response }]);
     } catch (err: any) {
-      setMessages(prev => [...prev, { role: 'model', content: "The AI Assistant needs a Gemini API key to work. Add GEMINI_API_KEY to your .env file and restart the server." }]);
+      setMessages(prev => [...prev, { role: 'model', content: "I'm having trouble connecting to my botanical knowledge base right now. Please try again later or check your API configuration." }]);
     } finally {
       setLoading(false);
     }
@@ -141,7 +141,7 @@ export default function Chat() {
       const response = await chatWithGardener([...messages, userMessage]);
       setMessages(prev => [...prev, { role: 'model', content: response }]);
     } catch (err: any) {
-      setMessages(prev => [...prev, { role: 'model', content: "The AI Assistant needs a Gemini API key to work. Add GEMINI_API_KEY to your .env file and restart the server." }]);
+      setMessages(prev => [...prev, { role: 'model', content: "I'm having trouble connecting to my botanical knowledge base right now. Please try again later or check your API configuration." }]);
     } finally {
       setLoading(false);
     }

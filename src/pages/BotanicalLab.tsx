@@ -246,26 +246,9 @@ export default function BotanicalLab() {
           setScannedRewards({ seeds: res.seedsAwarded, xp: res.xpAwarded });
           triggerCoinBurst();
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Scan Error:', err);
-        // Fallback mock diagnostics if API fails (keep user experience premium)
-        const mockResult = {
-          commonName: 'Fiddle Leaf Fig',
-          scientificName: 'Ficus lyrata',
-          speciesName: 'Fiddle Leaf Fig',
-          healthStatus: 'Healthy',
-          severity: 1,
-          diagnosis: 'Stable conditions. Margins look clear and moisture balance is adequate.',
-          watering: 'Water once top 2 inches of soil dries',
-          light: 'Bright, indirect sunlight',
-          soil: 'Rich, organic, well-draining soil',
-          temperature: '18-24°C',
-          careTips: ['Wipe leaves regularly to clear dust', 'Rotate 90 degrees every month']
-        } as any;
-        setDexResult(mockResult);
-        const res = await GameService.awardRewardForAction('diagnosis_upload');
-        setScannedRewards({ seeds: res.seedsAwarded, xp: res.xpAwarded });
-        triggerCoinBurst();
+        alert(err.message || "Failed to identify plant. Please ensure your Gemini API Key is valid and the server is running.");
       } finally {
         setUploading(false);
       }

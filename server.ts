@@ -38,7 +38,7 @@ app.post("/api/identify", async (req, res) => {
     const prompt = "Identify this plant, assess its health, detect any diseases or pests, and provide a detailed clinical diagnostic report. Include a severity score from 1-5, a differential diagnosis with top alternatives, and a clear treatment timeline.";
     
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [
         {
           parts: [
@@ -136,7 +136,7 @@ app.post("/api/chat", async (req, res) => {
     const systemPrompt = "You are PhytoDoctor AI's Senior Botanist and Master Gardener. Your goal is to provide expert, scientific, yet accessible advice on all things gardening. You specialize in indoor and outdoor plant care, organic pest control, soil science, and garden design. Be helpful, concise, and professional.";
     
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [
         {
           role: 'user',
@@ -169,7 +169,7 @@ app.post("/api/guardian/predict", async (req, res) => {
     Address specific biological vulnerabilities of this species.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
