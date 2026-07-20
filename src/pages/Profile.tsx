@@ -100,6 +100,12 @@ export default function Profile() {
                         className="w-full px-6 py-3 bg-garden-cream/50 rounded-xl border border-garden-olive/10 font-bold text-garden-earth text-center focus:outline-none focus:ring-2 focus:ring-garden-sage/20"
                         placeholder="Enter Username"
                       />
+                      <input 
+                        value={avatarUrl}
+                        onChange={(e) => setAvatarUrl(e.target.value)}
+                        className="w-full px-6 py-3 bg-garden-cream/50 rounded-xl border border-garden-olive/10 font-bold text-garden-earth text-center focus:outline-none focus:ring-2 focus:ring-garden-sage/20 text-xs"
+                        placeholder="Paste Avatar Image URL (optional)"
+                      />
                       <button 
                         onClick={handleUpdateProfile}
                         className="w-full py-3 bg-garden-earth text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2"
