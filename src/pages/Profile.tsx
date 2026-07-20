@@ -80,7 +80,7 @@ export default function Profile() {
                  <div className="relative group mb-8">
                     <div className="w-32 h-32 bg-garden-cream rounded-[2.5rem] overflow-hidden border-4 border-white shadow-xl">
                        <img 
-                         src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.userId}`} 
+                         src={avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(profile.username || 'User')}&backgroundColor=5a7d5a&textColor=ffffff`} 
                          alt="avatar" 
                          className="w-full h-full object-cover"
                        />
