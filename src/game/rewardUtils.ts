@@ -58,15 +58,15 @@ export async function awardDiscovery(
 }
 
 /**
- * Update streak on login (call once per app open)
- * Usage: await updateLoginStreak();
+ * Update streak on photo upload
+ * Usage: await updateUploadStreak();
  */
-export async function updateLoginStreak(userId?: string): Promise<void> {
+export async function updateUploadStreak(userId?: string): Promise<{ currentStreak: number, continuedToday: boolean }> {
   try {
-    await GameService.updateStreakOnLogin(userId);
+    return await GameService.updateStreakOnUpload(userId);
   } catch (error) {
     console.error('Failed to update streak:', error);
-    // Don't throw - streak update is non-critical
+    return { currentStreak: 0, continuedToday: false };
   }
 }
 
@@ -186,7 +186,7 @@ export const COMMON_REWARDS = {
 export default {
   awardReward,
   awardDiscovery,
-  updateLoginStreak,
+  updateUploadStreak,
   getRewardMessage,
   getActionEmoji,
   formatSeeds,

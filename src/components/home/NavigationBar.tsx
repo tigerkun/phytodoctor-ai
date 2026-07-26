@@ -21,8 +21,7 @@ export function NavigationBar() {
     { label: 'Botanical Lab', href: '/lab' },
     { label: 'Sim Lab', href: '/collection' },
     { label: 'Market', href: '/market' },
-    { label: 'Library', href: '/library' },
-    { label: 'AI Assistant', href: '/assistant' }
+    { label: 'Library', href: '/library' }
   ];
 
   const isActive = (href: string) => {

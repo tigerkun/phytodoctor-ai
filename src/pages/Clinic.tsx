@@ -1,145 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Camera, Info, Leaf, MessageCircle, Sprout, X } from 'lucide-react';
-import { identifyPlant, type PlantCare } from '../services/geminiService';
+import { identifyPlant, type PlantCare, type DiagnosticPossibility } from '../services/geminiService';
 import { NotificationContainer, type RewardToast } from '../components/game/RewardNotification';
 import { COMMON_REWARDS } from '../game/rewardUtils';
 import PageWrapper from '../components/home/PageWrapper';
 import { useToast } from '../components/Toast';
 
 
-// Helpers
-// clamp helper is declared once above
-
-type DifferentialItem = {
-  name: string;
-  description: string;
-  confidence: number; // 0-100
-};
-
-type MockCare = PlantCare & {
-  differentialDiagnosis: DifferentialItem[];
-  confidence: number;
-};
-
-const generateMockCare = (): MockCare => {
-  const plants = [
-    {
-      commonName: 'Monstera Deliciosa',
-      scientific: 'Monstera deliciosa',
-      diagnosis: 'Thriving with a gentle humidity handshake—watch new leaf edges.',
-      vulnerabilityNotes: 'Leaf margins may crisp if air stays too dry for long stretches.',
-      watering: 'Keep evenly moist; let the top inch breathe.',
-      light: 'Bright, filtered light',
-      soil: 'Loamy with airy drainage',
-      temperature: '22–24°C',
-      severity: 2,
-      healthStatus: 'Healthy',
-    },
-    {
-      commonName: 'Peace Lily',
-      scientific: 'Spathiphyllum wallisii',
-      diagnosis: 'Near-flourishing—support steady hydration to keep blooms poised.',
-      vulnerabilityNotes: 'Wilting is a fast signal when thirst arrives.',
-      watering: 'Moist (not soggy)',
-      light: 'Low to medium, indirect',
-      soil: 'Peaty, breathable mix',
-      temperature: '20–23°C',
-      severity: 2,
-      healthStatus: 'Healthy',
-    },
-    {
-      commonName: 'Snake Plant',
-      scientific: 'Dracaena trifasciata',
-      diagnosis: 'Excellent resilience—your plant prefers calm, dry intervals.',
-      vulnerabilityNotes: 'Overwatering can quietly invite root trouble.',
-      watering: 'Dry between waterings',
-      light: 'Low to bright shade',
-      soil: 'Sandy, well-draining blend',
-      temperature: '18–22°C',
-      severity: 1,
-      healthStatus: 'Healthy',
-    },
-    {
-      commonName: 'ZZ Plant',
-      scientific: 'Zamioculcas zamiifolia',
-      diagnosis: 'Naturally steady—keep conditions consistent for leaf shine.',
-      vulnerabilityNotes: 'Staying too wet for too long is the main risk.',
-      watering: 'Let soil dry fully',
-      light: 'Low to medium, indirect',
-      soil: 'Well-draining and gritty',
-      temperature: '19–24°C',
-      severity: 1,
-      healthStatus: 'Healthy',
-    },
-  ];
-
-  const picked = plants[Math.floor(Math.random() * plants.length)];
-  const confidence = 80 + Math.floor(Math.random() * 21); // 80-100
-
-  const differential: DifferentialItem[] = [
-    {
-      name: 'Humidity Balance',
-      description:
-        'Subtle edge changes suggest the air is a touch drier than your plant prefers. A light misting near the canopy can help—avoid soaking leaves.',
-      confidence: 68 + Math.floor(Math.random() * 18),
-    },
-    {
-      name: 'Light Rhythm',
-      description:
-        'Your plant responds best to gentle light consistency. If it’s been moved recently, gradual relocation (over 7–10 days) is ideal.',
-      confidence: 54 + Math.floor(Math.random() * 22),
-    },
-    {
-      name: 'Root Breathing',
-      description:
-        'Even when watering looks “right,” drainage and airflow matter. Confirm the pot has clear runoff and avoid standing water.',
-      confidence: 45 + Math.floor(Math.random() * 24),
-    },
-    {
-      name: 'Nutrient Cues',
-      description:
-        'If growth slows, the plant may want a mild feed during active season. Use diluted fertilizer and observe response over a month.',
-      confidence: 38 + Math.floor(Math.random() * 18),
-    },
-  ]
-    .map((d) => ({ ...d, confidence: Math.max(22, Math.min(98, d.confidence)) }))
-    .sort((a, b) => b.confidence - a.confidence);
-
-  return {
-    ...picked,
-    healthStatus: picked.healthStatus as "Healthy" | "Stressed" | "Diseased" | "Infested",
-    severity: picked.severity as 1 | 2 | 3 | 4 | 5,
-    scientificName: picked.scientific,
-    confidence,
-    treatmentTimeline: [
-      { day: '0', action: 'Set a calm baseline', expectedOutcome: 'Comfortable moisture + stable light' },
-      { day: '3', action: 'Fine-tune watering rhythm', expectedOutcome: 'Leaves look more supple' },
-      { day: '7', action: 'Observe new growth cues', expectedOutcome: 'Green tone steadies and edges soften' },
-    ],
-    treatmentInstructions: [
-      'Observe watering guidelines; avoid moisture accumulation.',
-      'Maintain exposure to bright, filtered indirect sunlight.',
-      'Wipe leaves occasionally with a clean damp cloth.'
-    ],
-    careTips: [
-      'Maintain temperatures between 18–24°C.',
-      'Ensure the pot has adequate drainage holes.'
-    ],
-    differentialDiagnosis: differential,
-  };
-};
-
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-
-
 export default function Clinic() {
   const { info } = useToast();
   const [images, setImages] = useState<string[]>([]);
-  const [identification, setIdentification] = useState<MockCare | PlantCare | null>(null);
+  const [identification, setIdentification] = useState<PlantCare | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [loadingPhase, setLoadingPhase] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -182,8 +59,8 @@ export default function Clinic() {
       const newImages = [...images, reader.result as string].slice(-3);
       setImages(newImages);
 
-      // Keep UI premium even before network returns
-      setIdentification(generateMockCare());
+      // Reset previous state so real scan diagnosis displays
+      setIdentification(null);
 
       if (newImages.length >= 1) {
         identify(reader.result as string);
@@ -243,7 +120,7 @@ export default function Clinic() {
     ];
 
     const items: React.ReactNode[] = [];
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 12; i++) {
       const Icon = icons[Math.floor(Math.random() * icons.length)];
       const color = colors[Math.floor(Math.random() * colors.length)];
       const left = Math.random() * 100;
@@ -263,6 +140,7 @@ export default function Clinic() {
             height: `${scale * 28}px`,
             transform: `rotate(${rotate}deg)`,
             animationDelay: `${delay}s`,
+            willChange: 'transform',
           }}
           initial={{ opacity: 0, y: 60 }}
           animate={{ opacity: 0.45, y: -120, rotate: rotate + 360 }}
@@ -366,7 +244,7 @@ export default function Clinic() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 16 }}
-              className="fixed bottom-20 right-4 z-[55] w-[320px] max-w-[92vw] rounded-3xl border border-[#F9F7F2]/20 shadow-xl shadow-[#5F7161]/10 bg-white/90 backdrop-blur-md p-4"
+              className="fixed bottom-20 right-4 z-[55] w-[320px] max-w-[92vw] rounded-3xl border border-[#F9F7F2]/20 shadow-xl shadow-[#5F7161]/10 bg-white/95 p-4"
             >
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
@@ -445,7 +323,7 @@ export default function Clinic() {
     );
   };
 
-  const differentialItems = (identification as any)?.differentialDiagnosis as DifferentialItem[] | undefined;
+  const differentialItems = (identification as any)?.differentialDiagnosis as DiagnosticPossibility[] | undefined;
 
   return (
     <PageWrapper>
@@ -463,12 +341,12 @@ export default function Clinic() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[999] bg-[var(--text-bark)]/20 backdrop-blur-md flex items-center justify-center p-4"
+              className="fixed inset-0 z-[999] bg-[var(--text-bark)]/60 flex items-center justify-center p-4"
             >
               <motion.div
                 initial={{ scale: 0.98, y: 8 }}
                 animate={{ scale: 1, y: 0 }}
-                className="w-11/12 max-w-[500px] block mx-auto my-auto bg-[var(--bg-glass)] backdrop-blur-sm rounded-[2.5rem] border border-[var(--border-light)] shadow-xl p-8 relative"
+                className="w-11/12 max-w-[500px] block mx-auto my-auto bg-[var(--bg-glass)] rounded-[2.5rem] border border-[var(--border-light)] shadow-xl p-8 relative"
               >
                 <div className="absolute -right-6 -top-6 text-[var(--terracotta)]/5 pointer-events-none -rotate-12">
                   <Info size={120} />
@@ -502,7 +380,7 @@ export default function Clinic() {
             <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 w-full">
                 {/* LEFT WING */}
-                <section className="lg:col-span-5 rounded-3xl border border-[var(--border-light)] shadow-xl bg-[var(--bg-glass)] backdrop-blur-sm p-8 min-h-[560px] relative overflow-hidden">
+                <section className="lg:col-span-5 rounded-3xl border border-[var(--border-light)] shadow-xl bg-[var(--bg-glass)] p-8 min-h-[560px] relative overflow-hidden">
                   {/* laser line */}
                   <div className="absolute left-[-10%] right-[-10%] top-10 h-[2px] bg-gradient-to-r from-transparent via-[var(--moss)] to-transparent animate-[pulse_2.8s_ease-in-out_infinite]" />
 
@@ -570,7 +448,7 @@ export default function Clinic() {
                 </section>
 
                 {/* RIGHT WING */}
-                <section className="lg:col-span-7 rounded-3xl border border-[var(--border-light)] shadow-xl bg-[var(--bg-glass)] backdrop-blur-sm p-8 min-h-[560px]">
+                <section className="lg:col-span-7 rounded-3xl border border-[var(--border-light)] shadow-xl bg-[var(--bg-glass)] p-8 min-h-[560px]">
                   <div className="h-full flex flex-col justify-between">
                     <div>
                       <div className="flex items-center gap-3 flex-wrap">
@@ -701,7 +579,7 @@ export default function Clinic() {
 
                     {/* Right report */}
                     <section className="lg:col-span-7 w-full text-left block">
-                      <div className="w-full block rounded-[2.5rem] border border-[var(--border-light)] shadow-xl bg-[var(--bg-glass)] backdrop-blur-sm p-8">
+                      <div className="w-full block rounded-[2.5rem] border border-[var(--border-light)] shadow-xl bg-[var(--bg-glass)] p-8">
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 w-full border-b border-[var(--border-light)] pb-4">
                           <div className="text-left space-y-1">
                             <div className="flex flex-wrap items-center gap-2">

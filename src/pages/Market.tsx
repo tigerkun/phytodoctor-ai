@@ -461,7 +461,7 @@ function ProBanner() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.8 }}
-      className="mt-16 rounded-3xl border border-gold/30 bg-gradient-to-r from-gold/10 via-moss/5 to-gold/5 backdrop-blur-md p-8 md:p-12 overflow-hidden relative"
+      className="mt-16 rounded-3xl border border-gold/30 bg-gradient-to-r from-gold/10 via-moss/5 to-gold/5 p-8 md:p-12 overflow-hidden relative"
     >
       {/* Animated Background */}
       <motion.div
@@ -653,7 +653,7 @@ export default function GardenMarket() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="sticky top-0 z-40 backdrop-blur-lg border-b border-border-light px-6 md:px-8 py-4"
+          className="sticky top-0 z-40 bg-bg-primary/95 border-b border-border-light px-6 md:px-8 py-4"
         >
           <div className="flex items-center justify-between max-w-full">
             <div className="flex items-center gap-2">
@@ -1021,7 +1021,7 @@ export default function GardenMarket() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-bg-primary/70 backdrop-blur-md z-[99999] flex items-center justify-center p-4"
+            className="fixed inset-0 bg-bg-primary/80 z-[99999] flex items-center justify-center p-4"
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}

@@ -124,10 +124,10 @@ const PhytoCard: React.FC<Props> = ({ card, size = 'md', interactive = true, sho
       {/* Card Art: Stylized AI Re-imagining */}
       <div className="flex-grow aspect-[4/5] rounded-xl bg-garden-earth/10 overflow-hidden relative mb-2 flex items-center justify-center border-2 border-white/20 group shadow-inner">
          {/* Base Photo Layer with AI-Style Filters */}
-         {(plant?.photoUrl || getPlantImageUrl(card.species)) ? (
+         {(plant?.photoUrl || getPlantPhoto(card.species)) ? (
             <div className="absolute inset-0 z-0">
                <img 
-                 src={card.altArt || plant?.photoUrl || getPlantImageUrl(card.species)} 
+                 src={card.altArt || plant?.photoUrl || getPlantPhoto(card.species)} 
                  alt={card.commonName}
                  className={`w-full h-full object-cover transition-all duration-1000 group-hover:scale-110 ${artStyles[card.rarity]}`}
                  style={{ 

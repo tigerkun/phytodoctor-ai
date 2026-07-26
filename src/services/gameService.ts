@@ -430,14 +430,15 @@ export class GameService {
   // ============ REWARD SYSTEM INTEGRATION ============
   // These methods bridge the new RewardService with existing GameService
 
-  static async updateStreakOnLogin(userId: string = this.getUserId()): Promise<void> {
-    const streak = await RewardService.updateStreakOnLogin(userId);
+  static async updateStreakOnUpload(userId: string = this.getUserId()): Promise<{ currentStreak: number, continuedToday: boolean }> {
+    const streakResult = await RewardService.updateStreakOnUpload(userId);
     // Update legacy profile fields for compatibility
     const profile = await this.ensureProfile(userId);
     await db.userProfile.update(userId, {
-      currentStreak: streak,
-      longestStreak: Math.max(profile.longestStreak, streak)
+      currentStreak: streakResult.currentStreak,
+      longestStreak: Math.max(profile.longestStreak, streakResult.currentStreak)
     });
+    return streakResult;
   }
 
   static async awardRewardForAction(

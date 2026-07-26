@@ -6,7 +6,7 @@ import { db } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { GameService } from '../services/gameService';
 import { RewardService } from '../services/rewardService';
-import { clearDemoData } from '../demo/seedDemoGarden';
+
 import LevelDisplay from '../components/game/LevelDisplay';
 import StreakWidget from '../components/game/StreakWidget';
 import PageWrapper from '../components/home/PageWrapper';
@@ -23,12 +23,6 @@ export default function Profile() {
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
 
-  const handleClearDemo = async () => {
-    if (confirm('This will remove all demo data and return to your own garden. Continue?')) {
-      await clearDemoData();
-      window.location.reload();
-    }
-  };
 
   useEffect(() => {
     if (profile) {
@@ -70,7 +64,7 @@ export default function Profile() {
            <motion.div 
              initial={{ opacity: 0, scale: 0.9 }}
              animate={{ opacity: 1, scale: 1 }}
-             className="bg-white/90 backdrop-blur-xl p-10 rounded-[3.5rem] border border-white shadow-2xl shadow-garden-earth/5 relative overflow-hidden"
+             className="bg-white/95 p-10 rounded-[3.5rem] border border-white shadow-2xl shadow-garden-earth/5 relative overflow-hidden"
            >
               <div className="absolute top-0 right-0 p-8 text-garden-sage/5 -rotate-12">
                  <Shield size={160} />
@@ -152,7 +146,7 @@ export default function Profile() {
            {/* Guardian Logistics */}
            <motion.div 
              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-             className="bg-white/90 backdrop-blur-xl p-8 rounded-[3rem] border border-white shadow-xl shadow-garden-earth/5"
+             className="bg-white/95 p-8 rounded-[3rem] border border-white shadow-xl shadow-garden-earth/5"
            >
               <h3 className="font-serif text-xl font-bold text-garden-earth mb-6 flex items-center gap-2">
                  <User size={18} className="text-garden-sage" /> Guardian Logistics
@@ -173,7 +167,7 @@ export default function Profile() {
              <StreakWidget compact={false} />
            </div>
 
-           <section className="bg-white/90 backdrop-blur-xl p-12 rounded-[4rem] border border-white shadow-xl shadow-garden-earth/5">
+           <section className="bg-white/95 p-12 rounded-[4rem] border border-white shadow-xl shadow-garden-earth/5">
               <div className="flex items-center justify-between mb-8">
                  <h3 className="font-serif text-3xl font-bold text-garden-earth">Distinctions</h3>
                  <span className="text-[10px] font-black uppercase tracking-widest text-garden-earth/20">Protocol Badges</span>
@@ -187,7 +181,7 @@ export default function Profile() {
               </div>
            </section>
 
-           <section className="bg-white/90 backdrop-blur-xl p-12 rounded-[4rem] border border-white shadow-xl shadow-garden-earth/5">
+           <section className="bg-white/95 p-12 rounded-[4rem] border border-white shadow-xl shadow-garden-earth/5">
               <div className="flex items-center justify-between mb-8">
                  <h3 className="font-serif text-3xl font-bold text-garden-earth">Recent Activity</h3>
                  <button 
@@ -217,7 +211,6 @@ export default function Profile() {
                       localStorage.removeItem('botanical_guardian_userId');
                       localStorage.removeItem('botanical_guardian_user_email');
                       localStorage.removeItem('botanical_guardian_user_name');
-                      // We DO NOT clear the DB here because IndexedDB stores multi-user data.
                       window.location.href = '/auth';
                     }
                   }}
@@ -236,7 +229,7 @@ export default function Profile() {
 
 function StatCard({ label, value, icon, color }: { label: string, value: string, icon: any, color: string }) {
   return (
-    <div className="bg-white/90 backdrop-blur-md p-6 rounded-[2.5rem] border border-white shadow-xl shadow-garden-earth/5 transition-transform hover:-translate-y-1 hover:shadow-2xl">
+    <div className="bg-white/95 p-6 rounded-[2.5rem] border border-white shadow-xl shadow-garden-earth/5 transition-transform hover:-translate-y-1 hover:shadow-2xl">
        <div className={`${color} mb-3`}>{icon}</div>
        <div className="text-[8px] font-black uppercase tracking-widest text-garden-earth/40 mb-1">{label}</div>
        <div className="text-xl font-black text-garden-earth">{value}</div>

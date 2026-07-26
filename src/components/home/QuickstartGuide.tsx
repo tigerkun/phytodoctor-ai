@@ -10,7 +10,7 @@ interface QuickstartGuideProps {
 }
 
 export function QuickstartGuide({ onAddPlant, onRefreshProfile }: QuickstartGuideProps) {
-  const { showToast } = useToast();
+  const { success } = useToast();
   const [claimedBonus, setClaimedBonus] = useState(() => localStorage.getItem('claimed_starter_bonus') === 'true');
   const [activeTab, setActiveTab] = useState<number>(0);
 
@@ -55,7 +55,7 @@ export function QuickstartGuide({ onAddPlant, onRefreshProfile }: QuickstartGuid
       await GameService.addSeeds(500, 'bonus', 'Starter Welcome Bonus');
       localStorage.setItem('claimed_starter_bonus', 'true');
       setClaimedBonus(true);
-      showToast('🎁 Welcome Bonus claimed! +500 Seeds added to wallet!', 'success');
+      success('🎁 Welcome Bonus claimed! +500 Seeds added to wallet!');
       onRefreshProfile();
     } catch (err) {
       console.error(err);

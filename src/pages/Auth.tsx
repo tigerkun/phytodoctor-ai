@@ -65,18 +65,8 @@ export default function Auth() {
     localStorage.setItem('botanical_guardian_user_name', name || email.split('@')[0]);
     localStorage.setItem('botanical_guardian_onboarded', '1');
     
-    // Seed demo garden only for the demo account, and only on first login
-    if (email.toLowerCase().trim() === DEMO_EMAIL) {
-      const { seedDemoGarden } = await import('../demo/seedDemoGarden');
-      const { db } = await import('../db/database');
-      const existingPlants = await db.plants.where('userId').equals(userId).count();
-      if (existingPlants === 0) {
-        await seedDemoGarden('priya', userId);
-      }
-    } else {
-      // Ensure a fresh empty profile exists for this user
-      await GameService.ensureProfile(userId);
-    }
+    // Ensure a fresh empty profile exists for this user
+    await GameService.ensureProfile(userId);
     
     if (!isLogin) {
       const { db } = await import('../db/database');
@@ -102,7 +92,7 @@ export default function Auth() {
         initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, type: 'spring' }}
-        className="w-full max-w-md bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-8 md:p-10 shadow-2xl border border-white/60 relative overflow-hidden"
+        className="w-full max-w-md bg-white/95 rounded-[2.5rem] p-8 md:p-10 shadow-2xl border border-white/60 relative overflow-hidden"
       >
         {/* Decorative Glows */}
         <div className="absolute -top-10 -right-10 w-32 h-32 bg-[var(--garden-sage)]/20 rounded-full blur-3xl pointer-events-none" />

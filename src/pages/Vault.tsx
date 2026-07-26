@@ -16,14 +16,7 @@ import { triggerHaptic, playAudio } from '@/utils/hapticAudio';
 import { chatWithGardener } from '../services/chatService';
 import { useToast } from '../components/Toast';
 
-// Mock base species templates for simulation if database is empty
-const TEMPLATE_SPECIES = [
-  { id: 't1', name: 'Monty', species: 'Monstera Deliciosa', baseTemp: 22, baseHumidity: 65, baseLight: 12, baseWater: 60, icon: '🌿' },
-  { id: 't2', name: 'Fidget', species: 'Ficus Lyrata', baseTemp: 24, baseHumidity: 50, baseLight: 14, baseWater: 50, icon: '🌳' },
-  { id: 't3', name: 'Viper Cactus', species: 'Cereus Repandus', baseTemp: 32, baseHumidity: 20, baseLight: 16, baseWater: 15, icon: '🌵' },
-  { id: 't4', name: 'Rose Quartz', species: 'Rosa Rubiginosa', baseTemp: 20, baseHumidity: 55, baseLight: 12, baseWater: 50, icon: '🌹' },
-  { id: 't5', name: 'Staghorn Fern', species: 'Platycerium Bifurcatum', baseTemp: 18, baseHumidity: 80, baseLight: 6, baseWater: 80, icon: '🌱' }
-];
+
 
 export default function VaultPage() {
   const { info, error, success, toast } = useToast();
@@ -32,9 +25,9 @@ export default function VaultPage() {
   const dbPlants = useLiveQuery(() => db.plants.where('userId').equals(userId).toArray(), [userId]) || [];
   const seeds = profile?.seeds ?? 0;
 
-  // Combine DB plants and default templates for dropdown selection
-  const selectOptions = useMemo(() => {
-    const plants = dbPlants.map(p => ({
+  // Only real DB plants — no fake templates
+  const selectOptions = useMemo(() =>
+    dbPlants.map(p => ({
       id: p.id,
       name: p.name,
       species: p.species,
@@ -43,15 +36,14 @@ export default function VaultPage() {
       baseLight: 12,
       baseWater: 50,
       icon: '🌿'
-    }));
-    return [...plants, ...TEMPLATE_SPECIES];
-  }, [dbPlants]);
+    })),
+  [dbPlants]);
 
   // Selected specimen for simulation
-  const [selectedSpecimenId, setSelectedSpecimenId] = useState<string>(selectOptions[0]?.id || 't1');
-  const activeSpecimen = useMemo(() => {
-    return selectOptions.find(o => o.id === selectedSpecimenId) || selectOptions[0] || TEMPLATE_SPECIES[0];
-  }, [selectedSpecimenId, selectOptions]);
+  const [selectedSpecimenId, setSelectedSpecimenId] = useState<string>(selectOptions[0]?.id || '');
+  const activeSpecimen = useMemo(() =>
+    selectOptions.find(o => o.id === selectedSpecimenId) ?? selectOptions[0] ?? null,
+  [selectedSpecimenId, selectOptions]);
 
   // --- Environment Variables (Sliders) ---
   const [temperature, setTemperature] = useState(22.0); // -15°C to 50°C
@@ -794,11 +786,11 @@ export default function VaultPage() {
 
               {/* Floating Environmental Status Indicators inside Chamber */}
               <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none z-20">
-                <span className="px-2.5 py-1 text-[9px] font-mono uppercase bg-black/60 text-white rounded border border-white/10 tracking-widest backdrop-blur-xs flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" /> SVAL-II BIO-POD
+                <span className="px-2.5 py-1 text-[9px] font-mono uppercase bg-black/60 text-white rounded border border-white/10 tracking-widest flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gold/50 animate-pulse" /> SVAL-II BIO-POD
                 </span>
                 
-                <span className={`px-2.5 py-1 text-[9px] font-black uppercase rounded border tracking-wider backdrop-blur-xs transition-all ${
+                <span className={`px-2.5 py-1 text-[9px] font-black uppercase rounded border tracking-wider transition-all ${
                   isAiSyncing ? 'bg-indigo-950/80 text-indigo-300 border-indigo-500/30 animate-pulse' :
                   activeData.survivalChance > 70 ? 'bg-emerald-950/80 text-emerald-400 border-emerald-500/30' :
                   activeData.survivalChance === 0 ? 'bg-rose-950/80 text-rose-400 border-rose-500/30 animate-pulse' :
@@ -941,7 +933,7 @@ export default function VaultPage() {
               </div>
 
               {/* Real-time Status Overlay inside screen */}
-              <div className="relative z-20 bg-black/80 backdrop-blur-md border border-white/10 rounded-2xl p-4 text-left space-y-2 shadow-2xl">
+              <div className="relative z-20 bg-black/80 border border-white/10 rounded-2xl p-4 text-left space-y-2 shadow-2xl">
                 <div className="flex justify-between items-center">
                   <h4 className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest leading-none flex items-center gap-1.5">
                     <Activity size={10} className="text-emerald-500 animate-pulse" /> Diagnostic Feedback

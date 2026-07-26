@@ -7,27 +7,10 @@ export function useScrollBehavior() {
     const container = scrollRef.current;
     if (!container) return;
 
-    // Snap to center for horizontal scroll
-    container.addEventListener('scroll', () => {
-      const children = container.children;
-      let closestChild: Element | null = null;
-      let closestDistance = Infinity;
-
-      const containerCenter = container.scrollLeft + container.clientWidth / 2;
-
-      for (let child of children) {
-        const childCenter = (child as HTMLElement).offsetLeft + (child as HTMLElement).clientWidth / 2;
-        const distance = Math.abs(containerCenter - childCenter);
-
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestChild = child;
-        }
-      }
-
-      if (closestChild && closestDistance < 200) {
-        closestChild.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      }
+    // Apply native CSS scroll snapping instead of JS loop
+    container.style.scrollSnapType = 'x mandatory';
+    Array.from(container.children).forEach(child => {
+      (child as HTMLElement).style.scrollSnapAlign = 'center';
     });
   }, []);
 
@@ -41,14 +24,22 @@ export function useParallax(offset = 0.3) {
     const element = ref.current;
     if (!element) return;
 
+    let ticking = false;
+
     const handleScroll = () => {
-      const rect = element.getBoundingClientRect();
-      const scrolled = window.scrollY;
-      const elementOffset = element.offsetTop;
-      
-      if (rect.top < window.innerHeight) {
-        const distance = scrolled - elementOffset;
-        element.style.transform = `translateY(${distance * offset}px)`;
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const rect = element.getBoundingClientRect();
+          const scrolled = window.scrollY;
+          const elementOffset = element.offsetTop;
+          
+          if (rect.top < window.innerHeight) {
+            const distance = scrolled - elementOffset;
+            element.style.transform = `translateY(${distance * offset}px) translateZ(0)`;
+          }
+          ticking = false;
+        });
+        ticking = true;
       }
     };
 

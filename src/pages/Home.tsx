@@ -20,154 +20,7 @@ import { useGeolocation } from '@/hooks/useGeolocation';
 import { fetchWeather, generateWeatherAdvice, getWateringRecommendation } from '@/utils/weatherIntegration';
 import { getPlantPhoto } from '@/utils/plantImage';
 
-// Mock data factory (Point 14: safe from module-scope Date HMR drift)
-export const getMockPlants = () => [
-  {
-    id: '1',
-    nickname: 'Monty',
-    species: 'Monstera Deliciosa',
-    healthScore: 92,
-    lastWatered: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-    image: 'https://images.unsplash.com/photo-1614594975525-e45190c55d0b?w=400&h=400&fit=crop',
-    lastPhoto: 'Analyzed 2 mins ago',
-    bio: 'Monstera Deliciosa, also known as Swiss Cheese Plant, is a tropical native to Mexico. Known for its iconic split leaves (fenestration), this plant loves bright, indirect light and consistent moisture.',
-    careSchedule: {
-      watering: 'Every 7 days',
-      fertilizing: 'Monthly',
-      rotation: 'Weekly'
-    },
-    healthHistory: [45, 50, 55, 60, 68, 72, 75, 80, 85, 88, 90, 92, 91, 90, 92, 93, 92, 94, 95, 94, 92, 91, 90, 88, 87, 85, 83, 81, 80, 82],
-    photos: [
-      {
-        url: 'https://images.unsplash.com/photo-1614594975525-e45190c55d0b?w=400&h=400&fit=crop',
-        date: new Date(),
-        healthScore: 92
-      },
-      {
-        url: 'https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=400&h=400&fit=crop',
-        date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-        healthScore: 88
-      },
-      {
-        url: 'https://images.unsplash.com/photo-1545241047-6083a3684587?w=400&h=400&fit=crop',
-        date: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
-        healthScore: 82
-      }
-    ]
-  },
-  {
-    id: '2',
-    nickname: 'Fidget',
-    species: 'Ficus Lyrata',
-    healthScore: 78,
-    lastWatered: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-    image: 'https://images.unsplash.com/photo-1580133318324-f2f76d987dd8?w=400&h=400&fit=crop',
-    lastPhoto: 'Analyzed 5 mins ago',
-    bio: 'The Fiddle Leaf Fig is an iconic houseplant native to West Africa. It demands bright, indirect light and despises drafts.',
-    careSchedule: {
-      watering: 'Every 7-10 days',
-      fertilizing: 'Monthly',
-      rotation: 'Weekly'
-    },
-    healthHistory: [50, 52, 55, 58, 61, 64, 67, 69, 71, 73, 74, 75, 76, 77, 78, 77, 76, 75, 74, 73, 72, 71, 70, 69, 70, 71, 72, 73, 74, 78],
-    photos: [
-      {
-        url: 'https://images.unsplash.com/photo-1580133318324-f2f76d987dd8?w=400&h=400&fit=crop',
-        date: new Date(),
-        healthScore: 78
-      }
-    ]
-  },
-  {
-    id: '3',
-    nickname: 'Snake',
-    species: 'Sansevieria Trifasciata',
-    healthScore: 95,
-    lastWatered: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
-    image: 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=400&h=400&fit=crop',
-    lastPhoto: 'Analyzed 1 day ago',
-    bio: 'Snake Plant is virtually indestructible. This succulent native to West Africa is a master air purifier.',
-    careSchedule: {
-      watering: 'Every 2-3 weeks',
-      fertilizing: 'Every 2 months',
-      rotation: 'Monthly'
-    },
-    healthHistory: [92, 93, 94, 95, 95, 95, 95, 94, 94, 94, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95],
-    photos: [
-      {
-        url: 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=400&h=400&fit=crop',
-        date: new Date(),
-        healthScore: 95
-      }
-    ]
-  },
-  {
-    id: '4',
-    nickname: 'Pearl',
-    species: 'Epipremnum Pinnatum',
-    healthScore: 85,
-    lastWatered: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-    image: 'https://images.unsplash.com/photo-1592150621744-aca64f48394a?w=400&h=400&fit=crop',
-    lastPhoto: 'Analyzed 4 hours ago',
-    bio: 'A stunning vining plant with silvery leaves, Pearl rarely needs intense light.',
-    careSchedule: {
-      watering: 'Every 5-7 days',
-      fertilizing: 'Bi-weekly',
-      rotation: 'Bi-weekly'
-    },
-    healthHistory: [70, 72, 74, 76, 78, 79, 80, 81, 82, 83, 83, 84, 84, 85, 85, 85, 85, 85, 85, 85, 85, 85, 85, 85, 85, 85, 85, 85, 85, 85],
-    photos: [
-      {
-        url: 'https://images.unsplash.com/photo-1592150621744-aca64f48394a?w=400&h=400&fit=crop',
-        date: new Date(),
-        healthScore: 85
-      }
-    ]
-  }
-];
 
-const MOCK_SUGGESTIONS = [
-  {
-    id: 'treatment-1',
-    title: 'Treatment Suggestions',
-    description: 'For Monty',
-    icon: '🩺',
-    type: 'treatment' as const,
-    content: [
-      'Mist leaves twice daily to increase humidity',
-      'Move away from AC vent',
-      'Consider adding a humidity tray'
-    ],
-    actionLabel: 'Mark All Done'
-  },
-  {
-    id: 'market-1',
-    title: 'Market Recommendations',
-    description: 'Based on needs',
-    icon: '🛒',
-    type: 'market' as const,
-    content: 'Ceramic humidity tray, Neem oil spray, Moisture meter',
-    actionLabel: 'View Products'
-  },
-  {
-    id: 'climate-1',
-    title: 'Climate-Based Care',
-    description: 'Your location',
-    icon: '🌡️',
-    type: 'climate' as const,
-    content: 'Delhi, 28°C, 62% humidity. Perfect conditions for tropical plants!',
-    actionLabel: 'View Forecast'
-  },
-  {
-    id: 'tips-1',
-    title: 'Did You Know?',
-    description: 'Garden tip',
-    icon: '💡',
-    type: 'tips' as const,
-    content: 'Monstera leaves split to let wind pass through in storms.',
-    actionLabel: 'Learn More'
-  }
-];
 
 import { useNavigate } from 'react-router-dom';
 import { usePageTransition } from '@/components/home/PageTransitionContext';
@@ -334,12 +187,7 @@ export default function HomePage() {
   const { theme } = useDayNightTheme();
   const { ecoModeActive } = useEcoMode();
   const { location, city } = useGeolocation();
-  const [weather, setWeather] = useState<any>({
-    temp: 28,
-    humidity: 62,
-    condition: 'Partly Cloudy',
-    rainProbability: 10
-  });
+  const [weather, setWeather] = useState<any>(null);
 
   // Onboarding gate
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem(ONBOARD_KEY) === '1');
@@ -374,8 +222,7 @@ export default function HomePage() {
     })),
   [dbPlants]);
 
-  const defaultPlant = mappedPlants.length > 0 ? mappedPlants[0] : getMockPlants()[0];
-  const [selectedPlant, setSelectedPlant] = useState<any>(defaultPlant);
+  const [selectedPlant, setSelectedPlant] = useState<any>(mappedPlants[0] ?? null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Keep selected plant updated — only update when ID changes to prevent re-render loop
@@ -453,10 +300,10 @@ export default function HomePage() {
         {/* Hero Section */}
         <HeroSection
           plantId={selectedPlant?.id}
-          plantName={selectedPlant?.nickname || selectedPlant?.name || 'Monty'}
-          plantSpecies={selectedPlant?.species || 'Monstera Deliciosa'}
-          healthScore={selectedPlant?.healthScore || 92}
-          lastAnalyzed={selectedPlant?.lastPhoto || 'Analyzed recently'}
+          plantName={selectedPlant?.nickname || selectedPlant?.name || ''}
+          plantSpecies={selectedPlant?.species || ''}
+          healthScore={selectedPlant?.healthScore || 0}
+          lastAnalyzed={selectedPlant?.lastPhoto || ''}
           photoUrl={getPlantPhoto(selectedPlant?.image || selectedPlant?.photoUrl, selectedPlant?.species)}
           profile={profile}
           totalPlants={mappedPlants.length}

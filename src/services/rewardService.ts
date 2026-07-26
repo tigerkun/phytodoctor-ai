@@ -300,19 +300,22 @@ export class RewardService {
 
   // ============ STREAK SYSTEM ============
 
-  static async updateStreakOnLogin(userId: string = this.getUserId()): Promise<number> {
+  static async updateStreakOnUpload(userId: string = this.getUserId()): Promise<{ currentStreak: number, continuedToday: boolean }> {
     const streak = await this.ensureStreakRecord(userId);
     const today = this.getTodayDateStr();
     const yesterday = this.getYesterdayDateStr();
 
     if (streak.lastLoginDate === today) {
       // Already logged in today
-      return streak.currentStreak;
+      return { currentStreak: streak.currentStreak, continuedToday: false };
     }
+
+    let continuedToday = false;
 
     if (streak.lastLoginDate === yesterday) {
       // Streak continues
       streak.currentStreak += 1;
+      continuedToday = true;
     } else {
       // Streak broken (unless using freeze)
       streak.currentStreak = 1;
@@ -329,7 +332,7 @@ export class RewardService {
     streak.nextResetDate = this.getNextMonthDateStr();
 
     await db.streakRecords.put(streak);
-    return streak.currentStreak;
+    return { currentStreak: streak.currentStreak, continuedToday };
   }
 
   static async useStreakFreeze(userId: string = this.getUserId()): Promise<boolean> {

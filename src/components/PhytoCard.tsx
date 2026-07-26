@@ -1,6 +1,7 @@
 import React from 'react';
 import { PhytoCard as PhytoCardType } from '../types';
 import { Shield, Zap, Heart, Wind, Star } from 'lucide-react';
+import { getPlantPhoto } from '../utils/plantImage';
 
 interface Props {
   card: PhytoCardType;
@@ -52,7 +53,7 @@ export default function PhytoCard({ card, onClick, className = '' }: Props) {
       <div className="flex-grow flex items-center justify-center py-4 z-10 relative group-hover:scale-110 transition-transform duration-700">
          <div className="absolute inset-0 m-4 rounded-full overflow-hidden border-2 border-white/20 shadow-xl opacity-90 group-hover:opacity-100 transition-opacity">
             <img 
-               src={getPlantImageUrl(card.species)} 
+               src={getPlantPhoto(card.species)} 
                alt={card.commonName}
                className="w-full h-full object-cover object-center"
                loading="lazy"

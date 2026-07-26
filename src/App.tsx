@@ -11,7 +11,7 @@ import Market from './pages/Market';
 import Profile from './pages/Profile';
 import PlantDetail from './pages/PlantDetail';
 import Pedigree from './pages/Pedigree';
-import Chat from './pages/Chat';
+import FloatingAssistant from './components/FloatingAssistant';
 import Auth from './pages/Auth';
 import NotFound from './pages/NotFound';
 import { CaseStudy } from './components/CaseStudy';
@@ -33,6 +33,7 @@ export default function App() {
       <ToastProvider>
         <Layout>
           <Leafify />
+          <FloatingAssistant />
           <Routes>
 
 
@@ -64,8 +65,6 @@ export default function App() {
             {/* Specialized Tracking */}
             <Route path="/pedigree/:id" element={<Pedigree />} />
             
-            {/* Specialized Consulting */}
-            <Route path="/assistant" element={<Chat />} />
             
             {/* Specialist Profile */}
             <Route path="/profile" element={<Profile />} />

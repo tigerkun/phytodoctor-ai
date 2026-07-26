@@ -27,12 +27,16 @@ import {
   TrendingUp,
   FileText
 } from 'lucide-react';
+import StreakPopup from '../components/game/StreakPopup';
 import { db } from '../db/database';
 import { GameService } from '../services/gameService';
 import { identifyPlant } from '../services/geminiService';
 import { usePageTransition } from '../components/home/PageTransitionContext';
 import { getPlantPhoto } from '../utils/plantImage';
 import PageWrapper from '../components/home/PageWrapper';
+import { useGeolocation } from '../hooks/useGeolocation';
+import { fetchWeather } from '../utils/weatherIntegration';
+import { updateUploadStreak } from '../game/rewardUtils';
 
 // Rarity mapping helper
 function getRarityFromSpecies(species: string): 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' {
@@ -157,28 +161,35 @@ export default function BotanicalLab() {
   const [showLedger, setShowLedger] = useState(false);
   const [activeAccordion, setActiveAccordion] = useState<number | null>(null);
 
+  const [scanMode, setScanMode] = useState<'consult' | 'index'>('consult');
+  
+  const [streakPopupData, setStreakPopupData] = useState<{ streak: number, seeds: number } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [dexImage, setDexImage] = useState<string | null>(null);
   const [dexResult, setDexResult] = useState<any | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
   const [isNewSpecies, setIsNewSpecies] = useState(false);
   const [discoveryBonus, setDiscoveryBonus] = useState(0);
   const [scannedRewards, setScannedRewards] = useState<{ seeds: number; xp: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Coin burst particles
   const [coins, setCoins] = useState<Particle[]>([]);
   const coinIdCounter = useRef(0);
 
-  // Page Transition Router Link
+  // Update logic state
+  const updatePhotoInputRef = useRef<HTMLInputElement>(null);
+  const [updatingPlantId, setUpdatingPlantId] = useState<string | null>(null);
+  const [isUpdatingPhoto, setIsUpdatingPhoto] = useState(false);
+
   const { transitionTo } = usePageTransition();
 
-  // Real Database Hooks
   const userId = GameService.getUserId();
   const profile = useLiveQuery(() => GameService.getProfile(userId), [userId]);
   const dbPlants = useLiveQuery(() => db.plants.where('userId').equals(userId).toArray(), [userId]) || [];
   const checkins = useLiveQuery(() => db.checkins.toArray()) || [];
 
-  // Update tab if URL params change
+  const { location, city } = useGeolocation();
+
   useEffect(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'sanctuary') {
@@ -188,7 +199,6 @@ export default function BotanicalLab() {
     }
   }, [searchParams]);
 
-  // Spawn coin burst at a coordinate
   const triggerCoinBurst = (e?: React.MouseEvent) => {
     const startX = e ? e.clientX : window.innerWidth / 2;
     const startY = e ? e.clientY : window.innerHeight / 2;
@@ -206,13 +216,63 @@ export default function BotanicalLab() {
     }, 1500);
   };
 
-  // Upload scan handler (Garden-Dex)
+  const resetDexScan = (openPicker = true) => {
+    setDexImage(null);
+    setDexResult(null);
+    setUploading(false);
+    setIsNewSpecies(false);
+    setScannedRewards(null);
+    setScanError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    if (openPicker) {
+      setTimeout(() => {
+        fileInputRef.current?.click();
+      }, 50);
+    }
+  };
+
+  const handleIndexSpecimen = async (resultToUse?: any) => {
+    const target = resultToUse || dexResult;
+    if (!target) return;
+    const species = target.speciesName || target.commonName;
+    const rarity = getRarityFromSpecies(species);
+    let rewards = { xp: 10, seeds: 8 };
+    if (rarity === 'legendary') rewards = { xp: 500, seeds: 400 };
+    else if (rarity === 'epic') rewards = { xp: 200, seeds: 150 };
+    else if (rarity === 'rare') rewards = { xp: 75, seeds: 60 };
+    else if (rarity === 'uncommon') rewards = { xp: 25, seeds: 20 };
+
+    const alreadyDiscovered = profile?.discoveredSpecies?.includes(species);
+    if (!alreadyDiscovered) {
+      setIsNewSpecies(true);
+      setDiscoveryBonus(rewards.seeds);
+      triggerCoinBurst();
+      const res = await GameService.awardDiscoveryReward(species, rarity);
+      const streakRes = await updateUploadStreak(userId);
+      if (streakRes.continuedToday) {
+        setStreakPopupData({ streak: streakRes.currentStreak, seeds: res.seedsAwarded });
+      }
+      setScannedRewards({ seeds: res.seedsAwarded, xp: res.xpAwarded });
+    } else {
+      const res = await GameService.awardRewardForAction('diagnosis_upload');
+      const streakRes = await updateUploadStreak(userId);
+      if (streakRes.continuedToday) {
+        setStreakPopupData({ streak: streakRes.currentStreak, seeds: res.seedsAwarded });
+      }
+      setScannedRewards({ seeds: res.seedsAwarded, xp: res.xpAwarded });
+      triggerCoinBurst();
+    }
+  };
+
   const handleDexUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploading(true);
     setDexResult(null);
+    setScanError(null);
     setIsNewSpecies(false);
     setScannedRewards(null);
 
@@ -222,33 +282,23 @@ export default function BotanicalLab() {
       setDexImage(base64);
 
       try {
-        const result = await identifyPlant(base64);
+        let locationCtx: any;
+        if (location?.latitude && location?.longitude) {
+            locationCtx = { city, latitude: location.latitude, longitude: location.longitude };
+        } else if (city) {
+            locationCtx = { city };
+        }
+
+        const result = await identifyPlant(base64, locationCtx);
         setDexResult(result);
 
-        const rarity = getRarityFromSpecies(result.speciesName || result.commonName);
-        let rewards = { xp: 10, seeds: 8 };
-        if (rarity === 'legendary') rewards = { xp: 500, seeds: 400 };
-        else if (rarity === 'epic') rewards = { xp: 200, seeds: 150 };
-        else if (rarity === 'rare') rewards = { xp: 75, seeds: 60 };
-        else if (rarity === 'uncommon') rewards = { xp: 25, seeds: 20 };
-
-        // Check if already discovered
-        const alreadyDiscovered = profile?.discoveredSpecies?.includes(result.speciesName || result.commonName);
-        if (!alreadyDiscovered) {
-          setIsNewSpecies(true);
-          setDiscoveryBonus(rewards.seeds);
-          triggerCoinBurst();
-          const res = await GameService.awardDiscoveryReward(result.speciesName || result.commonName, rarity);
-          setScannedRewards({ seeds: res.seedsAwarded, xp: res.xpAwarded });
-        } else {
-          // Standard diagnosis award
-          const res = await GameService.awardRewardForAction('diagnosis_upload');
-          setScannedRewards({ seeds: res.seedsAwarded, xp: res.xpAwarded });
-          triggerCoinBurst();
+        if (scanMode === 'index') {
+          await handleIndexSpecimen(result);
         }
       } catch (err: any) {
         console.error('Scan Error:', err);
-        alert(err.message || "Failed to identify plant. Please ensure your Gemini API Key is valid and the server is running.");
+        setScanError(err.message || 'Failed to identify plant.');
+        setDexImage(null);
       } finally {
         setUploading(false);
       }
@@ -256,79 +306,103 @@ export default function BotanicalLab() {
     reader.readAsDataURL(file);
   };
 
-  // Add new genus slot
+  const handleUpdateFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !updatingPlantId) return;
+
+    setIsUpdatingPhoto(true);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        const result = await identifyPlant(base64);
+        const plant = await db.plants.get(updatingPlantId);
+        if (!plant) throw new Error("Plant not found");
+
+        const resultSpecies = result.speciesName || result.commonName;
+        const oldGenus = plant.species.split(' ')[0].toLowerCase();
+        const newGenus = resultSpecies.split(' ')[0].toLowerCase();
+        
+        if (oldGenus !== newGenus && !resultSpecies.toLowerCase().includes(oldGenus)) {
+          setScanError(`This looks like a ${resultSpecies}, not your ${plant.species}!`);
+          return;
+        }
+
+        await GameService.addSeeds(15, 'bonus', 'Updated plant photo check-in');
+        const streakRes = await updateUploadStreak(userId);
+        if (streakRes.continuedToday) {
+          setStreakPopupData({ streak: streakRes.currentStreak, seeds: 15 });
+        }
+        
+        const today = new Date();
+        await db.plants.update(updatingPlantId, {
+          checkInTime: 'just now',
+          updatedAt: today,
+          photoUrl: base64
+        });
+        
+        await db.checkins.add({
+          id: crypto.randomUUID(),
+          plantId: updatingPlantId,
+          timestamp: today,
+          soilMoisture: 'Moist',
+          lightLevel: 'Indirect',
+          changes: ['Photo updated'],
+          photoBlob: null,
+          photoUrl: base64,
+          signature: null,
+          guardianScore: 95,
+          driftScore: 0.1,
+          driftStatus: 'stable',
+          weatherTemp: 25,
+          weatherHumidity: 50,
+          weatherDescription: 'Sunny',
+          synced: 0
+        });
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      setScanError(err.message || "Failed to process photo");
+    } finally {
+      setIsUpdatingPhoto(false);
+      if (updatePhotoInputRef.current) {
+        updatePhotoInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleUpdatePhoto = (plantId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setUpdatingPlantId(plantId);
+    updatePhotoInputRef.current?.click();
+  };
+
   const handleAddNewSlot = () => {
     setActiveTab('dex');
-    setSearchParams({ tab: 'dex' });
+    setScanMode('index');
+    resetDexScan();
   };
 
-  // Update specific plant photo inside My Sanctuary
-  const handleUpdatePhoto = async (plantId: string, e: React.MouseEvent) => {
-    triggerCoinBurst(e);
-    // Award +15 seeds coin burst
-    await GameService.addSeeds(15, 'bonus', 'Updated plant photo check-in');
-    
-    // Update last check-in date
-    const today = new Date();
-    await db.plants.update(plantId, {
-      checkInTime: 'just now',
-      updatedAt: today
-    });
-    
-    // Add check-in record
-    await db.checkins.add({
-      id: crypto.randomUUID(),
-      plantId,
-      timestamp: today,
-      soilMoisture: 'Moist',
-      lightLevel: 'Indirect',
-      changes: ['Photo updated'],
-      photoBlob: null,
-      photoUrl: 'https://images.unsplash.com/photo-1592150621744-aca64f48394a?w=400&h=400&fit=crop',
-      signature: null,
-      guardianScore: 95,
-      driftScore: 0.1,
-      driftStatus: 'stable',
-      weatherTemp: 28,
-      weatherHumidity: 62,
-      weatherDescription: 'Sunny',
-      synced: 0
-    });
-  };
-
-  // Check if plant has a check-in today (Active state)
   const isPlantActive = (plantId: string) => {
     const plantCheckins = checkins.filter(c => c.plantId === plantId);
     if (plantCheckins.length === 0) return false;
-    
     const latest = plantCheckins.reduce((latest, current) => 
       new Date(current.timestamp) > new Date(latest.timestamp) ? current : latest
     );
-
-    const checkInDate = new Date(latest.timestamp).toDateString();
-    const todayDate = new Date().toDateString();
-    return checkInDate === todayDate;
+    return new Date(latest.timestamp).toDateString() === new Date().toDateString();
   };
 
   const thrivingCount = dbPlants.filter(plant => isPlantActive(plant.id)).length;
 
   return (
     <PageWrapper className="min-h-screen text-text-bark relative overflow-hidden font-sans transition-colors duration-1000">
-      
-      {/* ── PARALLAX BACKGROUND DRIFT LEAVES & POLLEN ── */}
       <LabBackground isDay={true} />
-
-      {/* Floating Coins Layer */}
       <AnimatePresence>
         {coins.map((c) => (
           <motion.div
             key={c.id}
             initial={{ opacity: 1, x: c.x - 20, y: c.y }}
-            animate={{ 
-              opacity: [1, 1, 0], 
-              y: c.y - 120,
-              scale: [0.5, c.scale, 0.3]
-            }}
+            animate={{ opacity: [1, 1, 0], y: c.y - 120, scale: [0.5, c.scale, 0.3] }}
             exit={{ opacity: 0 }}
             transition={{ duration: 1.2, ease: 'easeOut' }}
             className="fixed z-50 text-2xl select-none pointer-events-none flex items-center gap-1 font-bold text-gold filter drop-shadow-md"
@@ -339,100 +413,48 @@ export default function BotanicalLab() {
       </AnimatePresence>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12 relative z-10">
-        
-        {/* Top Header & Tab System */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8 sm:mb-12 border-b border-border-light pb-6 sm:pb-8 w-full">
           <div className="flex-grow min-w-[320px] max-w-2xl">
             <h1 className="text-3xl sm:text-4xl font-serif font-black text-text-bark flex items-center gap-3">
               Botanical Lab <span className="text-moss">🧪</span>
             </h1>
             <p className="text-text-stone text-xs sm:text-sm mt-2 leading-relaxed">
-              Index wild specimens in the high-fidelity Plant Database, or track telemetries for your indoor crops inside the Garden Sanctuary.
+              Index wild specimens or track telemetries for your indoor crops.
             </p>
           </div>
 
-          {/* Ecosystem Pulse Widget (Fills Center Unused Space) */}
-          <div className="hidden lg:flex items-center gap-4 px-5 py-3 bg-bg-secondary/50 border border-border-light rounded-3xl backdrop-blur-md max-w-sm flex-1 mx-4">
-            <div className="relative w-10 h-10 flex items-center justify-center shrink-0">
-              <motion.div
-                animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0.6, 0.3] }}
-                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute inset-0 rounded-full bg-moss/20"
-              />
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-                className="absolute inset-1 rounded-full border border-dashed border-moss/40"
-              />
-              <Sprout size={16} className="text-moss relative z-10" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-moss animate-ping" />
-                <span className="text-[9px] uppercase tracking-wider font-black text-moss font-sans">
-                  Ecosystem Pulse
-                </span>
-              </div>
-              <p className="text-xs text-text-bark font-serif font-black mt-0.5 truncate">
-                {thrivingCount} of {dbPlants.length} Plants Thriving
-              </p>
-              <div className="flex items-center gap-2 mt-0.5 text-[9px] text-text-stone truncate">
-                <span>Streak: <strong>{profile?.currentStreak || 0}D</strong></span>
-                <span>•</span>
-                <span>Wallet: <strong>{profile?.seeds || 0} Seeds</strong></span>
-              </div>
-            </div>
-          </div>
-
           <div className="flex flex-wrap items-center gap-3 sm:gap-4 shrink-0">
-            {/* Sliding Pill Tab Toggle */}
             <div className="bg-bg-secondary p-1 rounded-full flex relative border border-border-light shadow-sm">
               {(['dex', 'sanctuary'] as const).map((tab) => (
                 <button
                   key={tab}
-                  onClick={() => {
-                    setActiveTab(tab);
-                    setSearchParams({ tab });
-                  }}
-                  className={`relative z-10 px-4 sm:px-6 py-2.5 sm:py-3 min-h-[44px] rounded-full text-xs font-black uppercase tracking-wider transition-colors duration-300 flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2 active:scale-95 ${
+                  onClick={() => { setActiveTab(tab); setSearchParams({ tab }); }}
+                  className={`relative z-10 px-4 sm:px-6 py-2.5 sm:py-3 min-h-[44px] rounded-full text-xs font-black uppercase tracking-wider transition-colors duration-300 flex items-center gap-2 ${
                     activeTab === tab ? 'text-white' : 'text-text-stone hover:text-text-bark'
                   }`}
                 >
                   {tab === 'dex' ? <Compass size={12} /> : <Heart size={12} />}
                   {tab === 'dex' ? 'Plant Database' : 'Garden Sanctuary'}
-                  {activeTab === tab && (
-                    <motion.div
-                      layoutId="labTabIndicator"
-                      className="absolute inset-0 bg-moss rounded-full -z-10"
-                      transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-                    />
-                  )}
+                  {activeTab === tab && <motion.div layoutId="labTabIndicator" className="absolute inset-0 bg-moss rounded-full -z-10" />}
                 </button>
               ))}
             </div>
-
-            {/* Economy Ledger Rules Toggle */}
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => setShowLedger(true)}
-              aria-label="View rewards system rules ledger"
-              className="flex items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 min-h-[44px] rounded-full bg-terracotta hover:bg-terracotta-light text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)] focus-visible:ring-offset-2 active:scale-95"
+              className="flex items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 min-h-[44px] rounded-full bg-terracotta hover:bg-terracotta-light text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md shrink-0"
             >
-              <Coins size={12} /> Rewards System
+              <Coins size={12} /> Rewards
             </motion.button>
           </div>
         </div>
 
-        {/* ==================== TAB A: GARDEN-DEX (AI PORTAL) ==================== */}
         {activeTab === 'dex' && (
           <div className="grid grid-cols-1 gap-8 relative">
-            <div className="flex flex-col items-center justify-center min-h-[400px] sm:min-h-[480px] p-4 sm:p-8 rounded-3xl border border-border-medium bg-bg-glass backdrop-blur-md relative overflow-hidden shadow-lg">
-              
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,var(--border-glow),transparent_70%)] pointer-events-none" />
-
+            <div className="flex flex-col items-center justify-center min-h-[400px] p-4 sm:p-8 rounded-3xl border border-border-medium bg-bg-glass relative overflow-hidden shadow-lg">
               <AnimatePresence mode="wait">
-                {!dexImage && (
+                {!dexImage && !scanError && (
                   <motion.div
                     key="camera-dropzone"
                     initial={{ opacity: 0, scale: 0.98 }}
@@ -440,6 +462,32 @@ export default function BotanicalLab() {
                     exit={{ opacity: 0, scale: 0.98 }}
                     className="flex flex-col items-center text-center w-full max-w-md relative z-10 px-2 sm:px-6"
                   >
+                    {/* Scan Mode Switcher */}
+                    <div className="mb-6 flex p-1 bg-bg-secondary border border-border-light rounded-2xl gap-1.5 shadow-xs w-full max-w-sm">
+                      <button
+                        type="button"
+                        onClick={() => setScanMode('consult')}
+                        className={`flex-1 py-2 px-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                          scanMode === 'consult'
+                            ? 'bg-moss text-white shadow-md'
+                            : 'text-text-stone hover:text-text-bark hover:bg-bg-tertiary'
+                        }`}
+                      >
+                        🔬 Scan & Consult AI
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScanMode('index')}
+                        className={`flex-1 py-2 px-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                          scanMode === 'index'
+                            ? 'bg-moss text-white shadow-md'
+                            : 'text-text-stone hover:text-text-bark hover:bg-bg-tertiary'
+                        }`}
+                      >
+                        📚 Scan & Index
+                      </button>
+                    </div>
+
                     <motion.div
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.98 }}
@@ -450,28 +498,50 @@ export default function BotanicalLab() {
                       <Camera size={30} className="relative z-10 text-moss group-hover:scale-110 transition-transform duration-300" />
                     </motion.div>
 
-                    <h2 className="text-2xl sm:text-3xl font-serif font-black text-text-bark tracking-tight">Scan Wild Species</h2>
+                    <h2 className="text-2xl sm:text-3xl font-serif font-black text-text-bark tracking-tight">
+                      {scanMode === 'consult' ? 'Scan & Consult AI' : 'Scan & Index Specimen'}
+                    </h2>
                     <p className="text-xs sm:text-sm text-text-stone mt-2 mb-6 max-w-xs leading-relaxed">
-                      Snapshot any wild plant to index it in your Plant Database. Discover rare or legendary species to claim large seed bonuses!
+                      {scanMode === 'consult'
+                        ? 'Snapshot any plant to analyze health & ask AI questions without adding it to your collection.'
+                        : 'Snapshot any plant to analyze health and index it directly into your Sanctuary Registry database.'}
                     </p>
 
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       className="px-6 sm:px-8 py-3 sm:py-3.5 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 duration-200"
                     >
-                      Diagnose & Index Plant
+                      {scanMode === 'consult' ? '🔬 Scan & Consult AI' : '📚 Scan & Index to Sanctuary'}
                     </button>
-                    <input 
-                      type="file" 
-                      ref={fileInputRef} 
-                      onChange={handleDexUpload} 
-                      accept="image/*" 
-                      className="hidden" 
-                    />
                   </motion.div>
                 )}
 
-                {dexImage && (
+              {/* ── SCAN ERROR ── */}
+              {scanError && !dexImage && (
+                <motion.div
+                  key="scan-error"
+                  initial={{ opacity: 0, scale: 0.97 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.97 }}
+                  className="flex flex-col items-center gap-4 text-center w-full max-w-sm relative z-10"
+                >
+                  <div className="flex items-center gap-3 w-full px-4 py-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-left">
+                    <span className="text-lg shrink-0">🌿</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-rose-400">Scan Failed</p>
+                      <p className="text-[11px] text-text-stone truncate">Could not analyse plant — please try again</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => resetDexScan(true)}
+                    className="px-6 py-2.5 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition-all active:scale-95"
+                  >
+                    🔄 Try Again
+                  </button>
+                </motion.div>
+              )}
+
+              {dexImage && (
                   <motion.div
                     key="analysis-preview"
                     initial={{ opacity: 0, y: 15 }}
@@ -498,10 +568,7 @@ export default function BotanicalLab() {
                       <div className="lg:col-span-5 relative rounded-2xl overflow-hidden shadow-md border border-border-medium bg-black/5 max-h-[360px]">
                         <img src={dexImage} alt="Scanned plant" className="w-full h-full object-cover" />
                         <button
-                          onClick={() => {
-                            setDexImage(null);
-                            setDexResult(null);
-                          }}
+                          onClick={() => resetDexScan(false)}
                           className="absolute top-4 right-4 p-2 rounded-full bg-bg-glass text-text-bark shadow-md hover:bg-bg-primary transition-all active:scale-90"
                         >
                           <X size={14} />
@@ -511,21 +578,23 @@ export default function BotanicalLab() {
                       {/* Right: Glassmorphism Data Board */}
                       <div className="lg:col-span-7 flex flex-col justify-between">
                         <div>
-                          {isNewSpecies && (
-                            <motion.div
-                              initial={{ scale: 0.98, opacity: 0 }}
-                              animate={{ scale: 1, opacity: 1 }}
-                              className="mb-4 inline-flex items-center gap-1.5 px-3 py-1.5 bg-gold/10 border border-gold text-text-bark rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm animate-pulse"
-                            >
-                              🌟 New Species Discovered: +{discoveryBonus} Seeds!
-                            </motion.div>
-                          )}
+                          <div className="flex flex-wrap items-center gap-2 mb-3">
+                            <span className="px-2.5 py-1 bg-moss/10 text-moss border border-moss/20 rounded-md text-[10px] font-black uppercase tracking-wider">
+                              {scanMode === 'consult' ? '🔬 Consultation Mode' : '📚 Sanctuary Index Mode'}
+                            </span>
+
+                            {isNewSpecies && (
+                              <span className="px-2.5 py-1 bg-gold/10 border border-gold text-text-bark rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm animate-pulse">
+                                🌟 New Species Discovered: +{discoveryBonus} Seeds!
+                              </span>
+                            )}
+                          </div>
 
                           <h2 className="text-3xl font-serif font-black text-text-bark">
                             {dexResult?.commonName || 'Identifying...'}
                           </h2>
                           <p className="text-xs font-mono uppercase tracking-widest text-moss mt-0.5 font-bold">
-                            {dexResult?.scientificName || 'Ficus lyrata'}
+                            {dexResult?.scientificName || ''}
                           </p>
 
                           {/* Immediate Health Status & Severity */}
@@ -592,8 +661,8 @@ export default function BotanicalLab() {
                                     🏆
                                   </div>
                                   <div>
-                                    <h4 className="text-[11px] font-black text-text-bark uppercase tracking-wider">Botanical Reward Claimed</h4>
-                                    <p className="text-[10px] text-text-muted">Your diagnosis earned you seeds and XP!</p>
+                                    <h4 className="text-[11px] font-black text-text-bark uppercase tracking-wider">Indexed to Sanctuary</h4>
+                                    <p className="text-[10px] text-text-muted">Specimen registered and rewards claimed!</p>
                                   </div>
                                 </div>
                                 <div className="text-right shrink-0">
@@ -619,16 +688,63 @@ export default function BotanicalLab() {
                                 </ul>
                               </div>
                             )}
+
+                            {/* ── LOCATION INTELLIGENCE ── */}
+                            {(dexResult?.locationAdvice || dexResult?.seasonalCare || dexResult?.localPestRisks || dexResult?.climateCompatibility) && (
+                              <div className="space-y-3">
+                                <span className="text-[9px] font-black uppercase tracking-wider text-moss flex items-center gap-1.5">
+                                  <Compass size={10} /> Location Intelligence
+                                </span>
+
+                                {dexResult?.climateCompatibility && (
+                                  <div className="p-4 rounded-xl bg-bg-secondary border border-border-light">
+                                    <span className="text-[9px] font-black uppercase tracking-wider text-text-stone block mb-1">🌍 Climate Compatibility</span>
+                                    <p className="text-xs text-text-bark leading-relaxed">{dexResult.climateCompatibility}</p>
+                                  </div>
+                                )}
+
+                                {dexResult?.locationAdvice && (
+                                  <div className="p-4 rounded-xl bg-bg-secondary border border-border-light">
+                                    <span className="text-[9px] font-black uppercase tracking-wider text-text-stone block mb-1">📍 Regional Growing Advice</span>
+                                    <p className="text-xs text-text-bark leading-relaxed">{dexResult.locationAdvice}</p>
+                                  </div>
+                                )}
+
+                                {dexResult?.seasonalCare && (
+                                  <div className="p-4 rounded-xl bg-bg-secondary border border-border-light">
+                                    <span className="text-[9px] font-black uppercase tracking-wider text-text-stone block mb-1">🗓️ Seasonal Care Right Now</span>
+                                    <p className="text-xs text-text-bark leading-relaxed">{dexResult.seasonalCare}</p>
+                                  </div>
+                                )}
+
+                                {dexResult?.localPestRisks && (
+                                  <div className="p-4 rounded-xl bg-rose-500/5 border border-rose-500/15">
+                                    <span className="text-[9px] font-black uppercase tracking-wider text-rose-400 block mb-1">⚠️ Local Pest &amp; Disease Risks</span>
+                                    <p className="text-xs text-text-bark leading-relaxed">{dexResult.localPestRisks}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
 
-                        <div className="mt-8 flex gap-4">
+                        <div className="mt-8 flex flex-wrap sm:flex-nowrap gap-3">
                           <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="flex-1 py-3 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-md"
+                            onClick={() => resetDexScan(true)}
+                            className="flex-1 py-3 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-md active:scale-95"
                           >
-                            Scan Another
+                            📷 Scan Another
                           </button>
+
+                          {scanMode === 'consult' && !scannedRewards && (
+                            <button
+                              onClick={() => handleIndexSpecimen()}
+                              className="flex-1 py-3 bg-gold/20 hover:bg-gold/30 text-text-bark border border-gold/40 font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95"
+                            >
+                              📥 Index to Sanctuary
+                            </button>
+                          )}
+
                           <button
                             onClick={() => {
                               const name = encodeURIComponent(dexResult?.commonName || '');
@@ -636,7 +752,7 @@ export default function BotanicalLab() {
                               const query = encodeURIComponent(`I just ran a scan on my ${dexResult?.commonName || 'plant'}. The health status is ${dexResult?.healthStatus || 'unknown'} with severity ${dexResult?.severity || 1}/5. Diagnosis: ${dexResult?.diagnosis || 'N/A'}. What is the best treatment plan?`);
                               transitionTo(`/assistant?plantName=${name}&species=${spec}&query=${query}`, 'AI Assistant');
                             }}
-                            className="flex-1 py-3 bg-bg-secondary hover:bg-bg-tertiary text-text-bark border border-border-medium font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+                            className="flex-1 py-3 bg-bg-secondary hover:bg-bg-tertiary text-text-bark border border-border-medium font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95"
                           >
                             💬 Consult Assistant
                           </button>
@@ -824,7 +940,7 @@ export default function BotanicalLab() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowLedger(false)}
-              className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50"
+              className="fixed inset-0 bg-black/80 z-50"
             />
 
             {/* Sliding Drawer */}
@@ -902,7 +1018,14 @@ export default function BotanicalLab() {
           </>
         )}
       </AnimatePresence>
-
+      {streakPopupData && (
+        <StreakPopup
+          isOpen={true}
+          streak={streakPopupData.streak}
+          seedsEarned={streakPopupData.seeds}
+          onClose={() => setStreakPopupData(null)}
+        />
+      )}
     </PageWrapper>
   );
 }
