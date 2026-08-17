@@ -1,4 +1,5 @@
 import { db, type Plant } from './database';
+import type { CheckIn } from '../types';
 import { GameService } from '../services/gameService';
 
 export async function seedIfEmpty() {
@@ -473,6 +474,7 @@ export async function seedIfEmpty() {
     }
   ];
   
+  const allCheckins: any[] = [];
   for (const plant of demoPlants) {
     if (!plant.userId) plant.userId = userId;
     await db.plants.add(plant);
@@ -486,7 +488,7 @@ export async function seedIfEmpty() {
       const checkInDate = new Date(baseDate);
       checkInDate.setDate(checkInDate.getDate() + i);
       
-      await db.checkins.add({
+      allCheckins.push({
         id: crypto.randomUUID(),
         plantId: plant.id,
         timestamp: checkInDate,
@@ -508,6 +510,10 @@ export async function seedIfEmpty() {
   }
 
   // Add one active alert
+  if (allCheckins.length > 0) {
+    await db.checkins.bulkAdd(allCheckins as CheckIn[]);
+  }
+
   const monster = await db.plants.where('species').equals('Monstera deliciosa').first();
   if (monster) {
     await db.predictions.add({
