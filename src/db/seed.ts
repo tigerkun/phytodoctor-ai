@@ -531,11 +531,15 @@ export async function runDbMigration() {
   try {
     const { isBrokenUrl, getPlantPhoto } = await import('../utils/plantImage');
     const plants = await db.plants.toArray();
+    const updates = [];
     for (const plant of plants) {
       if (isBrokenUrl(plant.photoUrl)) {
-        const correctPhoto = getPlantPhoto(null, plant.species);
-        await db.plants.update(plant.id, { photoUrl: correctPhoto });
+        plant.photoUrl = getPlantPhoto(null, plant.species);
+        updates.push(plant);
       }
+    }
+    if (updates.length > 0) {
+      await db.plants.bulkPut(updates);
     }
   } catch (err) {
     console.error('Failed to run database migration:', err);
