@@ -638,7 +638,7 @@ export default function PlantDetail() {
   );
 }
 
-function DetailStat({ icon, label, value }: { icon: any, label: string, value: string }) {
+function DetailStat({ icon, label, value }: { icon: React.ReactNode, label: string, value: string }) {
   return (
     <div className="bg-garden-cream/30 p-6 rounded-[2rem] border border-garden-olive/5">
        <div className="text-garden-sage mb-3">{icon}</div>
