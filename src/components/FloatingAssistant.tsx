@@ -158,6 +158,7 @@ export default function FloatingAssistant() {
                 </div>
               </div>
               <button 
+                aria-label="Close assistant"
                 onClick={() => setIsOpen(false)}
                 className="w-8 h-8 rounded-full hover:bg-white/20 flex items-center justify-center transition-colors"
               >
@@ -227,6 +228,7 @@ export default function FloatingAssistant() {
                   className="flex-grow pl-4 pr-10 py-3 bg-bg-glass border border-border-medium rounded-xl text-xs text-text-bark placeholder:text-text-muted focus:outline-none focus:border-moss focus:ring-2 focus:ring-moss/20 transition-all"
                 />
                 <button 
+                  aria-label={isListening ? "Stop voice input" : "Start voice input"}
                   type="button"
                   onClick={handleMicClick}
                   className={`absolute right-[3.25rem] w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
@@ -236,6 +238,7 @@ export default function FloatingAssistant() {
                   <Mic size={14} />
                 </button>
                 <button 
+                  aria-label="Send message"
                   type="submit"
                   disabled={loading || !input.trim()}
                   className="w-10 h-10 shrink-0 bg-moss text-white rounded-xl flex items-center justify-center hover:bg-moss-dark transition-all disabled:opacity-30 active:scale-95"
@@ -249,6 +252,7 @@ export default function FloatingAssistant() {
       </AnimatePresence>
 
       <motion.button
+        aria-label={isOpen ? "Close AI assistant" : "Open AI assistant"}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
