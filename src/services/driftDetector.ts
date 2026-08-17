@@ -131,16 +131,39 @@ function estimateLeafContours(pixels: Uint8ClampedArray): number {
         visited[idx] = 1;
         while (queue.length > 0) {
           const curr = queue.pop()!;
-          const cy = Math.floor(curr / 224);
           const cx = curr % 224;
-          const neighbors = [[cy-1,cx],[cy+1,cx],[cy,cx-1],[cy,cx+1]];
-          for (const [ny, nx] of neighbors) {
-            if (ny >= 0 && ny < 224 && nx >= 0 && nx < 224) {
-              const nidx = ny * 224 + nx;
-              if (mask[nidx] && !visited[nidx]) {
-                visited[nidx] = 1;
-                queue.push(nidx);
-              }
+          const cy = Math.floor(curr / 224);
+
+          // Up
+          if (cy > 0) {
+            const nidx = curr - 224;
+            if (mask[nidx] && !visited[nidx]) {
+              visited[nidx] = 1;
+              queue.push(nidx);
+            }
+          }
+          // Down
+          if (cy < 223) {
+            const nidx = curr + 224;
+            if (mask[nidx] && !visited[nidx]) {
+              visited[nidx] = 1;
+              queue.push(nidx);
+            }
+          }
+          // Left
+          if (cx > 0) {
+            const nidx = curr - 1;
+            if (mask[nidx] && !visited[nidx]) {
+              visited[nidx] = 1;
+              queue.push(nidx);
+            }
+          }
+          // Right
+          if (cx < 223) {
+            const nidx = curr + 1;
+            if (mask[nidx] && !visited[nidx]) {
+              visited[nidx] = 1;
+              queue.push(nidx);
             }
           }
         }
