@@ -74,6 +74,8 @@ const SPECIES_IMAGE_MAP: Record<string, string> = {
   'nutrient deficiency': 'https://images.unsplash.com/photo-1580133318324-f2f76d987dd8?q=80&w=600&auto=format&fit=crop',
 };
 
+const SPECIES_IMAGE_ENTRIES = Object.entries(SPECIES_IMAGE_MAP);
+
 const DEFAULT_PLANT_IMAGE = 'https://images.unsplash.com/photo-1592150621744-aca64f48394a?w=600&auto=format&fit=crop&q=80';
 
 // Known broken Unsplash IDs from legacy seeding
@@ -128,7 +130,7 @@ export function getPlantPhoto(photoUrl?: string | null, speciesName?: string | n
     }
     
     // 2. Try partial/contains match
-    for (const [key, value] of Object.entries(SPECIES_IMAGE_MAP)) {
+    for (const [key, value] of SPECIES_IMAGE_ENTRIES) {
       if (species.includes(key) || key.includes(species)) {
         return value;
       }
