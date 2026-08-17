@@ -70,9 +70,16 @@ export class GeolocationProvider extends SensorProvider {
   }
 }
 
+interface AmbientLightSensor {
+  illuminance: number;
+  addEventListener(type: string, listener: () => void): void;
+  start(): void;
+  stop(): void;
+}
+
 // Real ambient light (Chrome/Android only, behind flag)
 export class AmbientLightProvider extends SensorProvider {
-  private sensor: any = null;
+  private sensor: AmbientLightSensor | null = null;
   
   async start(): Promise<void> {
     try {
@@ -142,7 +149,15 @@ export class UserInputProvider extends SensorProvider {
     this.readings.push({
       timestamp: new Date(),
       sensorType: 'geolocation',
-      value: { latitude: lat, longitude: lon } as any,
+      value: {
+        latitude: lat,
+        longitude: lon,
+        accuracy: 0,
+        altitude: null,
+        altitudeAccuracy: null,
+        heading: null,
+        speed: null
+      } as GeolocationCoordinates,
       unit: 'degrees',
       source: 'user_input'
     });
@@ -151,7 +166,7 @@ export class UserInputProvider extends SensorProvider {
 
 // Simulated provider for testing
 export class SimulatedProvider extends SensorProvider {
-  private intervalId: any = null;
+  private intervalId: ReturnType<typeof setInterval> | null = null;
   
   async start(): Promise<void> {
     this.running = true;
