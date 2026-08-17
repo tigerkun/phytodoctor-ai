@@ -1,0 +1,3 @@
+## 2024-05-18 - Dynamic ARIA labels for AI Assistant Toggle
+**Learning:** Adding dynamic ARIA labels (e.g., `aria-label={isOpen ? "Close AI assistant" : "Open AI assistant"}`) significantly improves the screen reader experience for floating UI widgets that toggle state, keeping the context clear without needing additional visual text. Similarly, indicating dynamic state for voice inputs (e.g., "Start/Stop voice input") gives critical feedback.
+**Action:** Always ensure that icon-only interactive elements, especially those that toggle between states (like open/close or start/stop), have state-aware `aria-label` attributes to accurately reflect the action that will be performed next.
