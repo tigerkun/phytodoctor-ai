@@ -64,62 +64,42 @@ const LEAF_PATHS = [
 
 // Point 11: Decoupled & Memoized Background Leaf/Pollen Layer to eliminate re-renders and fix SSR hydration crashes
 const LabBackground = React.memo(({ isDay }: { isDay: boolean }) => {
-  const [dimensions, setDimensions] = useState({ width: 1200, height: 800 });
-
-  useEffect(() => {
-    setDimensions({
-      width: window.innerWidth,
-      height: window.innerHeight
-    });
-
-    const handleResize = () => {
-      setDimensions({
-        width: window.innerWidth,
-        height: window.innerHeight
-      });
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
   const stableLeaves = useMemo(() => {
-    return Array.from({ length: 12 }).map((_, i) => ({
+    return Array.from({ length: 16 }).map((_, i) => ({
       path: LEAF_PATHS[i % LEAF_PATHS.length],
       scale: 0.5 + (i * 7 % 8) * 0.1,
-      x: (i * 199) % (dimensions.width || 1200),
-      y: (i * 347) % (dimensions.height || 800),
+      left: `${(i * 17) % 100}%`,
+      top: `${(i * 23) % 100}%`,
       rotate: (i * 45) % 360,
     }));
-  }, [dimensions.width, dimensions.height]);
+  }, []);
 
   const stablePollen = useMemo(() => {
-    return Array.from({ length: 12 }).map((_, i) => ({
-      x: (i * 263) % (dimensions.width || 1200),
-      y: (i * 419) % (dimensions.height || 800),
+    return Array.from({ length: 24 }).map((_, i) => ({
+      left: `${(i * 13) % 100}%`,
+      top: `${(i * 19) % 100}%`,
     }));
-  }, [dimensions.width, dimensions.height]);
+  }, []);
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+    <div className={`absolute inset-0 pointer-events-none z-0 overflow-hidden transition-colors duration-1000 ${!isDay ? 'bg-black/10' : ''}`}>
       {stableLeaves.map((leaf, i) => (
         <motion.svg
           key={`leaf-${i}`}
-          className="absolute text-moss/5 w-10 h-10"
+          className={`absolute w-10 h-10 ${isDay ? 'text-moss/5' : 'text-moss/10'}`}
+          style={{ left: leaf.left, top: leaf.top }}
           viewBox="0 0 24 24"
           initial={{ 
-            x: leaf.x, 
-            y: leaf.y,
             rotate: leaf.rotate,
             scale: leaf.scale
           }}
           animate={{ 
-            y: [leaf.y, leaf.y + 100, leaf.y],
-            x: [leaf.x, leaf.x + 55, leaf.x],
+            y: [0, 100, 0],
+            x: [0, 55, 0],
             rotate: [leaf.rotate, leaf.rotate + 45, leaf.rotate]
           }}
           transition={{ 
-            duration: 16 + (i * 3 % 10), 
+            duration: 12 + (i * 5 % 10),
             repeat: Infinity, 
             ease: 'easeInOut' 
           }}
@@ -130,19 +110,16 @@ const LabBackground = React.memo(({ isDay }: { isDay: boolean }) => {
       {stablePollen.map((pt, i) => (
         <motion.div
           key={`pollen-${i}`}
-          className="absolute w-2 h-2 rounded-full bg-gold/10"
-          initial={{ 
-            x: pt.x, 
-            y: pt.y 
-          }}
+          className={`absolute w-2 h-2 rounded-full ${isDay ? 'bg-gold/10' : 'bg-gold/30 shadow-[0_0_8px_rgba(255,215,0,0.5)]'}`}
+          style={{ left: pt.left, top: pt.top }}
           animate={{ 
-            y: [pt.y, pt.y + 200, pt.y],
-            x: [pt.x, pt.x + (i % 2 === 0 ? 50 : -50), pt.x]
+            y: [0, -150, 0],
+            x: [0, (i % 2 === 0 ? 60 : -60), 0]
           }}
           transition={{ 
-            duration: 20 + (i * 4 % 12), 
+            duration: 15 + (i * 7 % 15),
             repeat: Infinity, 
-            ease: 'linear' 
+            ease: 'easeInOut'
           }}
         />
       ))}
