@@ -11,14 +11,9 @@ export async function syncCheckIns() {
       try {
         // In a real app, this would be a real API call.
         // For the preview, we simulate a successful sync with latency.
-        console.group(`Sync Engine: Processing ${checkIn.id}`);
-        console.log('Sending metadata to Cloud API...');
         
         // Simulate network roundtrip
         await new Promise(resolve => setTimeout(resolve, 800));
-        
-        console.log('Verification Success: Cloud Integrity Check Pass');
-        console.groupEnd();
 
         await db.checkins.update(checkIn.id, { synced: 1 });
       } catch (e) {
