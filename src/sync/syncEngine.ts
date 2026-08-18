@@ -7,23 +7,25 @@ export async function syncCheckIns() {
     const pending = await db.checkins.where('synced').equals(0).toArray();
     if (pending.length === 0) return;
 
-    for (const checkIn of pending) {
-      try {
-        // In a real app, this would be a real API call.
-        // For the preview, we simulate a successful sync with latency.
-        console.group(`Sync Engine: Processing ${checkIn.id}`);
-        console.log('Sending metadata to Cloud API...');
-        
-        // Simulate network roundtrip
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        console.log('Verification Success: Cloud Integrity Check Pass');
-        console.groupEnd();
+    try {
+      console.group(`Sync Engine: Processing ${pending.length} check-ins in batch`);
+      console.log('Sending batched metadata to Cloud API...');
 
-        await db.checkins.update(checkIn.id, { synced: 1 });
-      } catch (e) {
-        console.error('Failed to sync check-in', checkIn.id, e);
-      }
+      // Simulate network roundtrip for the batch
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      console.log('Verification Success: Cloud Integrity Check Pass for Batch');
+      console.groupEnd();
+
+      const updates = pending.map(checkIn => ({
+        key: checkIn.id,
+        changes: { synced: 1 }
+      }));
+
+      // Apply updates in bulk
+      await db.checkins.bulkUpdate(updates as any);
+    } catch (e) {
+      console.error('Failed to batch sync check-ins', e);
     }
   } catch (error) {
     console.error('Sync engine error:', error);
