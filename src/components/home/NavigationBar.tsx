@@ -108,6 +108,7 @@ export function NavigationBar() {
             onClick={toggleTheme}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            aria-label={theme === 'day' ? "Switch to night mode" : "Switch to day mode"}
             className={`relative p-2.5 rounded-full overflow-hidden transition-all duration-500 border ${
               theme === 'day' 
                 ? 'bg-gradient-to-br from-yellow-100 to-orange-50 border-orange-200/50 shadow-[0_0_15px_rgba(251,191,36,0.4)]' 
@@ -182,6 +183,7 @@ export function NavigationBar() {
           <motion.button
             onClick={() => transitionTo('/profile', 'Profile')}
             whileHover={{ scale: 1.1 }}
+            aria-label="View Profile"
             className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm cursor-pointer transition-all hover:opacity-80 relative overflow-hidden"
             style={{
               background: 'linear-gradient(135deg, var(--accent), var(--accent-warm))'

@@ -81,6 +81,7 @@ export default function SystemAudit() {
           <button
             onClick={runIntegritySuite}
             disabled={isRunningIntegrity}
+            aria-label="Run System Audit"
             className="px-5 py-3 min-h-[44px] bg-[var(--moss)]/10 hover:bg-[var(--moss)]/20 text-[var(--moss)] text-xs font-black uppercase tracking-widest rounded-xl border border-[var(--moss)]/20 transition-all flex items-center gap-2 disabled:opacity-50 shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2"
           >
             {isRunningIntegrity ? <RefreshCw className="animate-spin" size={12} /> : <Play size={12} />}
@@ -212,6 +213,7 @@ export default function SystemAudit() {
           <button
             disabled={isTesting}
             onClick={runDeterminismTest}
+            aria-label="Run Calibration Scan"
             className="px-6 py-3.5 min-h-[44px] bg-[var(--moss-dark)] hover:bg-[var(--moss)] text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-sm flex items-center gap-2 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2"
           >
             {isTesting ? <RefreshCw className="animate-spin" size={12} /> : <Binary size={12} />}

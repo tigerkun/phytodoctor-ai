@@ -33,7 +33,7 @@ export const CollectionGrid = ({ plants }: CollectionGridProps) => {
           </button>
         ))}
         <div className="flex-1" />
-        <button className="flex items-center gap-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-bark)]">
+        <button aria-label="Sort by Recent First" className="flex items-center gap-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-bark)]">
           <ArrowUpDown className="w-3.5 h-3.5" />
           Recent First
         </button>
