@@ -89,6 +89,7 @@ export function PlantProfileDrawer({ isOpen, onClose, plant }: PlantProfileDrawe
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
+                aria-label="Close profile"
                 onClick={onClose}
                 className="p-2 rounded-full hover:bg-white/10 transition-colors"
               >
