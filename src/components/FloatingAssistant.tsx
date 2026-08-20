@@ -159,6 +159,7 @@ export default function FloatingAssistant() {
               </div>
               <button 
                 onClick={() => setIsOpen(false)}
+                aria-label="Close assistant"
                 className="w-8 h-8 rounded-full hover:bg-white/20 flex items-center justify-center transition-colors"
               >
                 <X size={18} />
@@ -229,6 +230,7 @@ export default function FloatingAssistant() {
                 <button 
                   type="button"
                   onClick={handleMicClick}
+                  aria-label="Toggle voice input"
                   className={`absolute right-[3.25rem] w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
                     isListening ? 'text-rose-500 bg-rose-500/10 animate-pulse' : 'text-text-muted hover:text-moss'
                   }`}
@@ -238,6 +240,7 @@ export default function FloatingAssistant() {
                 <button 
                   type="submit"
                   disabled={loading || !input.trim()}
+                  aria-label="Send message"
                   className="w-10 h-10 shrink-0 bg-moss text-white rounded-xl flex items-center justify-center hover:bg-moss-dark transition-all disabled:opacity-30 active:scale-95"
                 >
                   <Send size={14} />
