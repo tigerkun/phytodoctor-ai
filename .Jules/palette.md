@@ -1,0 +1,3 @@
+## 2024-05-18 - Missing Accessible Names in Overlay Components
+**Learning:** Floating overlay components (like AI assistants or chat widgets) frequently rely on icon-only buttons for controls (close, microphone, send) to save space, but often forget `aria-label`s. This makes critical interactions invisible to screen reader users, especially for voice-input interactions where state changes (listening vs. idle) aren't conveyed.
+**Action:** When implementing or reviewing floating widgets and voice-input interfaces, always verify that state-toggling icon buttons (like mic or open/close toggles) have dynamic `aria-label`s that reflect their current interactive state.
