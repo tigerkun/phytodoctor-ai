@@ -97,6 +97,7 @@ function Toast({ toast, onClose }: { toast: ToastMessage; onClose: () => void })
       </div>
       <button
         onClick={onClose}
+        aria-label="Close Toast Notification"
         className="shrink-0 text-text-muted hover:text-text-bark transition-colors p-1 rounded-lg hover:bg-bg-tertiary"
       >
         <X size={16} />
