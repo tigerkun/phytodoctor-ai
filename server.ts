@@ -26,7 +26,10 @@ const ai = new GoogleGenAI({
 });
 
 async function generateWithRetry(params: any, retries = 1) {
-  const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+  const envModel = process.env.GEMINI_MODEL;
+  const models = envModel 
+    ? [envModel, "gemini-3.6-flash", "gemini-3-flash-preview", "gemini-2.0-flash", "gemini-1.5-flash"]
+    : ["gemini-3.6-flash", "gemini-3-flash-preview", "gemini-2.0-flash", "gemini-1.5-flash"];
   
   for (const modelName of models) {
     for (let i = 0; i <= retries; i++) {
