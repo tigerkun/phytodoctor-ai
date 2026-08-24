@@ -26,7 +26,7 @@ const ai = new GoogleGenAI({
 });
 
 async function generateWithRetry(params: any, retries = 2) {
-  const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+  const models = ["gemini-3.6-flash", "gemini-3-flash-preview"];
   
   for (const modelName of models) {
     for (let i = 0; i <= retries; i++) {
@@ -255,8 +255,7 @@ app.post("/api/guardian/predict", async (req, res) => {
     Return a structured JSON report with a risk score (0-100), primary stressor, confidence, and a brief evidence-based reasoning.
     Address specific biological vulnerabilities of this species.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const response = await generateWithRetry({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
