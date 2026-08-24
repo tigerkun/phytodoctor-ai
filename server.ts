@@ -25,8 +25,8 @@ const ai = new GoogleGenAI({
   }
 });
 
-async function generateWithRetry(params: any, retries = 2) {
-  const models = ["gemini-3.6-flash", "gemini-3-flash-preview"];
+async function generateWithRetry(params: any, retries = 1) {
+  const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
   
   for (const modelName of models) {
     for (let i = 0; i <= retries; i++) {
@@ -36,16 +36,18 @@ async function generateWithRetry(params: any, retries = 2) {
           model: modelName,
         });
       } catch (err: any) {
-        // If quota or missing model error, immediately try next model in list
-        const isQuotaOrNotFound = err?.status === 429 || err?.status === 404 || err?.message?.includes("not found") || err?.message?.includes("quota");
-        if (isQuotaOrNotFound && modelName !== models[models.length - 1]) {
-          console.warn(`Model ${modelName} unavailable (${err?.status || 'error'}), trying next model...`);
+        const isFatal = err?.status === 400 || err?.status === 401 || err?.status === 403;
+        if (isFatal) throw err; // Don't delay on authentication or bad request errors
+
+        const isNotFoundOrQuota = err?.status === 429 || err?.status === 404 || err?.message?.includes("not found") || err?.message?.includes("quota");
+        if (isNotFoundOrQuota && modelName !== models[models.length - 1]) {
+          console.warn(`Model ${modelName} unavailable (${err?.status || 'error'}), falling back to next model...`);
           break;
         }
 
         if (i === retries && modelName === models[models.length - 1]) throw err;
         console.warn(`Gemini API (${modelName}) attempt ${i + 1} failed, retrying...`, err?.message || err);
-        await new Promise(r => setTimeout(r, 400));
+        await new Promise(r => setTimeout(r, 200));
       }
     }
   }
@@ -221,7 +223,20 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "Messages are required" });
     }
 
-    const systemPrompt = "You are PhytoDoctor AI's Senior Botanist and Master Gardener. Provide deep, expert, scientific yet practical advice on all plant care, disease recovery, organic pest control, soil chemistry, and lighting. Keep your responses clear, structured with bold headings or bullet points where appropriate, and actionable.";
+    const systemPrompt = `You are PhytoDoctor AI's Chief Master Botanist and world-renowned Plant Pathologist.
+
+CORE BOTANICAL PERSONA:
+You possess encyclopedic, evidence-based mastery over botany, plant physiology, horticulture, soil microbiology, organic pest management, and phytopathology. Your tone is warm, authoritative, deeply knowledgeable, and reassuring.
+
+CRITICAL GUARDRAILS:
+- You ONLY answer questions related to plants, gardening, botany, indoor flora, agriculture, soil chemistry, pests, plant diseases, fertilizers, and horticulture.
+- If a user asks about any non-plant or non-botanical topics (such as general knowledge, coding, politics, math, entertainment, sports, non-botanical personal advice), POLITELY and FIRMLY deflect back to botany:
+  "I am exclusively dedicated to botanical sciences and plant care. Let's redirect our focus to your flora—what plant species or gardening questions can I help you with today?"
+
+RESPONSE FORMAT & PACING (SHORT STANZAS):
+- Deliver your guidance in prompt, concise, structured short stanzas (short paragraphs of 2-3 sentences each).
+- Use clear bullet points and bold key parameters (e.g., **Lighting**, **Watering Schedule**, **Treatment**).
+- Avoid long rambling essays; keep it crisp, insightful, and immediately actionable so the user can easily digest and apply the advice.`;
 
     const formattedContents = messages.map(m => ({
       role: m.role === 'user' ? 'user' : 'model',
@@ -232,7 +247,7 @@ app.post("/api/chat", async (req, res) => {
       contents: formattedContents,
       config: {
         systemInstruction: systemPrompt,
-        temperature: 0.5,
+        temperature: 0.3,
       }
     });
 

@@ -1026,6 +1026,22 @@ export default function BotanicalLab() {
           onClose={() => setStreakPopupData(null)}
         />
       )}
+
+      {/* Hidden file inputs for camera snapshots, uploads, and photo updates */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleDexUpload}
+        accept="image/*"
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={updatePhotoInputRef}
+        onChange={handleUpdateFileChange}
+        accept="image/*"
+        className="hidden"
+      />
     </PageWrapper>
   );
 }

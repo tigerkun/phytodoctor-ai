@@ -11,6 +11,7 @@ import Market from './pages/Market';
 import Profile from './pages/Profile';
 import PlantDetail from './pages/PlantDetail';
 import Pedigree from './pages/Pedigree';
+import Assistant from './pages/Assistant';
 import FloatingAssistant from './components/FloatingAssistant';
 import Auth from './pages/Auth';
 import NotFound from './pages/NotFound';
@@ -52,6 +53,7 @@ export default function App() {
             {/* Diagnosis & Treatment */}
             <Route path="/lab" element={<BotanicalLab />} />
             <Route path="/clinic/case-study" element={<CaseStudy />} />
+            <Route path="/assistant" element={<Assistant />} />
             
             {/* Market & Resources */}
             <Route path="/market" element={<Market />} />
