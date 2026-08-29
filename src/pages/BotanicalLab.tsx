@@ -233,21 +233,29 @@ export default function BotanicalLab() {
     }
   };
 
-  const handleIndexSpecimen = async (resultToUse?: any) => {
+  const handleIndexSpecimen = async (resultToUse?: any, photoUrl?: string) => {
     const target = resultToUse || dexResult;
-    if (!target) return;
-    const species = target.speciesName || target.commonName;
+    const photo = photoUrl || dexImage;
+    if (!target || !photo) return;
+    const species = target.speciesName || target.scientificName || target.commonName;
     const rarity = getRarityFromSpecies(species);
-    let rewards = { xp: 10, seeds: 8 };
-    if (rarity === 'legendary') rewards = { xp: 500, seeds: 400 };
-    else if (rarity === 'epic') rewards = { xp: 200, seeds: 150 };
-    else if (rarity === 'rare') rewards = { xp: 75, seeds: 60 };
-    else if (rarity === 'uncommon') rewards = { xp: 25, seeds: 20 };
+
+    const plant = await GameService.indexScannedPlant({
+      photoUrl: photo,
+      species,
+      commonName: target.commonName || species,
+      healthStatus: target.healthStatus,
+      severity: target.severity,
+      diagnosis: target.diagnosis,
+      watering: target.watering,
+      light: target.light,
+      temperature: target.temperature,
+    }, userId);
 
     const alreadyDiscovered = profile?.discoveredSpecies?.includes(species);
+    let resSeeds = 0;
     if (!alreadyDiscovered) {
       setIsNewSpecies(true);
-      setDiscoveryBonus(rewards.seeds);
       triggerCoinBurst();
       const res = await GameService.awardDiscoveryReward(species, rarity);
       const streakRes = await updateUploadStreak(userId);
@@ -255,6 +263,7 @@ export default function BotanicalLab() {
         setStreakPopupData({ streak: streakRes.currentStreak, seeds: res.seedsAwarded });
       }
       setScannedRewards({ seeds: res.seedsAwarded, xp: res.xpAwarded });
+      resSeeds = res.seedsAwarded;
     } else {
       const res = await GameService.awardRewardForAction('diagnosis_upload');
       const streakRes = await updateUploadStreak(userId);
@@ -264,6 +273,11 @@ export default function BotanicalLab() {
       setScannedRewards({ seeds: res.seedsAwarded, xp: res.xpAwarded });
       triggerCoinBurst();
     }
+
+    await GameService.generateCardForPlant(plant.id, userId);
+    if (!alreadyDiscovered) setDiscoveryBonus(resSeeds);
+    setActiveTab('sanctuary');
+    setSearchParams({ tab: 'sanctuary' });
   };
 
   const handleDexUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -293,7 +307,7 @@ export default function BotanicalLab() {
         setDexResult(result);
 
         if (scanMode === 'index') {
-          await handleIndexSpecimen(result);
+          await handleIndexSpecimen(result, base64);
         }
       } catch (err: any) {
         console.error('Scan Error:', err);
@@ -392,7 +406,18 @@ export default function BotanicalLab() {
     return new Date(latest.timestamp).toDateString() === new Date().toDateString();
   };
 
-  const thrivingCount = dbPlants.filter(plant => isPlantActive(plant.id)).length;
+  const sanctuaryPlants = useMemo(() => {
+    const byType = new Map<string, (typeof dbPlants)[number]>();
+    for (const plant of dbPlants) {
+      if (plant.isDemo) continue;
+      const key = (plant.species || plant.name || plant.id).toLowerCase();
+      const prev = byType.get(key);
+      if (!prev || new Date(plant.updatedAt).getTime() > new Date(prev.updatedAt).getTime()) {
+        byType.set(key, plant);
+      }
+    }
+    return [...byType.values()];
+  }, [dbPlants]);
 
   return (
     <PageWrapper className="min-h-screen text-text-bark relative overflow-hidden font-sans transition-colors duration-1000">
@@ -773,10 +798,16 @@ export default function BotanicalLab() {
             {/* Grid layout */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               
-              {dbPlants.map((plant) => {
+              {sanctuaryPlants.map((plant) => {
                 const isActive = isPlantActive(plant.id);
-                const healthScore = plant.guardianScore || 90;
+                const plantCheckins = checkins.filter(c => c.plantId === plant.id);
+                const latest = plantCheckins.length
+                  ? plantCheckins.reduce((a, b) => new Date(b.timestamp) > new Date(a.timestamp) ? b : a)
+                  : null;
+                const healthScore = plant.guardianScore || latest?.guardianScore || 90;
                 const isMissed = !isActive;
+                const moistureLabel = latest?.soilMoisture || (isActive ? 'Moist' : 'Dry');
+                const moisturePct = moistureLabel === 'Wet' ? '82%' : moistureLabel === 'Dry' ? '32%' : '68%';
 
                 // Color mapping for health scores
                 let healthColor = 'text-moss';
@@ -854,15 +885,15 @@ export default function BotanicalLab() {
                         <div>
                           <div className="flex justify-between items-center text-xs mb-1">
                             <span className="text-text-stone font-medium flex items-center gap-1"><Droplets size={12} className="text-moss" /> Moisture</span>
-                            <span className={`font-black text-xs ${isActive ? 'text-moss' : 'text-terracotta'}`}>
-                              {isActive ? 'Optimal (68%)' : 'Dry (32%)'}
+                            <span className={`font-black text-xs ${moistureLabel === 'Dry' ? 'text-terracotta' : 'text-moss'}`}>
+                              {moistureLabel} ({moisturePct})
                             </span>
                           </div>
                           <div className="w-full bg-bg-tertiary rounded-full h-1.5 overflow-hidden">
                             <motion.div 
                               initial={{ width: 0 }}
-                              animate={{ width: isActive ? '68%' : '32%' }}
-                              className={`h-1.5 rounded-full ${isActive ? 'bg-moss' : 'bg-terracotta'}`} 
+                              animate={{ width: moisturePct }}
+                              className={`h-1.5 rounded-full ${moistureLabel === 'Dry' ? 'bg-terracotta' : 'bg-moss'}`} 
                               transition={{ duration: 0.8, ease: 'easeOut' }}
                             />
                           </div>
@@ -872,11 +903,11 @@ export default function BotanicalLab() {
                         <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border-light text-[10px] text-text-stone">
                           <div className="flex items-center gap-1">
                             <Sun size={11} className="text-gold" />
-                            <span>Light: <strong className="text-text-bark font-bold">Indirect</strong></span>
+                            <span>Light: <strong className="text-text-bark font-bold">{latest?.lightLevel || 'Indirect'}</strong></span>
                           </div>
                           <div className="flex items-center gap-1">
                             <Thermometer size={11} className="text-terracotta" />
-                            <span>Temp: <strong className="text-text-bark font-bold">24°C</strong></span>
+                            <span>Temp: <strong className="text-text-bark font-bold">{latest?.weatherTemp != null ? `${latest.weatherTemp}°C` : '—'}</strong></span>
                           </div>
                         </div>
                       </div>

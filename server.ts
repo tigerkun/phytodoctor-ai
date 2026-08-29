@@ -219,6 +219,98 @@ LOCATION-AWARE FIELDS (required if location provided):
   }
 });
 
+app.post("/api/sandbox", async (req, res) => {
+  try {
+    const { mode, species, environment } = req.body;
+    if (!species || typeof species !== "string") {
+      return res.status(400).json({ error: "Species name is required" });
+    }
+
+    if (mode === "profile") {
+      const response = await generateWithRetry({
+        contents: [{
+          role: "user",
+          parts: [{ text: `Create a horticultural dossier for the plant species "${species.trim()}". If the name is ambiguous, pick the most commonly cultivated interpretation. Be specific and evidence-based.` }]
+        }],
+        config: {
+          systemInstruction: "You are PhytoDoctor AI's horticultural physiologist. Return only JSON matching the schema. Ideal ranges must be realistic for that species.",
+          temperature: 0.2,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            required: ["commonName", "scientificName", "overview", "origin", "hardinessZones", "idealTempMin", "idealTempMax", "idealHumidityMin", "idealHumidityMax", "light", "soil", "soilPh", "watering", "photoperiodHours", "nativeClimate", "pests"],
+            properties: {
+              commonName: { type: Type.STRING },
+              scientificName: { type: Type.STRING },
+              overview: { type: Type.STRING },
+              origin: { type: Type.STRING },
+              hardinessZones: { type: Type.STRING },
+              idealTempMin: { type: Type.NUMBER },
+              idealTempMax: { type: Type.NUMBER },
+              idealHumidityMin: { type: Type.NUMBER },
+              idealHumidityMax: { type: Type.NUMBER },
+              light: { type: Type.STRING },
+              soil: { type: Type.STRING },
+              soilPh: { type: Type.STRING },
+              watering: { type: Type.STRING },
+              photoperiodHours: { type: Type.NUMBER },
+              nativeClimate: { type: Type.STRING },
+              pests: { type: Type.STRING }
+            }
+          }
+        }
+      });
+      const raw = (response.text || "").replace(/```json|```/gi, "").trim();
+      return res.json(JSON.parse(raw));
+    }
+
+    if (mode === "assess") {
+      if (!environment) return res.status(400).json({ error: "Environment is required" });
+      const response = await generateWithRetry({
+        contents: [{
+          role: "user",
+          parts: [{ text: `Assess whether "${species.trim()}" can survive and thrive in this placement.
+
+SITE:
+${JSON.stringify(environment, null, 2)}
+
+Score climate, water, light, soil, pest pressure, and seasonal timing independently (0-100). Survival chance is the overall likelihood the plant lives 12 months in these conditions with reasonable amateur care. Give concrete tips and ranked risks.` }]
+        }],
+        config: {
+          systemInstruction: "You are PhytoDoctor AI running a clinical placement simulation. Be honest: hostile climates should score low. Return only JSON.",
+          temperature: 0.2,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            required: ["survivalChance", "verdict", "climateScore", "waterScore", "lightScore", "soilScore", "pestScore", "seasonalScore", "summary", "tips", "risks", "protocol"],
+            properties: {
+              survivalChance: { type: Type.NUMBER },
+              verdict: { type: Type.STRING },
+              climateScore: { type: Type.NUMBER },
+              waterScore: { type: Type.NUMBER },
+              lightScore: { type: Type.NUMBER },
+              soilScore: { type: Type.NUMBER },
+              pestScore: { type: Type.NUMBER, description: "Higher is safer (lower pest pressure for this species)" },
+              seasonalScore: { type: Type.NUMBER },
+              summary: { type: Type.STRING },
+              tips: { type: Type.ARRAY, items: { type: Type.STRING } },
+              risks: { type: Type.ARRAY, items: { type: Type.STRING } },
+              protocol: { type: Type.STRING }
+            }
+          }
+        }
+      });
+      const raw = (response.text || "").replace(/```json|```/gi, "").trim();
+      return res.json(JSON.parse(raw));
+    }
+
+    return res.status(400).json({ error: "mode must be profile or assess" });
+  } catch (error: any) {
+    console.error("Sandbox Error:", error);
+    res.status(500).json({ error: error.message || "Sandbox request failed" });
+  }
+});
+
 app.post("/api/chat", async (req, res) => {
   try {
     const { messages } = req.body;

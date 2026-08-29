@@ -204,39 +204,50 @@ export default function HomePage() {
   // Real database hooks — scoped to current user
   const userId = GameService.getUserId();
   const dbPlants = useLiveQuery(() => db.plants.where('userId').equals(userId).toArray(), [userId]);
+  const checkins = useLiveQuery(() => db.checkins.toArray()) || [];
   const profile = useLiveQuery(() => GameService.getProfile(userId), [userId]);
+  const todayKey = new Date().toDateString();
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const forceRefreshProfile = () => setProfileRefreshKey(prev => prev + 1);
 
 
   // Map database plants — useMemo prevents recalculation on every render
-  const mappedPlants = useMemo(() =>
-    (dbPlants || []).map(p => ({
-      id: p.id,
-      nickname: p.name,
-      species: p.species,
-      healthScore: p.guardianScore || 50,
-      lastWatered: p.createdAt ? new Date(p.createdAt) : new Date(),
-      image: getPlantPhoto(p.photoUrl, p.species),
-      lastPhoto: p.checkInTime ? `Analyzed ${p.checkInTime}` : 'Never analyzed',
-    })),
-  [dbPlants]);
+  const mappedPlants = useMemo(() => {
+    const todayIds = new Set(
+      checkins
+        .filter(c => new Date(c.timestamp).toDateString() === todayKey)
+        .map(c => c.plantId)
+    );
+    return (dbPlants || [])
+      .filter(p => !p.isDemo && (todayIds.has(p.id) || new Date(p.createdAt).toDateString() === todayKey))
+      .map(p => ({
+        id: p.id,
+        nickname: p.name,
+        species: p.species,
+        healthScore: p.guardianScore || 50,
+        lastWatered: p.updatedAt ? new Date(p.updatedAt) : new Date(),
+        image: getPlantPhoto(p.photoUrl, p.species),
+        lastPhoto: p.checkInTime ? `Analyzed ${p.checkInTime}` : 'Never analyzed',
+      }));
+  }, [dbPlants, checkins, todayKey]);
 
   const [selectedPlant, setSelectedPlant] = useState<any>(mappedPlants[0] ?? null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Keep selected plant updated — only update when ID changes to prevent re-render loop
   useEffect(() => {
-    if (!mappedPlants.length) return;
+    if (!mappedPlants.length) {
+      if (selectedPlant) setSelectedPlant(null);
+      return;
+    }
     const exists = mappedPlants.find(p => p.id === selectedPlant?.id);
     const next = exists ?? mappedPlants[0];
     if (next.id !== selectedPlant?.id) {
       setSelectedPlant(next);
-    } else if (exists && (exists.nickname !== selectedPlant?.nickname)) {
-      // Nickname updated in database: update selectedPlant nickname immediately
+    } else if (exists && exists.nickname !== selectedPlant?.nickname) {
       setSelectedPlant(exists);
     }
-  }, [dbPlants]);
+  }, [mappedPlants]);
 
   const bgGradient = getBackgroundGradient(activeTimePeriod);
 

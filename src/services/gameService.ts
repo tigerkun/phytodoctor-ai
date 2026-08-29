@@ -475,6 +475,94 @@ export class GameService {
     return result;
   }
 
+  static scoreFromScan(healthStatus?: string, severity?: number): number {
+    if (typeof severity === 'number') return Math.max(8, Math.min(99, 110 - severity * 18));
+    const map: Record<string, number> = { Healthy: 92, Stressed: 68, Diseased: 45, Infested: 28 };
+    return map[healthStatus || ''] ?? 70;
+  }
+
+  static async indexScannedPlant(input: {
+    photoUrl: string;
+    species: string;
+    commonName: string;
+    healthStatus?: string;
+    severity?: number;
+    diagnosis?: string;
+    watering?: string;
+    light?: string;
+    temperature?: string;
+  }, userId: string = this.getUserId()): Promise<Plant> {
+    const species = (input.species || input.commonName || 'Unknown').trim();
+    const score = this.scoreFromScan(input.healthStatus, input.severity);
+    const status: Plant['status'] = score >= 80 ? 'Stable' : score >= 55 ? 'Watching' : score >= 35 ? 'Recovering' : 'Alert';
+    const now = new Date();
+    const owned = await db.plants.where('userId').equals(userId).toArray();
+    const key = species.toLowerCase();
+    let plant = owned.find(p => !p.isDemo && (p.species || '').toLowerCase() === key);
+
+    const light = /direct/i.test(input.light || '') ? 'Direct' as const : /low/i.test(input.light || '') ? 'Low' as const : 'Indirect' as const;
+    const soilMoisture = /dry|under/i.test(input.watering || '') ? 'Dry' as const : /wet|over/i.test(input.watering || '') ? 'Wet' as const : 'Moist' as const;
+    const tempMatch = (input.temperature || '').match(/-?\d+/);
+    const weatherTemp = tempMatch ? Number(tempMatch[0]) : null;
+
+    if (plant) {
+      await db.plants.update(plant.id, {
+        photoUrl: input.photoUrl,
+        guardianScore: score,
+        status,
+        checkInTime: 'just now',
+        updatedAt: now,
+        location: input.diagnosis?.slice(0, 160) || plant.location,
+      });
+      plant = { ...plant, photoUrl: input.photoUrl, guardianScore: score, status, updatedAt: now };
+    } else {
+      plant = {
+        id: crypto.randomUUID(),
+        userId,
+        name: input.commonName || species.split(' ')[0],
+        species,
+        acquiredAt: now,
+        soilType: 'well-draining',
+        soilPh: null,
+        potSize: '',
+        potMaterial: 'plastic',
+        location: input.diagnosis?.slice(0, 160) || '',
+        latitude: null,
+        longitude: null,
+        hardinessZone: null,
+        checkInTime: 'just now',
+        baselineSignature: null,
+        guardianScore: score,
+        status,
+        photoUrl: input.photoUrl,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await db.plants.add(plant);
+    }
+
+    await db.checkins.add({
+      id: crypto.randomUUID(),
+      plantId: plant.id,
+      timestamp: now,
+      soilMoisture,
+      lightLevel: light,
+      changes: input.diagnosis ? [input.diagnosis] : ['Indexed from scan'],
+      photoBlob: null,
+      photoUrl: input.photoUrl,
+      signature: null,
+      guardianScore: score,
+      driftScore: null,
+      driftStatus: score >= 80 ? 'stable' : score >= 55 ? 'watching' : 'alert',
+      weatherTemp,
+      weatherHumidity: null,
+      weatherDescription: input.healthStatus || null,
+      synced: 0,
+    });
+
+    return plant;
+  }
+
   static async getLevelProgress(userId: string = this.getUserId()) {
     return await RewardService.ensureLevelProgress(userId);
   }

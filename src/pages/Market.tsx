@@ -8,8 +8,6 @@ import {
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/database';
 import { GameService } from '../services/gameService';
-import LevelDisplay from '../components/game/LevelDisplay';
-import StreakWidget from '../components/game/StreakWidget';
 import EnhancedWalletDisplay from '../components/market/EnhancedWalletDisplay';
 import ProductFilters from '../components/market/ProductFilters';
 import CheckoutSummary from '../components/market/CheckoutSummary';
@@ -185,24 +183,19 @@ function HeroCarousel({ onClaim }: { onClaim: (id: string, refundValue: number) 
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-      className="relative overflow-hidden rounded-3xl bg-bg-secondary border border-border-medium p-8 md:p-12 lg:p-16 mb-16 shadow-xl"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative overflow-hidden rounded-[1.75rem] mb-12 shadow-2xl border border-[#c4a574]/40"
+      style={{ background: 'linear-gradient(180deg, #3d2a1c 0%, #5c3d2e 40%, #2c2419 100%)' }}
     >
-        {/* Animated Background Orbs */}
-        <motion.div
-          animate={{ x: [0, 50, 0], y: [0, 30, 0] }}
-          transition={{ duration: 8, repeat: Infinity }}
-          className="absolute -top-40 -right-40 w-80 h-80 bg-moss/10 rounded-full blur-3xl pointer-events-none"
-        />
-        <motion.div
-          animate={{ x: [0, -30, 0], y: [0, -50, 0] }}
-          transition={{ duration: 12, repeat: Infinity, delay: 1 }}
-          className="absolute -bottom-20 -left-20 w-96 h-96 bg-terracotta/10 rounded-full blur-3xl pointer-events-none"
-        />
-
-      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+      <div
+        className="h-7 w-full"
+        style={{
+          background: 'repeating-linear-gradient(90deg, #c17f59 0 18px, #f4e4c1 18px 36px)',
+          boxShadow: 'inset 0 -4px 0 rgba(0,0,0,0.2)',
+        }}
+      />
+      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 items-center p-6 md:p-10 text-[#faf3e8]">
         
         {/* Left: Image with Animation */}
         <motion.div
@@ -212,23 +205,19 @@ function HeroCarousel({ onClaim }: { onClaim: (id: string, refundValue: number) 
           transition={{ duration: 0.5 }}
           className="relative"
         >
-          <div className="relative rounded-2xl overflow-hidden bg-bg-tertiary border border-border-light aspect-square">
+          <div className="relative rounded-sm overflow-hidden border-[6px] border-[#e8d5b0] shadow-[8px_8px_0_rgba(0,0,0,0.25)] aspect-[4/5] bg-[#1a1410]">
             <img
               src={product.image}
               alt={product.name}
               className="w-full h-full object-cover"
             />
+            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent" />
           </div>
-
-          {/* Refund Badge */}
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="absolute -bottom-4 -right-4 bg-gold text-text-bark px-4 py-2 rounded-2xl font-bold text-sm shadow-lg border border-gold"
-          >
-            Claim ₹{refundValue} Refund
-          </motion.div>
+          <div className="absolute -top-2 -right-2 rotate-12 bg-[#f4e4c1] text-[#3d2a1c] px-4 py-3 shadow-lg border border-[#c4a574]">
+            <p className="text-[9px] font-black uppercase tracking-widest">Stall price</p>
+            <p className="font-serif text-2xl font-bold leading-none">₹{finalPrice}</p>
+            <p className="text-[10px] mt-1 text-moss font-bold">₹{refundValue} seed refund</p>
+          </div>
         </motion.div>
 
         {/* Right: Content */}
@@ -244,48 +233,40 @@ function HeroCarousel({ onClaim }: { onClaim: (id: string, refundValue: number) 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2 }}
-              className="inline-flex items-center gap-2 px-3 py-1 bg-terracotta/20 border border-terracotta/40 rounded-full text-terracotta text-xs font-bold uppercase tracking-wider"
+              className="inline-flex items-center gap-2 px-3 py-1 bg-[#c17f59] text-[#faf3e8] rounded-sm text-[10px] font-black uppercase tracking-[0.2em]"
             >
-              <Zap size={12} /> LIMITED MONSOON DROP
+              <Zap size={12} /> Today’s stall · limited crate
             </motion.div>
             
-            <h2 className="font-serif text-4xl lg:text-5xl font-bold text-text-bark leading-tight">
+            <h2 className="font-serif text-4xl lg:text-5xl font-semibold leading-tight text-[#faf3e8]">
               {product.name}
             </h2>
             
-            <p className="text-text-stone text-base leading-relaxed max-w-lg">
+            <p className="text-[#e8d5b0]/80 text-base leading-relaxed max-w-lg">
               {product.subtitle}
             </p>
           </div>
 
           {/* Seed Refund Pricing Mechanic */}
-          <div className="flex flex-col gap-3 py-4 border-t border-b border-border-light">
+          <div className="flex flex-col gap-3 py-4 border-y border-[#e8d5b0]/20">
             <div className="flex justify-between items-end">
               <div>
-                <p className="text-xs font-bold text-text-stone uppercase tracking-wider mb-1">Amazon Price</p>
+                <p className="text-[10px] font-black text-[#e8d5b0]/70 uppercase tracking-widest mb-1">On Amazon</p>
                 <div className="flex items-baseline gap-2">
-                  <p className="text-2xl font-bold text-text-bark font-mono">₹{product.cashPrice}</p>
+                  <p className="text-2xl font-bold font-mono text-[#faf3e8]">₹{product.cashPrice}</p>
                   {product.originalPrice && (
-                    <p className="text-xs text-text-stone/60 line-through">₹{product.originalPrice}</p>
+                    <p className="text-xs text-[#e8d5b0]/40 line-through">₹{product.originalPrice}</p>
                   )}
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-xs font-bold text-moss uppercase tracking-wider mb-1">Final Cost</p>
-                <p className="text-2xl font-bold text-text-bark font-mono">₹{finalPrice}</p>
+                <p className="text-[10px] font-black text-[#9cba9c] uppercase tracking-widest mb-1">After seed refund</p>
+                <p className="text-2xl font-bold font-mono text-[#9cba9c]">₹{finalPrice}</p>
               </div>
             </div>
-            
-            <div className="bg-moss/10 border border-moss/30 rounded-xl p-3 flex justify-between items-center">
-              <div>
-                <p className="text-[10px] font-black text-moss uppercase tracking-widest mb-0.5">Seed Cashback</p>
-                <p className="text-xs text-text-stone">Refunded to account post-purchase</p>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-bold text-moss font-mono">- ₹{refundValue}</p>
-                <p className="text-[10px] text-text-stone flex items-center justify-end gap-1">Costs <Leaf size={10}/>{product.seedPrice.toLocaleString()}</p>
-              </div>
-            </div>
+            <p className="text-xs text-[#e8d5b0]/70 flex items-center gap-1">
+              Spend <Leaf size={12} className="text-[#9cba9c]" /> {product.seedPrice.toLocaleString()} seeds at this stall to unlock the refund.
+            </p>
           </div>
 
           {/* CTA Buttons */}
@@ -297,9 +278,9 @@ function HeroCarousel({ onClaim }: { onClaim: (id: string, refundValue: number) 
                 window.open(`${product.amazonUrl}?tag=botanicalguard-21`, '_blank');
                 onClaim(product.id, refundValue);
               }}
-              className="flex-1 bg-moss hover:bg-moss-dark text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 uppercase text-sm tracking-wider"
+              className="flex-1 bg-[#c17f59] hover:bg-[#a85a42] text-white font-black py-4 px-6 rounded-sm transition-all shadow-lg flex items-center justify-center gap-2 uppercase text-xs tracking-[0.16em]"
             >
-              <ShoppingBag size={18} /> Buy & Claim Refund <ExternalLink size={16} className="ml-1" />
+              <ShoppingBag size={18} /> Buy at stall · claim refund <ExternalLink size={16} className="ml-1" />
             </motion.button>
           </div>
 
@@ -338,116 +319,68 @@ function ProductCard({ product, onClaim, onAddToCart }: { product: any; onClaim:
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -4 }}
+      whileHover={{ y: -6 }}
       transition={{ duration: 0.3 }}
-      className="group relative bg-bg-secondary border border-border-medium rounded-2xl overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col"
+      className="group relative bg-[#f7f0e4] border border-[#d9c4a0] overflow-hidden hover:shadow-[0_16px_40px_rgba(61,42,28,0.18)] transition-all duration-300 flex flex-col"
     >
-      {/* Image Section */}
-      <div onClick={handleAmazonRedirect} className="relative h-56 bg-bg-tertiary overflow-hidden cursor-pointer">
+      <div className="h-2 w-full" style={{ background: 'repeating-linear-gradient(90deg, #5a7d5a 0 10px, #c17f59 10px 20px)' }} />
+      <div onClick={handleAmazonRedirect} className="relative h-52 overflow-hidden cursor-pointer bg-[#e8dcc8]">
         <img
           src={product.image}
           alt={product.name}
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           onError={(e) => {
             e.currentTarget.src = 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?auto=format&fit=crop&w=800&q=80';
           }}
         />
-
-        {/* Badges */}
         {product.isLimited && (
-          <motion.div
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            className="absolute top-3 left-3 bg-terracotta/90 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase"
-          >
-            LIMITED
-          </motion.div>
-        )}
-
-        {product.proEarlyAccess && (
-          <div className="absolute top-3 right-3 bg-gold/20 backdrop-blur-sm border border-gold/40 text-gold px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase">
-            PRO
+          <div className="absolute top-3 left-3 bg-[#c17f59] text-white px-2.5 py-1 text-[9px] font-black tracking-widest uppercase shadow-md">
+            Limited crate
           </div>
         )}
-
-        {/* Bookmark */}
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-          className="absolute bottom-3 right-3 p-2 rounded-full bg-bg-secondary/80 hover:bg-bg-secondary backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <Bookmark size={16} className="text-text-bark" />
-        </motion.button>
+        {product.proEarlyAccess && (
+          <div className="absolute top-3 right-3 bg-[#d4af37] text-[#2c2419] px-2.5 py-1 text-[9px] font-black tracking-widest uppercase">
+            Early stall
+          </div>
+        )}
+        <div className="absolute -bottom-3 right-3 rotate-6 bg-[#fff8e8] border border-[#c4a574] px-3 py-2 shadow-md">
+          <p className="text-[9px] uppercase tracking-widest text-[#7a6a50] font-black">Ask</p>
+          <p className="font-serif text-lg font-bold text-[#3d2a1c] leading-none">₹{product.cashPrice}</p>
+        </div>
       </div>
 
-      {/* Content Section */}
-      <div className="p-5 flex flex-col flex-grow">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1 pr-2">
-            <h3 
-              onClick={handleAmazonRedirect}
-              className="font-serif text-lg font-bold text-text-bark leading-tight line-clamp-2 cursor-pointer hover:text-moss transition-colors"
-            >
+      <div className="p-4 pt-6 flex flex-col flex-grow">
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div>
+            <h3 onClick={handleAmazonRedirect} className="font-serif text-[17px] font-semibold text-[#2c2419] leading-tight line-clamp-2 cursor-pointer hover:text-moss">
               {product.name}
             </h3>
-            <p className="text-xs text-text-stone mt-1 line-clamp-1">{product.subtitle}</p>
+            <p className="text-[11px] text-[#7a6a50] mt-1 line-clamp-1">{product.subtitle}</p>
           </div>
-          <motion.div
-            animate={{ rotate: [0, -5, 5, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="flex items-center gap-1 text-gold text-xs"
-          >
-            <Star size={12} fill="currentColor" />
+          <div className="flex items-center gap-0.5 text-[#c4a035] text-xs shrink-0">
+            <Star size={11} fill="currentColor" />
             <span className="font-bold">{product.rating}</span>
-          </motion.div>
-        </div>
-
-        {/* Seed Refund Mechanic UI */}
-        <div className="mt-auto space-y-3 pt-4 border-t border-border-light">
-          <div className="flex items-baseline justify-between">
-            <div>
-              <p className="text-[10px] font-bold text-text-stone uppercase tracking-wider mb-0.5">Amazon Price</p>
-              <div className="flex items-baseline gap-2">
-                <p className="text-xl font-bold text-text-bark font-mono">₹{product.cashPrice}</p>
-                {product.originalPrice && (
-                  <p className="text-[10px] text-text-stone/60 line-through">₹{product.originalPrice}</p>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-moss/10 border border-moss/30 rounded-xl p-3 flex justify-between items-center">
-            <div>
-              <p className="text-[9px] font-black text-moss uppercase tracking-widest mb-0.5">Seed Cashback</p>
-              <p className="text-[10px] text-text-stone">Refund post-purchase</p>
-            </div>
-            <div className="text-right">
-              <p className="text-base font-bold text-moss font-mono leading-none">- ₹{refundValue}</p>
-              <p className="text-[9px] text-text-stone flex items-center justify-end gap-1 mt-1">
-                <Leaf size={8} /> {product.seedPrice.toLocaleString()} Seeds
-              </p>
-            </div>
           </div>
         </div>
 
-        {/* CTA Buttons */}
-        <div className="flex gap-2 mt-4">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => onAddToCart?.(product)}
-            className="flex-1 bg-moss hover:bg-moss-dark text-white font-bold py-3 px-4 rounded-xl transition-all text-xs uppercase tracking-wider flex items-center justify-center gap-2"
-          >
-            Add to Cart
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleAmazonRedirect}
-            className="flex-1 bg-bg-tertiary border border-border-medium hover:bg-bg-secondary text-text-bark font-bold py-3 px-4 rounded-xl transition-all text-xs uppercase tracking-wider flex items-center justify-center gap-2"
-          >
-            Buy <ExternalLink size={12} />
-          </motion.button>
+        <div className="mt-auto space-y-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#7a6a50]">After seed refund</span>
+            <span className="font-mono font-bold text-moss">₹{Math.max(0, product.cashPrice - refundValue)}</span>
+          </div>
+          <p className="text-[10px] text-[#7a6a50] flex items-center gap-1">
+            <Leaf size={10} className="text-moss" /> {product.seedPrice.toLocaleString()} seeds at this stall
+          </p>
+          <div className="flex gap-2">
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => onAddToCart?.(product)}
+              className="flex-1 bg-[#5a7d5a] hover:bg-[#3d6b4a] text-white font-black py-2.5 px-3 text-[10px] uppercase tracking-widest">
+              Add to basket
+            </motion.button>
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleAmazonRedirect}
+              className="flex-1 border border-[#c4a574] bg-[#fff8e8] hover:bg-[#f4e4c1] text-[#3d2a1c] font-black py-2.5 px-3 text-[10px] uppercase tracking-widest flex items-center justify-center gap-1">
+              Buy <ExternalLink size={11} />
+            </motion.button>
+          </div>
         </div>
       </div>
     </motion.div>
@@ -461,40 +394,27 @@ function ProBanner() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.8 }}
-      className="mt-16 rounded-3xl border border-gold/30 bg-gradient-to-r from-gold/10 via-moss/5 to-gold/5 p-8 md:p-12 overflow-hidden relative"
+      className="mt-16 overflow-hidden relative border border-[#c4a574] rounded-sm"
+      style={{ background: 'linear-gradient(90deg, #3d2a1c, #5a7d5a 55%, #c17f59)' }}
     >
-      {/* Animated Background */}
-      <motion.div
-        animate={{ opacity: [0.3, 0.6, 0.3] }}
-        transition={{ duration: 4, repeat: Infinity }}
-        className="absolute -top-20 -right-20 w-60 h-60 bg-gold/20 rounded-full blur-3xl pointer-events-none animate-orb-pulse"
-      />
-
-      <div className="relative z-10 grid md:grid-cols-3 gap-8 items-center">
+      <div className="h-4" style={{ background: 'repeating-linear-gradient(90deg, #f4e4c1 0 14px, #c17f59 14px 28px)' }} />
+      <div className="relative z-10 grid md:grid-cols-3 gap-8 items-center p-8 md:p-10 text-[#faf3e8]">
         <div>
-          <h3 className="font-serif text-3xl font-bold text-gold mb-2">Unlock the Greenhouse</h3>
-          <p className="text-white/70 text-sm">Unlock premium features & early access</p>
+          <h3 className="font-serif text-3xl font-semibold mb-2">Greenhouse membership</h3>
+          <p className="text-[#faf3e8]/70 text-sm">Early crates, extra plant slots, pest AI at the stall before dawn.</p>
         </div>
-
-        <div className="md:border-l md:border-r border-white/10 md:px-8 space-y-2">
+        <div className="md:border-x md:border-white/15 md:px-8 space-y-2">
           {['Unlimited plant slots', 'Advanced pest AI', 'Early access drops'].map((feature, i) => (
-            <motion.div
-              key={i}
-              initial={{ x: -10, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.9 + i * 0.1 }}
-              className="flex items-center gap-2 text-white/80 text-sm"
-            >
-              <Leaf size={14} className="text-moss" />
+            <div key={i} className="flex items-center gap-2 text-sm text-[#faf3e8]/85">
+              <Leaf size={14} className="text-[#d4e8c4]" />
               {feature}
-            </motion.div>
+            </div>
           ))}
         </div>
-
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className="bg-gold hover:bg-gold-light text-text-bark font-bold py-4 px-8 rounded-xl transition-all shadow-lg uppercase tracking-wider text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 min-h-[44px]"
+          className="bg-[#f4e4c1] hover:bg-white text-[#3d2a1c] font-black py-4 px-8 uppercase tracking-[0.16em] text-xs"
         >
           Upgrade — ₹99/mo
         </motion.button>
@@ -529,10 +449,14 @@ export default function GardenMarket() {
     inStockOnly: false
   });
 
+  const userId = GameService.getUserId();
   const profile = useLiveQuery(() => GameService.getProfile());
-  const levelProgress = useLiveQuery(() => db.levelProgress.get(GameService.getUserId()));
+  const levelProgress = useLiveQuery(() => db.levelProgress.get(userId));
+  const streakRecord = useLiveQuery(() => db.streakRecords.get(userId));
   const seeds = profile?.seeds ?? 0;
   const level = levelProgress?.currentLevel ?? 1;
+  const totalXp = Math.round(levelProgress?.totalXP ?? 0);
+  const xpToNext = Math.round(levelProgress?.xpToNextLevel ?? 100);
 
   // Filter products
   const getFilteredProducts = () => {
@@ -601,116 +525,66 @@ export default function GardenMarket() {
   };
 
   return (
-    <PageWrapper className="min-h-screen text-text-bark overflow-x-hidden relative transition-colors duration-1000">
-      
-      {/* ── AMBIENT BACKGROUND ── */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <motion.div
-          animate={{ 
-            x: [0, 100, 0],
-            y: [0, -50, 0],
-            opacity: [0.1, 0.25, 0.1]
-          }}
-          transition={{ duration: 20, repeat: Infinity }}
-          className="absolute -top-40 -left-40 w-80 h-80 bg-moss/10 rounded-full blur-3xl animate-orb-pulse"
-        />
-        <motion.div
-          animate={{ 
-            x: [0, -80, 0],
-            y: [0, 60, 0],
-            opacity: [0.1, 0.2, 0.1]
-          }}
-          transition={{ duration: 25, repeat: Infinity, delay: 2 }}
-          className="absolute -bottom-32 -right-32 w-96 h-96 bg-terracotta/10 rounded-full blur-3xl animate-orb-pulse"
-        />
-        <motion.div
-          animate={{ 
-            scale: [1, 1.2, 1],
-            opacity: [0.05, 0.15, 0.05]
-          }}
-          transition={{ duration: 15, repeat: Infinity, delay: 1 }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gold/5 rounded-full blur-3xl animate-orb-pulse"
-        />
-      </div>
-
-      {/* ── WALLET BAR - ENHANCED ── */}
-      <EnhancedWalletDisplay 
-        stats={{
-          seeds,
-          level,
-          nextLevelXp: (level + 1) * 500,
-          currentXp: (level * 500) + Math.random() * 300,
-          vouchers: MOCK_VOUCHERS.length,
-          streak: 7
+    <PageWrapper className="min-h-screen text-text-bark overflow-x-hidden relative">
+      <div
+        className="fixed inset-0 pointer-events-none z-0 opacity-40"
+        style={{
+          backgroundImage: 'radial-gradient(ellipse at top, rgba(193,127,89,0.18), transparent 50%), linear-gradient(180deg, #f6efe4 0%, var(--bg-primary) 40%)',
         }}
       />
 
-      {/* ── MAIN CONTENT ── */}
-      <div className="relative z-10 max-w-full">
-        
-        {/* ── HEADER ── */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="sticky top-0 z-40 bg-bg-primary/95 border-b border-border-light px-6 md:px-8 py-4"
-        >
-          <div className="flex items-center justify-between max-w-full">
-            <div className="flex items-center gap-2">
-              <Leaf className="text-moss" size={28} />
-              <h1 className="font-serif text-2xl font-bold text-gold">The Garden Market</h1>
-            </div>
-          </div>
-        </motion.div>
+      <div className="relative z-10">
+        <div className="h-5 w-full" style={{ background: 'repeating-linear-gradient(90deg, #c17f59 0 22px, #f4e4c1 22px 44px, #5a7d5a 44px 66px)' }} />
 
-        {/* ── NAVIGATION TABS + FILTER BUTTON ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="px-6 md:px-8 py-6 border-b border-border-light flex gap-3 items-center justify-between"
-        >
-          <div className="flex gap-3 overflow-x-auto">
-            {(['drops', 'home', 'care', 'vouchers'] as const).map((tab, idx) => (
-              <motion.button
-                key={tab}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.4 + idx * 0.1 }}
-                onClick={() => setActiveTab(tab)}
-                className={`px-6 py-2.5 rounded-full font-bold text-sm uppercase tracking-wider whitespace-nowrap transition-all animate-tab-highlight ${
-                  activeTab === tab
-                    ? 'bg-moss text-white shadow-lg'
-                    : 'bg-bg-secondary text-text-stone border border-border-light hover:bg-bg-tertiary hover:text-text-bark'
-                }`}
-              >
-                {tab === 'drops' ? '🌿 Drops' : tab === 'home' ? '🏺 Pots' : tab === 'care' ? '🧪 Care' : '🎟 Vouchers'}
-              </motion.button>
-            ))}
+        <div className="sticky top-0 z-40 border-b border-[#d9c4a0] px-4 md:px-8 py-3 flex items-center justify-between gap-3" style={{ background: 'rgba(247,240,228,0.94)' }}>
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.28em] text-[#c17f59]">Sunday bazaar · seeds spend here</p>
+            <h1 className="font-serif text-2xl md:text-3xl font-semibold text-[#3d2a1c]">The Garden Market</h1>
           </div>
-
-          {/* Filter & Checkout Buttons */}
-          <div className="flex gap-3">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowFilters(!showFilters)}
-              className="px-4 py-2 bg-bg-secondary hover:bg-bg-tertiary border border-border-medium rounded-lg text-sm font-bold text-text-bark transition-all"
-            >
-              🔍 Filter
-            </motion.button>
+          <div className="flex items-center gap-2 shrink-0">
+            <EnhancedWalletDisplay
+              isCompact
+              stats={{
+                seeds,
+                level,
+                currentXp: totalXp,
+                nextLevelXp: totalXp + xpToNext,
+                xpPercent: levelProgress?.xpProgress ?? 0,
+                vouchers: claimedItems.length,
+                streak: streakRecord?.currentStreak ?? 0
+              }}
+            />
             {cartItems.length > 0 && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setShowCheckout(!showCheckout)}
-                className="px-4 py-2 bg-moss hover:bg-moss-dark border border-moss rounded-lg text-sm font-bold text-white transition-all flex items-center gap-2"
-              >
-                🛒 Cart ({cartItems.length})
-              </motion.button>
+              <button onClick={() => setShowCheckout(true)} className="px-3 py-2 bg-[#5a7d5a] text-white text-[10px] font-black uppercase tracking-widest">
+                Basket {cartItems.length}
+              </button>
             )}
           </div>
-        </motion.div>
+        </div>
+
+        <div className="px-4 md:px-8 py-4 flex gap-2 overflow-x-auto items-center border-b border-[#e8dcc8]" style={{ background: '#f7f0e4' }}>
+          {([
+            ['drops', 'Open stall'],
+            ['home', 'Pots & hangers'],
+            ['care', 'Oils & soil'],
+            ['vouchers', 'Tickets'],
+          ] as const).map(([tab, label]) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 text-[11px] font-black uppercase tracking-widest whitespace-nowrap border ${
+                activeTab === tab
+                  ? 'bg-[#3d2a1c] text-[#f4e4c1] border-[#3d2a1c]'
+                  : 'bg-transparent text-[#7a6a50] border-[#d9c4a0] hover:border-[#c17f59]'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          <button onClick={() => setShowFilters(!showFilters)} className="ml-auto px-3 py-2 text-[11px] font-black uppercase tracking-widest border border-[#d9c4a0] text-[#3d2a1c]">
+            Filter
+          </button>
+        </div>
 
         {/* ── FILTER PANEL ── */}
         <AnimatePresence>
@@ -756,10 +630,11 @@ export default function GardenMarket() {
                   <motion.h2
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="font-serif text-3xl font-bold mb-8 text-text-bark"
+                    className="font-serif text-3xl font-semibold mb-2 text-[#3d2a1c]"
                   >
-                    Available Now
+                    On the stall today
                   </motion.h2>
+                  <p className="text-sm text-[#7a6a50] mb-8">Buy on Amazon. Spend seeds at this stall to clip a rupee refund.</p>
                   
                   <motion.div
                     initial={{ opacity: 0 }}
@@ -792,9 +667,9 @@ export default function GardenMarket() {
                 <motion.h2
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="font-serif text-3xl font-bold mb-8 text-text-bark"
+                  className="font-serif text-3xl font-semibold mb-8 text-[#3d2a1c]"
                 >
-                  Planters & Home
+                  Pottery aisle
                 </motion.h2>
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -824,9 +699,9 @@ export default function GardenMarket() {
                 <motion.h2
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="font-serif text-3xl font-bold mb-8 text-text-bark"
+                  className="font-serif text-3xl font-semibold mb-8 text-[#3d2a1c]"
                 >
-                  Care & Soil
+                  Apothecary aisle
                 </motion.h2>
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -857,9 +732,9 @@ export default function GardenMarket() {
                 <motion.h2
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="font-serif text-3xl font-bold mb-8 text-text-bark"
+                  className="font-serif text-3xl font-semibold mb-8 text-[#3d2a1c]"
                 >
-                  My Vouchers
+                  Torn tickets
                 </motion.h2>
                 
                 {MOCK_VOUCHERS.length === 0 ? (
@@ -884,22 +759,26 @@ export default function GardenMarket() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: idx * 0.1 }}
-                        className="bg-bg-secondary border border-border-light rounded-2xl p-6 flex items-center justify-between hover:bg-bg-tertiary hover:border-border-medium transition-all"
+                        className="relative bg-[#fff8e8] border-2 border-dashed border-[#c17f59] p-6 flex items-center justify-between"
+                        style={{ backgroundImage: 'radial-gradient(circle at 0 50%, transparent 10px, #fff8e8 11px), radial-gradient(circle at 100% 50%, transparent 10px, #fff8e8 11px)', backgroundSize: '100% 100%' }}
                       >
                         <div className="flex items-center gap-4">
-                          <div className="text-3xl">🎟</div>
+                          <div className="w-16 h-16 rotate-[-8deg] bg-[#c17f59] text-white flex flex-col items-center justify-center font-serif">
+                            <span className="text-[9px] uppercase tracking-widest">Off</span>
+                            <span className="text-lg font-bold leading-none">{voucher.value.split(' ')[0]}</span>
+                          </div>
                           <div>
-                            <h3 className="font-bold text-text-bark">{voucher.title}</h3>
-                            <p className="text-sm text-text-stone">{voucher.value}</p>
-                            <p className="text-xs text-text-muted mt-1">Expires in {voucher.expiryDays} days</p>
+                            <h3 className="font-serif text-xl font-semibold text-[#3d2a1c]">{voucher.title}</h3>
+                            <p className="text-sm text-[#7a6a50]">{voucher.value}</p>
+                            <p className="text-[11px] text-[#a09070] mt-1">Punch by {voucher.expiryDays} days · {voucher.seedCost} seeds</p>
                           </div>
                         </div>
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          className="px-4 py-2 bg-moss hover:bg-moss-dark text-white rounded-lg font-bold text-sm uppercase transition-all"
+                          className="px-4 py-2 bg-[#3d2a1c] text-[#f4e4c1] text-[10px] font-black uppercase tracking-widest"
                         >
-                          Apply
+                          Redeem
                         </motion.button>
                       </motion.div>
                     ))}
@@ -917,7 +796,7 @@ export default function GardenMarket() {
           transition={{ delay: 1 }}
           className="border-t border-border-light px-6 md:px-8 py-12 mt-12 text-center text-text-stone text-sm"
         >
-          <p>🌿 Part of the BotanicalGuardian Ecosystem • Seeds = Discount Power, Never Real Currency</p>
+          <p className="font-serif italic">Seeds are stall credit — never cash. Amazon handles the rupees.</p>
         </motion.div>
       </div>
 

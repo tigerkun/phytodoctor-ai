@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Leaf, TrendingUp, Award, Zap, Gift } from 'lucide-react';
 
@@ -7,6 +7,7 @@ interface WalletStats {
   level: number;
   nextLevelXp: number;
   currentXp: number;
+  xpPercent?: number;
   vouchers: number;
   streak: number;
 }
@@ -21,7 +22,7 @@ export default function EnhancedWalletDisplay({
   isCompact = false 
 }: EnhancedWalletDisplayProps) {
   const [showXpGain, setShowXpGain] = useState(false);
-  const xpProgress = (stats.currentXp / stats.nextLevelXp) * 100;
+  const xpProgress = Math.min(100, Math.max(0, stats.xpPercent ?? (stats.nextLevelXp > 0 ? (stats.currentXp / stats.nextLevelXp) * 100 : 0)));
 
   const handleXpGain = () => {
     setShowXpGain(true);
@@ -33,7 +34,7 @@ export default function EnhancedWalletDisplay({
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="flex items-center gap-4 p-2 rounded-lg bg-bg-secondary border border-border-light"
+        className="flex items-center gap-3 p-2 pr-3 rounded-sm bg-[#fff8e8] border border-[#d9c4a0]"
       >
         {/* Level Badge */}
         <motion.div
@@ -85,7 +86,7 @@ export default function EnhancedWalletDisplay({
           </div>
           <div className="text-2xl font-bold text-gold">{stats.level}</div>
           <div className="text-[10px] text-text-muted mt-1">
-            {stats.currentXp} / {stats.nextLevelXp} XP
+            {Math.round(stats.currentXp)} / {Math.round(stats.nextLevelXp)} XP
           </div>
           <motion.div className="h-1.5 w-full bg-bg-tertiary rounded-full overflow-hidden mt-2">
             <motion.div

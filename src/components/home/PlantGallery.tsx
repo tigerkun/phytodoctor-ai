@@ -61,7 +61,7 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
           className="text-4xl font-serif font-bold mb-4"
           style={{ color: theme === 'day' ? '#3D405B' : '#E8DCC8' }}
         >
-          My Living Collection
+          Today's Sanctuary
         </motion.h2>
         <motion.p
           initial={{ opacity: 0 }}
@@ -70,7 +70,7 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
           className="text-lg mb-12"
           style={{ color: theme === 'day' ? '#5F7161' : '#A8B5A0' }}
         >
-          {plants.length} plants thriving in your care
+          {plants.length === 0 ? 'Empty until you index a plant today' : `${plants.length} plant${plants.length === 1 ? '' : 's'} indexed today`}
         </motion.p>
 
         <motion.div

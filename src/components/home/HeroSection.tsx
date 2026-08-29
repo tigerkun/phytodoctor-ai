@@ -108,10 +108,10 @@ export function HeroSection({
                 🪴
               </div>
               <h2 className="text-3xl font-serif font-bold text-text-bark mb-3">
-                No Plants in Your Sanctuary Yet
+                No Plants Indexed Today
               </h2>
               <p className="text-sm text-text-stone max-w-md mb-8 leading-relaxed">
-                Add your first plant specimen to begin deterministic HSV drift detection, daily health logging, earning seed rewards, and generating AI clinical diagnostic reports!
+                Today’s sanctuary resets at midnight. Scan a plant in the Botanical Lab to mark your streak and pin it here until the day changes.
               </p>
               <motion.button
                 onClick={onAddPlant}
