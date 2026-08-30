@@ -9,7 +9,7 @@ interface StickyHeaderProps {
 }
 
 export const StickyHeader = ({ plantName, healthScore, seeds }: StickyHeaderProps) => {
-  const { isDay } = useDayNight();
+  const { isDay, toggleTheme } = useDayNight();
 
   // Determine health indicator
   let healthColor: string;
@@ -53,7 +53,11 @@ export const StickyHeader = ({ plantName, healthScore, seeds }: StickyHeaderProp
           </span>
           <span>{seeds}</span>
         </div>
-        <button className="p-2 rounded-full hover:bg-[rgba(0,0,0,0.1)] transition-colors duration-200">
+        <button
+          onClick={toggleTheme}
+          aria-label={isDay ? "Switch to night mode" : "Switch to day mode"}
+          className="p-2 rounded-full hover:bg-[rgba(0,0,0,0.1)] transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-1"
+        >
           {isDay ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
         </button>
       </div>
