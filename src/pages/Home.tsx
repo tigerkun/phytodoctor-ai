@@ -19,11 +19,12 @@ import PageWrapper from '@/components/home/PageWrapper';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { fetchWeather, generateWeatherAdvice, getWateringRecommendation } from '@/utils/weatherIntegration';
 import { getPlantPhoto } from '@/utils/plantImage';
-
-
-
+import { supabase } from '@/lib/supabase';
+import { postgresToPlant, onPlantsChange, PlantService } from '@/services/plantService';
+import type { Plant, SoilType } from '@/types';
 import { useNavigate } from 'react-router-dom';
 import { usePageTransition } from '@/components/home/PageTransitionContext';
+
 
 // ─── Welcome Landing (first-time visitors) ───────────────────────────
 const ONBOARD_KEY = 'botanical_guardian_onboarded';
@@ -189,13 +190,48 @@ export default function HomePage() {
   const [timePeriodOverride, setTimePeriodOverride] = useState<TimePeriod | null>(null);
   const activeTimePeriod = timePeriodOverride || timeOfDay;
 
-  // Real database hooks — scoped to current user
+  // Real database hooks — Supabase Postgres with RLS + live reactivity
   const userId = GameService.getUserId();
-  const dbPlants = useLiveQuery(() => db.plants.where('userId').equals(userId).toArray(), [userId]);
+  const [dbPlants, setDbPlants] = useState<Plant[]>([]);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  const fetchPlantsFromSupabase = useCallback(async () => {
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('plants')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        if (data) {
+          const mapped = data.map(postgresToPlant);
+          setDbPlants(mapped);
+          return;
+        }
+      } catch (err) {
+        console.error('[Home] Failed to fetch plants from Supabase:', err);
+      }
+    }
+    // Fallback if offline / local-only
+    const local = await db.plants.where('userId').equals(userId).toArray();
+    setDbPlants(local);
+  }, [userId]);
+
+  useEffect(() => {
+    fetchPlantsFromSupabase();
+    // Subscribe to real-time plant changes (inserts, updates, deletes)
+    const unsubscribe = onPlantsChange((updatedPlants) => {
+      setDbPlants(updatedPlants);
+    });
+    return () => unsubscribe();
+  }, [fetchPlantsFromSupabase]);
+
   const checkins = useLiveQuery(() => db.checkins.toArray()) || [];
   const profile = useLiveQuery(() => GameService.getProfile(userId), [userId]);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const forceRefreshProfile = () => setProfileRefreshKey(prev => prev + 1);
+
 
   // Map database plants — all user non-demo plants form the living collection
   const mappedPlants = useMemo(() => {
@@ -309,10 +345,9 @@ export default function HomePage() {
           weather={weather}
           currentTimePeriod={activeTimePeriod}
           onTimePeriodChange={(period) => setTimePeriodOverride(period)}
-          onAddPlant={() => {
-            transitionTo('/lab?tab=dex', 'Botanical Lab');
-          }}
+          onAddPlant={() => setIsAddModalOpen(true)}
         />
+
 
         {/* Quickstart Usage Manual & Top-Up Guide */}
         <QuickstartGuide 
@@ -380,6 +415,19 @@ export default function HomePage() {
             />
           )}
         </AnimatePresence>
+        {/* Add Plant Modal Form */}
+        <AnimatePresence>
+          {isAddModalOpen && (
+            <AddPlantModal
+              isOpen={isAddModalOpen}
+              onClose={() => setIsAddModalOpen(false)}
+              onScanRedirect={() => {
+                setIsAddModalOpen(false);
+                transitionTo('/lab?tab=dex', 'Botanical Lab');
+              }}
+            />
+          )}
+        </AnimatePresence>
       </motion.main>
 
       {/* Eco Mode Notice */}
@@ -400,3 +448,186 @@ export default function HomePage() {
     </PageWrapper>
   );
 }
+
+function AddPlantModal({
+  isOpen,
+  onClose,
+  onScanRedirect,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onScanRedirect: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [species, setSpecies] = useState('');
+  const [soilType, setSoilType] = useState<SoilType>('well-draining');
+  const [potSize, setPotSize] = useState('10 inch');
+  const [location, setLocation] = useState('Conservatory');
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !species.trim()) {
+      setFormError('Please enter both specimen name and species.');
+      return;
+    }
+
+    setSubmitting(true);
+    setFormError('');
+
+    try {
+      await PlantService.addPlant({
+        name: name.trim(),
+        species: species.trim(),
+        soilType,
+        potSize: potSize.trim(),
+        location: location.trim(),
+        guardianScore: 92,
+        status: 'Stable',
+      });
+      onClose();
+    } catch (err: any) {
+      setFormError(err?.message || 'Failed to inscribe specimen to Supabase.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 16 }}
+        className="relative w-full max-w-md rounded-2xl border border-[#c5a059]/40 bg-[#faf6ee] dark:bg-[#1a140e] p-6 shadow-2xl text-left z-10"
+      >
+        <div className="flex items-center justify-between mb-4 border-b border-[#dcd2c0] dark:border-[#3d2e20] pb-3">
+          <div>
+            <h3 className="font-serif font-black text-xl text-[#2b2118] dark:text-[#f4eee1]">
+              Inscribe New Specimen
+            </h3>
+            <p className="text-xs text-[#725e4c] dark:text-[#b8a695] font-serif italic">
+              Persisted directly to Supabase Postgres with RLS
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-xs font-mono font-bold text-[#8c6e38] hover:text-[#2b2118] dark:hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+
+        {formError && (
+          <div className="mb-4 p-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs font-mono">
+            {formError}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-3.5">
+          <div>
+            <label className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
+              Specimen Designation / Nickname
+            </label>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Empress Monstera"
+              className="w-full px-3 py-2 text-xs rounded-lg border border-[#dcd2c0] dark:border-[#3d2e20] bg-white dark:bg-[#251d16] text-[#2b2118] dark:text-[#f4eee1] focus:outline-none focus:ring-1 focus:ring-[#8c6e38]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
+              Botanical Species
+            </label>
+            <input
+              type="text"
+              required
+              value={species}
+              onChange={(e) => setSpecies(e.target.value)}
+              placeholder="e.g. Monstera deliciosa"
+              className="w-full px-3 py-2 text-xs rounded-lg border border-[#dcd2c0] dark:border-[#3d2e20] bg-white dark:bg-[#251d16] text-[#2b2118] dark:text-[#f4eee1] focus:outline-none focus:ring-1 focus:ring-[#8c6e38]"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
+                Substrate Type
+              </label>
+              <select
+                value={soilType || ''}
+                onChange={(e) => setSoilType(e.target.value as SoilType)}
+                className="w-full px-2.5 py-2 text-xs rounded-lg border border-[#dcd2c0] dark:border-[#3d2e20] bg-white dark:bg-[#251d16] text-[#2b2118] dark:text-[#f4eee1] focus:outline-none focus:ring-1 focus:ring-[#8c6e38]"
+              >
+                <option value="well-draining">Well Draining</option>
+                <option value="loamy">Loamy</option>
+                <option value="peaty">Peaty</option>
+                <option value="sandy">Sandy</option>
+                <option value="clay">Clay</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
+                Pot Vessel
+              </label>
+              <input
+                type="text"
+                value={potSize}
+                onChange={(e) => setPotSize(e.target.value)}
+                placeholder="10 inch terracotta"
+                className="w-full px-3 py-2 text-xs rounded-lg border border-[#dcd2c0] dark:border-[#3d2e20] bg-white dark:bg-[#251d16] text-[#2b2118] dark:text-[#f4eee1] focus:outline-none focus:ring-1 focus:ring-[#8c6e38]"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
+              Sanctuary Station / Room
+            </label>
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="e.g. Living Room Solarium"
+              className="w-full px-3 py-2 text-xs rounded-lg border border-[#dcd2c0] dark:border-[#3d2e20] bg-white dark:bg-[#251d16] text-[#2b2118] dark:text-[#f4eee1] focus:outline-none focus:ring-1 focus:ring-[#8c6e38]"
+            />
+          </div>
+
+          <div className="pt-2 flex flex-col gap-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full py-2.5 rounded-xl font-serif font-bold text-xs uppercase tracking-wider bg-[#2e4a34] hover:bg-[#395c41] text-[#f4eee1] transition-all disabled:opacity-50"
+            >
+              {submitting ? 'Inscribing to Supabase...' : 'Save Specimen to Cloud'}
+            </button>
+
+            <button
+              type="button"
+              onClick={onScanRedirect}
+              className="w-full py-2 text-[11px] font-mono font-semibold text-[#8c6e38] hover:underline text-center"
+            >
+              Or capture & diagnose via Wet Lab Camera →
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+

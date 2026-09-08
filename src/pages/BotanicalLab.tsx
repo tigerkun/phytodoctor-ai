@@ -31,6 +31,8 @@ import StreakPopup from '../components/game/StreakPopup';
 import { db } from '../db/database';
 import { GameService } from '../services/gameService';
 import { identifyPlant } from '../services/geminiService';
+import { PlantService, onPlantsChange } from '../services/plantService';
+import type { Plant } from '../types';
 import { usePageTransition } from '../components/home/PageTransitionContext';
 import { getPlantPhoto } from '../utils/plantImage';
 import PageWrapper from '../components/home/PageWrapper';
@@ -93,8 +95,15 @@ export default function BotanicalLab() {
 
   const userId = GameService.getUserId();
   const profile = useLiveQuery(() => GameService.getProfile(userId), [userId]);
-  const dbPlants = useLiveQuery(() => db.plants.where('userId').equals(userId).toArray(), [userId]) || [];
+  const [dbPlants, setDbPlants] = useState<Plant[]>([]);
+
+  useEffect(() => {
+    PlantService.fetchPlants().then(setDbPlants);
+    return onPlantsChange(setDbPlants);
+  }, []);
+
   const checkins = useLiveQuery(() => db.checkins.toArray()) || [];
+
 
   const { location, city } = useGeolocation();
 
@@ -265,11 +274,12 @@ export default function BotanicalLab() {
         triggerCoinBurst();
         
         const today = new Date();
-        await db.plants.update(targetPlantId, {
+        await PlantService.updatePlant(targetPlantId, {
           checkInTime: 'just now',
           updatedAt: today,
           photoUrl: base64
         });
+
         
         await db.checkins.add({
           id: crypto.randomUUID(),

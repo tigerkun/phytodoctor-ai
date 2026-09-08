@@ -506,7 +506,8 @@ export class GameService {
     const weatherTemp = tempMatch ? Number(tempMatch[0]) : null;
 
     if (plant) {
-      await db.plants.update(plant.id, {
+      const { PlantService } = await import('./plantService');
+      await PlantService.updatePlant(plant.id, {
         photoUrl: input.photoUrl,
         guardianScore: score,
         status,
@@ -516,7 +517,8 @@ export class GameService {
       });
       plant = { ...plant, photoUrl: input.photoUrl, guardianScore: score, status, updatedAt: now };
     } else {
-      plant = {
+      const { PlantService } = await import('./plantService');
+      plant = await PlantService.addPlant({
         id: crypto.randomUUID(),
         userId,
         name: input.commonName || species.split(' ')[0],
@@ -537,9 +539,9 @@ export class GameService {
         photoUrl: input.photoUrl,
         createdAt: now,
         updatedAt: now,
-      };
-      await db.plants.add(plant);
+      });
     }
+
 
     await db.checkins.add({
       id: crypto.randomUUID(),

@@ -6,7 +6,7 @@ import type { AmbientScene } from '@/components/home/DayNightProvider';
 import { useEcoMode } from '@/hooks/useEcoMode';
 import { useParallax } from '@/hooks/useScrollBehavior';
 import { triggerHaptic, playAudio } from '@/utils/hapticAudio';
-import { db } from '@/db/database';
+import { PlantService } from '@/services/plantService';
 
 interface HeroSectionProps {
   plantId?: string;
@@ -62,7 +62,7 @@ export function HeroSection({
       playAudio('water-drop');
       if (plantId) {
         try {
-          await db.plants.update(plantId, { updatedAt: new Date() });
+          await PlantService.updatePlant(plantId, { updatedAt: new Date() });
         } catch (err) {
           console.error('Failed to update plant hydration date:', err);
         }
@@ -82,7 +82,7 @@ export function HeroSection({
   const handleSaveNickname = async () => {
     if (!editedName.trim() || !plantId) return;
     try {
-      await db.plants.update(plantId, { name: editedName.trim() });
+      await PlantService.updatePlant(plantId, { name: editedName.trim() });
       triggerHaptic('medium');
       playAudio('success');
       setIsEditModalOpen(false);
@@ -90,6 +90,20 @@ export function HeroSection({
       console.error('Failed to update nickname:', err);
     }
   };
+
+  const handleDeletePlant = async () => {
+    if (!plantId) return;
+    if (window.confirm(`Are you sure you wish to delete "${plantName || 'this specimen'}" from your sanctuary cloud database?`)) {
+      try {
+        await PlantService.deletePlant(plantId);
+        triggerHaptic('heavy');
+        setIsEditModalOpen(false);
+      } catch (err) {
+        console.error('Failed to delete plant:', err);
+      }
+    }
+  };
+
 
   const healthLabel = healthScore >= 90 ? 'Thriving' : healthScore >= 70 ? 'Healthy' : healthScore >= 50 ? 'Needs Attention' : 'Critical';
   const healthColor = healthScore >= 90 ? 'var(--health-thriving)'
@@ -522,20 +536,31 @@ export function HeroSection({
                 }}
               />
 
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="flex-1 py-3 rounded-full text-xs font-bold border border-border-light hover:bg-bg-tertiary text-text-stone transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveNickname}
+                    className="flex-1 py-3 rounded-full text-xs font-bold text-white bg-moss hover:bg-moss-dark transition-all shadow-lg shadow-moss/20"
+                  >
+                    Save designation
+                  </button>
+                </div>
+
                 <button
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="flex-1 py-3 rounded-full text-xs font-bold border border-border-light hover:bg-bg-tertiary text-text-stone transition-all"
+                  type="button"
+                  onClick={handleDeletePlant}
+                  className="w-full py-2.5 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider text-red-600 dark:text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-all"
                 >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveNickname}
-                  className="flex-1 py-3 rounded-full text-xs font-bold text-white bg-moss hover:bg-moss-dark transition-all shadow-lg shadow-moss/20"
-                >
-                  Save designation
+                  Delete Specimen from Cloud
                 </button>
               </div>
+
             </motion.div>
           </div>
         )}

@@ -7,10 +7,13 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import GuardianScoreRing from '../components/GuardianScoreRing';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { GameService } from '../services/gameService';
+import { PlantService, onPlantsChange } from '../services/plantService';
+import type { Plant } from '../types';
 import { getPlantPhoto } from '../utils/plantImage';
 import PageWrapper from '../components/home/PageWrapper';
 import { usePageTransition } from '../components/home/PageTransitionContext';
 import { useToast } from '../components/Toast';
+
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -47,7 +50,16 @@ export default function PlantDetail() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<PlantNote['category'] | 'all'>('all');
 
-  const plant = useLiveQuery(() => id ? db.plants.get(id) : undefined, [id]);
+  const [plant, setPlant] = useState<Plant | undefined>();
+
+  useEffect(() => {
+    if (!id) return;
+    PlantService.getPlant(id).then(p => setPlant(p || undefined));
+    return onPlantsChange(() => {
+      PlantService.getPlant(id).then(p => setPlant(p || undefined));
+    });
+  }, [id]);
+
   const history = useLiveQuery(() => id ? db.checkins.where('plantId').equals(id).sortBy('timestamp') : [], [id]);
   const predictions = useLiveQuery(() => id ? db.predictions.where('plantId').equals(id).sortBy('predictedAt') : [], [id]);
   const notes = useLiveQuery(() => id ? db.notes.where('plantId').equals(id).reverse().sortBy('createdAt') : [], [id]);
