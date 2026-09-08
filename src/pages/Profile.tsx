@@ -25,13 +25,15 @@ import {
   Feather,
   ArrowUpRight,
   RefreshCw,
-  Coins
+  Coins,
+  CloudUpload as CloudUp
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db, type SeedTransaction } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { GameService } from '../services/gameService';
 import { RewardService } from '../services/rewardService';
+import { MigrationService } from '../services/migrationService';
 import PageWrapper from '../components/home/PageWrapper';
 import { usePageTransition } from '../components/home/PageTransitionContext';
 import { triggerHaptic, playAudio } from '../utils/hapticAudio';
@@ -94,6 +96,7 @@ export default function Profile() {
 
   // Upgrading feedback
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -154,14 +157,34 @@ export default function Profile() {
     }
   };
 
-  const handleSignOut = () => {
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const result = await MigrationService.migratePlantsToCloud();
+      if (result.success) {
+        if (hapticEnabled) triggerHaptic('medium');
+        if (audioEnabled) playAudio('success');
+        alert(`Successfully backed up ${result.count} plants to the Sanctuary cloud!`);
+      } else {
+        alert(`Sync failed: ${result.error}`);
+      }
+    } catch (err: any) {
+      alert(`Sync error: ${err?.message || 'Unknown error occurred'}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleSignOut = async () => {
     if (window.confirm('Surrender your Guild Passport and sign out of the active terminal session?')) {
+      const { supabase } = await import('../lib/supabase');
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
       localStorage.removeItem('botanical_guardian_auth_token');
       localStorage.removeItem('botanical_guardian_onboarded');
       localStorage.removeItem('botanical_guardian_userId');
-      localStorage.removeItem('botanical_guardian_user_email');
-      localStorage.removeItem('botanical_guardian_user_name');
-      window.location.href = '/auth';
+      navigate('/auth', { replace: true });
     }
   };
 
@@ -888,6 +911,17 @@ export default function Profile() {
 
                 {/* Sign Out Danger Zone */}
                 <div className="mt-6 pt-4 border-t border-[#d8ccb8] dark:border-[#382d22]">
+                  <button
+                    onClick={handleSync}
+                    disabled={syncing}
+                    className="w-full py-3 px-4 bg-[#2e4a34] hover:bg-[#395c41] text-[#f4eee1] rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-between transition-colors mb-4"
+                  >
+                    <span className="flex items-center gap-2">
+                      <CloudUp size={14} /> 
+                      {syncing ? 'Uplinking to Vault...' : 'Sync Local Ledger to Cloud'}
+                    </span>
+                  </button>
+
                   <button
                     onClick={handleSignOut}
                     className="w-full py-3 px-4 bg-red-900/10 hover:bg-red-900/20 border border-red-800/30 text-red-700 dark:text-red-400 rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-between transition-colors"
