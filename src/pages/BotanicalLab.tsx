@@ -32,7 +32,9 @@ import { db } from '../db/database';
 import { GameService } from '../services/gameService';
 import { identifyPlant } from '../services/geminiService';
 import { PlantService, onPlantsChange } from '../services/plantService';
+import { StorageService } from '../services/storageService';
 import type { Plant } from '../types';
+
 import { usePageTransition } from '../components/home/PageTransitionContext';
 import { getPlantPhoto } from '../utils/plantImage';
 import PageWrapper from '../components/home/PageWrapper';
@@ -156,9 +158,17 @@ export default function BotanicalLab() {
     if (!target || !photo) return;
     const species = target.speciesName || target.scientificName || target.commonName;
     const rarity = getRarityFromSpecies(species);
+    let finalPhotoUrl = photo;
+    if (photo && photo.startsWith('data:')) {
+      const cloudUrl = await StorageService.uploadPlantPhotoFromDataUrl(photo, userId);
+      if (cloudUrl) {
+        finalPhotoUrl = cloudUrl;
+      }
+    }
+
 
     const plant = await GameService.indexScannedPlant({
-      photoUrl: photo,
+      photoUrl: finalPhotoUrl,
       species,
       commonName: target.commonName || species,
       healthStatus: target.healthStatus,
@@ -168,6 +178,7 @@ export default function BotanicalLab() {
       light: target.light,
       temperature: target.temperature,
     }, userId);
+
 
     const alreadyDiscovered = profile?.discoveredSpecies?.includes(species);
     let resSeeds = 0;
@@ -274,11 +285,13 @@ export default function BotanicalLab() {
         triggerCoinBurst();
         
         const today = new Date();
+        const cloudUrl = (await StorageService.uploadPlantPhoto(file, userId)) || base64;
         await PlantService.updatePlant(targetPlantId, {
           checkInTime: 'just now',
           updatedAt: today,
-          photoUrl: base64
+          photoUrl: cloudUrl
         });
+
 
         
         await db.checkins.add({

@@ -21,7 +21,9 @@ import { fetchWeather, generateWeatherAdvice, getWateringRecommendation } from '
 import { getPlantPhoto } from '@/utils/plantImage';
 import { supabase } from '@/lib/supabase';
 import { postgresToPlant, onPlantsChange, PlantService } from '@/services/plantService';
+import { StorageService } from '@/services/storageService';
 import type { Plant, SoilType } from '@/types';
+
 import { useNavigate } from 'react-router-dom';
 import { usePageTransition } from '@/components/home/PageTransitionContext';
 
@@ -463,6 +465,9 @@ function AddPlantModal({
   const [soilType, setSoilType] = useState<SoilType>('well-draining');
   const [potSize, setPotSize] = useState('10 inch');
   const [location, setLocation] = useState('Conservatory');
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -477,6 +482,23 @@ function AddPlantModal({
 
     setSubmitting(true);
     setFormError('');
+    let uploadedPhotoUrl = '';
+
+    try {
+      if (photoFile) {
+        setUploadingPhoto(true);
+        const { data: { session } } = (await supabase?.auth?.getSession()) || { data: { session: null } };
+        const activeUserId = session?.user?.id || GameService.getUserId();
+        const cloudUrl = await StorageService.uploadPlantPhoto(photoFile, activeUserId);
+        if (cloudUrl) {
+          uploadedPhotoUrl = cloudUrl;
+        }
+      }
+    } catch (err: any) {
+      console.warn('Storage upload error:', err);
+    } finally {
+      setUploadingPhoto(false);
+    }
 
     try {
       await PlantService.addPlant({
@@ -487,6 +509,7 @@ function AddPlantModal({
         location: location.trim(),
         guardianScore: 92,
         status: 'Stable',
+        photoUrl: uploadedPhotoUrl,
       });
       onClose();
     } catch (err: any) {
@@ -563,6 +586,29 @@ function AddPlantModal({
             />
           </div>
 
+          <div>
+            <label className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
+              Specimen Photograph (Cloud Storage)
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  setPhotoFile(f);
+                  setPhotoPreview(URL.createObjectURL(f));
+                }
+              }}
+              className="w-full text-xs text-[#725e4c] dark:text-[#b8a695] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#2e4a34] file:text-[#f4eee1] hover:file:bg-[#395c41] cursor-pointer"
+            />
+            {photoPreview && (
+              <div className="mt-2 relative w-14 h-14 rounded-lg overflow-hidden border border-[#c5a059]/40">
+                <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
@@ -614,7 +660,7 @@ function AddPlantModal({
               disabled={submitting}
               className="w-full py-2.5 rounded-xl font-serif font-bold text-xs uppercase tracking-wider bg-[#2e4a34] hover:bg-[#395c41] text-[#f4eee1] transition-all disabled:opacity-50"
             >
-              {submitting ? 'Inscribing to Supabase...' : 'Save Specimen to Cloud'}
+              {uploadingPhoto ? 'Uplinking photo to vault...' : submitting ? 'Inscribing to Supabase...' : 'Save Specimen to Cloud'}
             </button>
 
             <button
@@ -630,4 +676,5 @@ function AddPlantModal({
     </div>
   );
 }
+
 

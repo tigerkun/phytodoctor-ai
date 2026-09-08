@@ -505,17 +505,28 @@ export class GameService {
     const tempMatch = (input.temperature || '').match(/-?\d+/);
     const weatherTemp = tempMatch ? Number(tempMatch[0]) : null;
 
+    let finalPhotoUrl = input.photoUrl;
+    if (finalPhotoUrl && finalPhotoUrl.startsWith('data:')) {
+      try {
+        const { StorageService } = await import('./storageService');
+        const cloudUrl = await StorageService.uploadPlantPhotoFromDataUrl(finalPhotoUrl, userId);
+        if (cloudUrl) finalPhotoUrl = cloudUrl;
+      } catch (err) {
+        console.warn('Storage upload fallback:', err);
+      }
+    }
+
     if (plant) {
       const { PlantService } = await import('./plantService');
       await PlantService.updatePlant(plant.id, {
-        photoUrl: input.photoUrl,
+        photoUrl: finalPhotoUrl,
         guardianScore: score,
         status,
         checkInTime: 'just now',
         updatedAt: now,
         location: input.diagnosis?.slice(0, 160) || plant.location,
       });
-      plant = { ...plant, photoUrl: input.photoUrl, guardianScore: score, status, updatedAt: now };
+      plant = { ...plant, photoUrl: finalPhotoUrl, guardianScore: score, status, updatedAt: now };
     } else {
       const { PlantService } = await import('./plantService');
       plant = await PlantService.addPlant({
@@ -536,11 +547,12 @@ export class GameService {
         baselineSignature: null,
         guardianScore: score,
         status,
-        photoUrl: input.photoUrl,
+        photoUrl: finalPhotoUrl,
         createdAt: now,
         updatedAt: now,
       });
     }
+
 
 
     await db.checkins.add({
