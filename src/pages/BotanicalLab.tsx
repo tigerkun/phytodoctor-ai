@@ -92,8 +92,10 @@ export default function BotanicalLab() {
   const updatePhotoInputRef = useRef<HTMLInputElement>(null);
   const [updatingPlantId, setUpdatingPlantId] = useState<string | null>(null);
   const [isUpdatingPhoto, setIsUpdatingPhoto] = useState(false);
+  const [isUplinkingPhoto, setIsUplinkingPhoto] = useState(false);
 
   const { transitionTo } = usePageTransition();
+
 
   const userId = GameService.getUserId();
   const profile = useLiveQuery(() => GameService.getProfile(userId), [userId]);
@@ -159,12 +161,18 @@ export default function BotanicalLab() {
     const species = target.speciesName || target.scientificName || target.commonName;
     const rarity = getRarityFromSpecies(species);
     let finalPhotoUrl = photo;
-    if (photo && photo.startsWith('data:')) {
-      const cloudUrl = await StorageService.uploadPlantPhotoFromDataUrl(photo, userId);
-      if (cloudUrl) {
-        finalPhotoUrl = cloudUrl;
+    setIsUplinkingPhoto(true);
+    try {
+      if (photo && photo.startsWith('data:')) {
+        const cloudUrl = await StorageService.uploadPlantPhotoFromDataUrl(photo, userId);
+        if (cloudUrl) {
+          finalPhotoUrl = cloudUrl;
+        }
       }
+    } finally {
+      setIsUplinkingPhoto(false);
     }
+
 
 
     const plant = await GameService.indexScannedPlant({
@@ -834,11 +842,13 @@ export default function BotanicalLab() {
                           ) : scanMode === 'consult' ? (
                             <button
                               onClick={() => handleIndexSpecimen()}
-                              className="flex-1 py-3 bg-gold/20 hover:bg-gold/30 text-text-bark border border-gold/40 font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95 font-mono"
+                              disabled={isUplinkingPhoto}
+                              className="flex-1 py-3 bg-gold/20 hover:bg-gold/30 text-text-bark border border-gold/40 font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95 font-mono disabled:opacity-50"
                             >
-                              📥 Index to Sanctuary
+                              {isUplinkingPhoto ? 'Uplinking photo to vault...' : '📥 Index to Sanctuary'}
                             </button>
                           ) : null}
+
 
                           <button
                             onClick={() => {
@@ -1052,8 +1062,9 @@ export default function BotanicalLab() {
                       >
                         <RefreshCw size={11} className={isUpdatingPhoto && updatingPlantId === plant.id ? 'animate-spin' : ''} /> 
                         {isUpdatingPhoto && updatingPlantId === plant.id
-                          ? 'Analyzing Optical Sample...'
+                          ? 'Uplinking photo to vault...'
                           : isMissed
+
                           ? 'Revive Streak'
                           : 'Update Photo (+15 Seeds)'}
                       </motion.button>

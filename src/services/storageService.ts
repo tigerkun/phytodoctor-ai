@@ -17,6 +17,14 @@ export const StorageService = {
     }
 
     try {
+      let activeUserId = (userId || '').replace(/^sb_/, '').trim();
+      if (!activeUserId || activeUserId === 'local_user') {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.id) {
+          activeUserId = session.user.id;
+        }
+      }
+
       let fileExt = fallbackExt;
       if (typeof File !== 'undefined' && file instanceof File && file.name) {
         const parts = file.name.split('.');
@@ -32,7 +40,8 @@ export const StorageService = {
 
       const cleanExt = fileExt.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
       const fileName = `${crypto.randomUUID()}.${cleanExt}`;
-      const filePath = `${userId}/${fileName}`;
+      const filePath = `${activeUserId}/${fileName}`;
+
 
       const contentType = file.type || `image/${cleanExt === 'jpg' ? 'jpeg' : cleanExt}`;
 
