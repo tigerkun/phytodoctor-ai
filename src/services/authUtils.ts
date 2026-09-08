@@ -35,3 +35,21 @@ export function decodeJwtPayload(credential: string): { sub: string; email: stri
   const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4));
   return JSON.parse(atob(b64 + pad)) as { sub: string; email: string; name?: string };
 }
+
+/**
+ * Hash password using Web Crypto SHA-256 with a per-user salt (the userId).
+ * Returns hex string. Browser-native, zero deps.
+ * ponytail: This is client-side hashing — it stops password impersonation on
+ * shared devices. It does NOT replace server-side hashing when a real backend
+ * auth service exists. Upgrade path: move to bcrypt/argon2 on the server.
+ */
+export async function hashPassword(userId: string, password: string): Promise<string> {
+  const data = new TextEncoder().encode(userId + ':' + password);
+  const hashBuf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function verifyPassword(userId: string, password: string, storedHash: string): Promise<boolean> {
+  const hash = await hashPassword(userId, password);
+  return hash === storedHash;
+}

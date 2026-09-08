@@ -8,6 +8,7 @@ import Library from './pages/Library';
 import Arena from './pages/Arena';
 import BotanicalLab from './pages/BotanicalLab';
 import Market from './pages/Market';
+import Shop from './pages/Shop';
 import Profile from './pages/Profile';
 import PlantDetail from './pages/PlantDetail';
 import Pedigree from './pages/Pedigree';
@@ -19,6 +20,7 @@ import Clinic from './pages/Clinic';
 import { CaseStudy } from './components/CaseStudy';
 import SystemAudit from './components/SystemAudit';
 import Leafify from './components/Leafify';
+
 
 /**
 
@@ -59,6 +61,7 @@ export default function App() {
             
             {/* Market & Resources */}
             <Route path="/market" element={<Market />} />
+            <Route path="/shop" element={<Shop />} />
             
             {/* Knowledge Base */}
             <Route path="/library" element={<Library />} />

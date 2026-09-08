@@ -16,6 +16,7 @@
   "dependencies": {
     "@google/genai": "^1.29.0",
     "@google/generative-ai": "^0.24.1",
+    "@supabase/supabase-js": "^2.116.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^5.0.4",
     "dexie": "^4.4.2",

@@ -91,6 +91,8 @@ export interface UserGameProfile {
   experienceLevel?: 'novice' | 'intermediate' | 'expert';
   environment?: 'indoor' | 'outdoor' | 'greenhouse' | 'mixed';
   isDemo?: boolean;
+  /** SHA-256 hash used in local-only auth mode (no Supabase). Never set when using Supabase. */
+  passwordHash?: string;
 }
 
 export interface PhytoCard {

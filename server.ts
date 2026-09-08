@@ -12,8 +12,35 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 // Increase payload size for images
 app.use(express.json({ limit: '10mb' }));
 
+// ── Per-IP rate limiter ────────────────────────────────────────────────────
+// ponytail: simple sliding-window counter, no external dep.
+// Ceiling: 60 req/min per IP. Upgrade path: use express-rate-limit + Redis
+// for distributed deployments.
+const RATE_WINDOW_MS = 60_000;
+const RATE_LIMIT = 60;
+const rateCounts = new Map<string, { count: number; resetAt: number }>();
+
+function rateLimit(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const ip = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0].trim()
+    || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const entry = rateCounts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateCounts.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+  } else {
+    entry.count++;
+    if (entry.count > RATE_LIMIT) {
+      return res.status(429).json({ error: 'Too many requests. Please slow down.' });
+    }
+  }
+  next();
+}
+
+app.use('/api', rateLimit);
+
 // Health check for Render
 app.get('/healthz', (_req, res) => res.sendStatus(200));
+
 
 // Gemini Initialization
 const ai = new GoogleGenAI({
@@ -64,10 +91,13 @@ app.post("/api/identify", async (req, res) => {
       return res.status(400).json({ error: "No image provided" });
     }
 
-    // Extract base64 data and mimeType dynamically
-    const mimeMatch = image.match(/^data:(image\/[a-zA-Z0-9.+]+);base64,/);
-    const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
-    const base64Data = image.replace(/^data:image\/[a-zA-Z0-9.+]+;base64,/, "").trim();
+    // Extract base64 data and mimeType — strict allowlist, no silent fallback
+    const mimeMatch = image.match(/^data:(image\/(jpeg|png|webp|gif|bmp|tiff|avif));base64,/);
+    if (!mimeMatch) {
+      return res.status(400).json({ error: 'Invalid image format. Supported: JPEG, PNG, WebP, GIF, BMP, TIFF, AVIF.' });
+    }
+    const mimeType = mimeMatch[1];
+    const base64Data = image.replace(/^data:image\/[a-zA-Z0-9.+]+;base64,/, '').trim();
 
     // Build location + weather context block for the prompt
     let locationBlock = "";
@@ -335,6 +365,7 @@ RESPONSE FORMAT & PACING (SHORT STANZAS):
 
     let formattedContents = messages
       .filter(m => m && typeof m.content === 'string' && m.content.trim().length > 0)
+      .slice(-20) // cap: keep only last 20 messages to prevent cost abuse
       .map(m => ({
         role: m.role === 'user' ? 'user' : 'model',
         parts: [{ text: m.content }]

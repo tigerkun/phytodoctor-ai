@@ -123,6 +123,31 @@ class BotanicalDB extends Dexie {
       discoveryRecords: '[userId+species], userId, rarity, discoveredAt',
       streakFreezes: '[userId+monthYear], userId, monthYear, lastUsedAt'
     });
+    // v17: adds passwordHash column to userProfile for client-side auth security
+    this.version(17).stores({
+      plants: 'id, userId, species, isDemo, createdAt',
+      checkins: 'id, plantId, timestamp, synced, isDemo, [plantId+timestamp]',
+      predictions: 'id, plantId, predictedAt, outcome, triggeredAlert, [plantId+predictedAt]',
+      sensorReadings: 'id, plantId, timestamp, sensorType, [plantId+sensorType+timestamp]',
+      alerts: 'id, predictionId, plantId, sentAt, readAt, [plantId+sentAt]',
+      photos: 'id, createdAt',
+      metrics: '++id, type, timestamp',
+      cards: 'id, plantId, userId, species, rarity, level, isFeatured, isDemo',
+      userProfile: 'userId, isDemo, passwordHash',
+      xpLog: '++id, plantId, date, [plantId+date]',
+      subscriptions: 'userId, tier',
+      seedTransactions: 'id, userId, source, createdAt',
+      cosmetics: '[userId+itemId], userId, itemType, equipped',
+      careOffs: 'id, userId, createdAt, result',
+      propagations: 'id, userId, parentCardId, createdAt, success',
+      notes: 'id, plantId, createdAt, *tags',
+      dailyRewardCaps: '[userId+date], userId, lastUpdated',
+      levelProgress: 'userId, currentLevel, lastLevelUpAt',
+      streakRecords: 'userId, lastLoginDate',
+      rewardHistory: 'id, userId, actionId, createdAt, [userId+createdAt]',
+      discoveryRecords: '[userId+species], userId, rarity, discoveredAt',
+      streakFreezes: '[userId+monthYear], userId, monthYear, lastUsedAt'
+    });
   }
 }
 
