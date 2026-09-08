@@ -144,23 +144,22 @@ const MOCK_PRODUCTS = [
 ];
 
 const MOCK_VOUCHERS = [
-  {
-    id: 'v1',
-    title: "Sprout Saver",
-    value: "₹50 off",
-    seedCost: 500,
-    expiryDays: 12,
-    isApplied: false
-  },
-  {
-    id: 'v2',
-    title: "Garden Pass",
-    value: "₹150 off + Free Shipping",
-    seedCost: 1500,
-    expiryDays: 5,
-    isApplied: false
-  }
+  { id: 'v1', title: 'Sprout Saver', value: '₹50 off', discount: 50, seedCost: 500, expiryDays: 12 },
+  { id: 'v2', title: 'Garden Pass', value: '₹150 off + Free Shipping', discount: 150, seedCost: 1500, expiryDays: 5 },
 ];
+
+const CART_KEY = 'phyto_stall_cart';
+const WISH_KEY = 'phyto_stall_wish';
+const TICKET_KEY = 'phyto_stall_tickets';
+
+function readJson<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) as T : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 
 
@@ -306,7 +305,7 @@ function HeroCarousel({ onClaim }: { onClaim: (id: string, refundValue: number) 
 }
 
 // ── PRODUCT CARD ──
-function ProductCard({ product, onClaim, onAddToCart }: { product: any; onClaim: (id: string, refundValue: number) => void; onAddToCart?: (product: any) => void }) {
+function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish }: { product: any; onClaim: (id: string, refundValue: number) => void; onAddToCart?: (product: any) => void; wished?: boolean; onToggleWish?: (id: string) => void }) {
   // Calculate real-world refund logic
   const refundValue = Math.floor(product.seedPrice / 200);
 
@@ -343,6 +342,14 @@ function ProductCard({ product, onClaim, onAddToCart }: { product: any; onClaim:
             Early stall
           </div>
         )}
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onToggleWish?.(product.id); }}
+          className={`absolute bottom-3 left-3 p-2 border ${wished ? 'bg-[#c17f59] text-white border-[#c17f59]' : 'bg-[#fff8e8] text-[#3d2a1c] border-[#c4a574]'}`}
+          aria-label={wished ? 'Unpin crate' : 'Pin crate'}
+        >
+          <Bookmark size={14} fill={wished ? 'currentColor' : 'none'} />
+        </button>
         <div className="absolute -bottom-3 right-3 rotate-6 bg-[#fff8e8] border border-[#c4a574] px-3 py-2 shadow-md">
           <p className="text-[9px] uppercase tracking-widest text-[#7a6a50] font-black">Ask</p>
           <p className="font-serif text-lg font-bold text-[#3d2a1c] leading-none">₹{product.cashPrice}</p>
@@ -427,9 +434,12 @@ function ProBanner() {
 export default function GardenMarket() {
   const { toasts, success, error, warning, reward } = useToast();
   const { theme } = useDayNightTheme();
-  const [activeTab, setActiveTab] = useState<'drops' | 'home' | 'care' | 'vouchers'>('drops');
+  const [activeTab, setActiveTab] = useState<'drops' | 'home' | 'care' | 'vouchers' | 'saved'>('drops');
   const [claimedItems, setClaimedItems] = useState<string[]>([]);
-  const [cartItems, setCartItems] = useState<any[]>([]);
+  const [cartItems, setCartItems] = useState<any[]>(() => readJson(CART_KEY, []));
+  const [wishlist, setWishlist] = useState<string[]>(() => readJson(WISH_KEY, []));
+  const [redeemedTickets, setRedeemedTickets] = useState<string[]>(() => readJson(TICKET_KEY, []));
+  const [appliedTicketId, setAppliedTicketId] = useState<string | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -457,12 +467,20 @@ export default function GardenMarket() {
   const level = levelProgress?.currentLevel ?? 1;
   const totalXp = Math.round(levelProgress?.totalXP ?? 0);
   const xpToNext = Math.round(levelProgress?.xpToNextLevel ?? 100);
+  const stallLeft = `${23 - new Date().getHours()}h ${59 - new Date().getMinutes()}m`;
+  const appliedTicket = MOCK_VOUCHERS.find(v => v.id === appliedTicketId && redeemedTickets.includes(v.id));
+
+  useEffect(() => { localStorage.setItem(CART_KEY, JSON.stringify(cartItems)); }, [cartItems]);
+  useEffect(() => { localStorage.setItem(WISH_KEY, JSON.stringify(wishlist)); }, [wishlist]);
+  useEffect(() => { localStorage.setItem(TICKET_KEY, JSON.stringify(redeemedTickets)); }, [redeemedTickets]);
 
   // Filter products
   const getFilteredProducts = () => {
-    let products = activeTab === 'drops' 
-      ? MOCK_PRODUCTS
-      : MOCK_PRODUCTS.filter(p => p.category === activeTab);
+    let products = activeTab === 'saved'
+      ? MOCK_PRODUCTS.filter(p => wishlist.includes(p.id))
+      : activeTab === 'drops'
+        ? MOCK_PRODUCTS
+        : MOCK_PRODUCTS.filter(p => p.category === activeTab);
 
     if (filters.limitedOnly) products = products.filter(p => p.isLimited);
     if (filters.search) products = products.filter(p => 
@@ -521,7 +539,41 @@ export default function GardenMarket() {
     } else {
       setCartItems([...cartItems, { ...product, qty: 1 }]);
     }
-    success(`Added ${product.name} to cart`);
+    success(`Added ${product.name} to basket`);
+  };
+
+  const bumpQty = (id: string, delta: number) => {
+    setCartItems(cartItems.flatMap(item => {
+      if (item.id !== id) return [item];
+      const qty = item.qty + delta;
+      return qty < 1 ? [] : [{ ...item, qty }];
+    }));
+  };
+
+  const toggleWish = (id: string) => {
+    setWishlist(wishlist.includes(id) ? wishlist.filter(x => x !== id) : [...wishlist, id]);
+  };
+
+  const redeemTicket = async (id: string) => {
+    const voucher = MOCK_VOUCHERS.find(v => v.id === id);
+    if (!voucher) return;
+    if (redeemedTickets.includes(id)) {
+      setAppliedTicketId(id);
+      success('Ticket clipped to this basket');
+      return;
+    }
+    if (seeds < voucher.seedCost) {
+      error(`Need ${voucher.seedCost.toLocaleString()} seeds`);
+      return;
+    }
+    try {
+      await GameService.addSeeds(-voucher.seedCost, 'spend', `Punched ticket: ${voucher.title}`);
+      setRedeemedTickets([...redeemedTickets, id]);
+      setAppliedTicketId(id);
+      reward(`Punched ${voucher.title}`);
+    } catch {
+      error('Ticket punch failed');
+    }
   };
 
   return (
@@ -534,11 +586,9 @@ export default function GardenMarket() {
       />
 
       <div className="relative z-10">
-        <div className="h-5 w-full" style={{ background: 'repeating-linear-gradient(90deg, #c17f59 0 22px, #f4e4c1 22px 44px, #5a7d5a 44px 66px)' }} />
-
-        <div className="sticky top-0 z-40 border-b border-[#d9c4a0] px-4 md:px-8 py-3 flex items-center justify-between gap-3" style={{ background: 'rgba(247,240,228,0.94)' }}>
+        <div className="sticky top-0 z-40 bazaar-mast px-4 md:px-8 py-3 flex items-center justify-between gap-3">
           <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.28em] text-[#c17f59]">Sunday bazaar · seeds spend here</p>
+            <p className="bazaar-kicker">Sunday bazaar · stall packs in {stallLeft}</p>
             <h1 className="font-serif text-2xl md:text-3xl font-semibold text-[#3d2a1c]">The Garden Market</h1>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -568,20 +618,34 @@ export default function GardenMarket() {
             ['home', 'Pots & hangers'],
             ['care', 'Oils & soil'],
             ['vouchers', 'Tickets'],
+            ['saved', `Pinned (${wishlist.length})`],
           ] as const).map(([tab, label]) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 text-[11px] font-black uppercase tracking-widest whitespace-nowrap border ${
-                activeTab === tab
-                  ? 'bg-[#3d2a1c] text-[#f4e4c1] border-[#3d2a1c]'
-                  : 'bg-transparent text-[#7a6a50] border-[#d9c4a0] hover:border-[#c17f59]'
-              }`}
+              className={`bazaar-tab ${activeTab === tab ? 'is-on' : ''}`}
             >
               {label}
             </button>
           ))}
-          <button onClick={() => setShowFilters(!showFilters)} className="ml-auto px-3 py-2 text-[11px] font-black uppercase tracking-widest border border-[#d9c4a0] text-[#3d2a1c]">
+          <input
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            placeholder="Search the stall…"
+            className="ml-auto min-w-[10rem] px-3 py-2 text-xs border border-[#d9c4a0] bg-[#fff8e8] text-[#3d2a1c] placeholder:text-[#7a6a50]/60"
+          />
+          <select
+            value={filters.sort}
+            onChange={(e) => setFilters({ ...filters, sort: e.target.value })}
+            className="px-2 py-2 text-[11px] font-black uppercase tracking-widest border border-[#d9c4a0] bg-[#fff8e8] text-[#3d2a1c]"
+          >
+            <option value="popular">Popular</option>
+            <option value="new">New crate</option>
+            <option value="price-low">₹ low</option>
+            <option value="price-high">₹ high</option>
+            <option value="rating">Rating</option>
+          </select>
+          <button onClick={() => setShowFilters(!showFilters)} className="px-3 py-2 text-[11px] font-black uppercase tracking-widest border border-[#d9c4a0] text-[#3d2a1c]">
             Filter
           </button>
         </div>
@@ -648,6 +712,8 @@ export default function GardenMarket() {
                         product={product}
                         onClaim={handleClaim}
                         onAddToCart={handleAddToCart}
+                        wished={wishlist.includes(product.id)}
+                        onToggleWish={toggleWish}
                       />
                     ))}
                   </motion.div>
@@ -677,14 +743,18 @@ export default function GardenMarket() {
                   transition={{ staggerChildren: 0.08, delayChildren: 0.2 }}
                   className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
                 >
-                  {filteredProducts.map((product) => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      onClaim={handleClaim}
-                      onAddToCart={handleAddToCart}
-                    />
-                  ))}
+                    {filteredProducts.length === 0 ? (
+                      <p className="text-sm text-[#7a6a50] col-span-full py-12">Nothing on this stall — loosen the search or filter.</p>
+                    ) : filteredProducts.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onClaim={handleClaim}
+                        onAddToCart={handleAddToCart}
+                        wished={wishlist.includes(product.id)}
+                        onToggleWish={toggleWish}
+                      />
+                    ))}
                 </motion.div>
               </motion.div>
             )}
@@ -709,14 +779,18 @@ export default function GardenMarket() {
                   transition={{ staggerChildren: 0.08, delayChildren: 0.2 }}
                   className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
                 >
-                  {filteredProducts.map((product) => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      onClaim={handleClaim}
-                      onAddToCart={handleAddToCart}
-                    />
-                  ))}
+                    {filteredProducts.length === 0 ? (
+                      <p className="text-sm text-[#7a6a50] col-span-full py-12">Nothing on this stall — loosen the search or filter.</p>
+                    ) : filteredProducts.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onClaim={handleClaim}
+                        onAddToCart={handleAddToCart}
+                        wished={wishlist.includes(product.id)}
+                        onToggleWish={toggleWish}
+                      />
+                    ))}
                 </motion.div>
               </motion.div>
             )}
@@ -776,14 +850,35 @@ export default function GardenMarket() {
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
+                          onClick={() => redeemTicket(voucher.id)}
                           className="px-4 py-2 bg-[#3d2a1c] text-[#f4e4c1] text-[10px] font-black uppercase tracking-widest"
                         >
-                          Redeem
+                          {appliedTicketId === voucher.id ? 'Clipped' : redeemedTickets.includes(voucher.id) ? 'Apply' : 'Punch ticket'}
                         </motion.button>
                       </motion.div>
                     ))}
                   </motion.div>
                 )}
+              </motion.div>
+            )}
+
+            {activeTab === 'saved' && (
+              <motion.div key="saved-section" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <h2 className="font-serif text-3xl font-semibold mb-8 text-[#3d2a1c]">Pinned crates</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {filteredProducts.length === 0 ? (
+                    <p className="text-sm text-[#7a6a50] col-span-full py-12">Pin a crate from the stall to keep it here.</p>
+                  ) : filteredProducts.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      onClaim={handleClaim}
+                      onAddToCart={handleAddToCart}
+                      wished={wishlist.includes(product.id)}
+                      onToggleWish={toggleWish}
+                    />
+                  ))}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -835,8 +930,10 @@ export default function GardenMarket() {
                     <p className="font-bold text-sm text-text-bark line-clamp-1">{item.name}</p>
                     <p className="text-xs text-text-stone">₹{item.cashPrice}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <button onClick={() => setCartItems(cartItems.filter(i => i.id !== item.id))} className="text-xs text-terracotta hover:text-terracotta-light font-bold">Remove</button>
+                      <button onClick={() => bumpQty(item.id, -1)} className="text-xs font-black px-1.5 border">−</button>
                       <span className="text-xs text-text-stone/60">Qty: {item.qty}</span>
+                      <button onClick={() => bumpQty(item.id, 1)} className="text-xs font-black px-1.5 border">+</button>
+                      <button onClick={() => setCartItems(cartItems.filter(i => i.id !== item.id))} className="text-xs text-terracotta hover:text-terracotta-light font-bold ml-auto">Remove</button>
                     </div>
                   </div>
                 </motion.div>
@@ -853,6 +950,7 @@ export default function GardenMarket() {
                   quantity: item.qty
                 }))}
                 userSeeds={seeds}
+                selectedVoucher={appliedTicket ? { id: appliedTicket.id, discount: appliedTicket.discount } : undefined}
                 onCheckout={() => {
                   const totalCash = cartItems.reduce((sum, item) => sum + (item.cashPrice * item.qty), 0);
                   const totalSeedsNeeded = cartItems.reduce((sum, item) => sum + (item.seedPrice * item.qty), 0);

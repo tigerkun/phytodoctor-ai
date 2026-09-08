@@ -18,10 +18,10 @@ export function NavigationBar() {
 
   const navItems = [
     { label: 'Home', href: '/' },
-    { label: 'Botanical Lab', href: '/lab' },
-    { label: 'Sim Lab', href: '/collection' },
+    { label: 'Lab', href: '/lab' },
     { label: 'Market', href: '/market' },
-    { label: 'Library', href: '/library' }
+    { label: 'Library', href: '/library' },
+    { label: 'Arena', href: '/arena' },
   ];
 
   const isActive = (href: string) => {
@@ -36,10 +36,10 @@ export function NavigationBar() {
       className="sticky top-0 z-50 backdrop-blur-md border-b"
       style={{
         background: theme === 'day'
-          ? 'linear-gradient(180deg, rgba(255, 248, 240, 0.9), rgba(255, 248, 240, 0.7))'
-          : 'linear-gradient(180deg, rgba(15, 20, 25, 0.95), rgba(15, 20, 25, 0.8))',
-        borderColor: theme === 'day' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.08)',
-        transition: 'all 1.2s ease-in-out'
+          ? 'linear-gradient(180deg, rgba(255, 248, 240, 0.92), rgba(255, 248, 240, 0.72))'
+          : 'linear-gradient(180deg, rgba(15, 20, 25, 0.95), rgba(15, 20, 25, 0.82))',
+        borderColor: theme === 'day' ? 'rgba(90, 122, 90, 0.12)' : 'rgba(255, 255, 255, 0.08)',
+        transition: 'background 0.6s ease, border-color 0.6s ease'
       }}
     >
       <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -79,23 +79,18 @@ export function NavigationBar() {
               <motion.button
                 key={item.href}
                 onClick={() => transitionTo(item.href, item.label)}
-                className="relative px-3 py-2 text-sm font-medium tracking-wide transition-colors"
-                style={{
-                  color: active ? 'var(--text-primary)' : 'var(--text-secondary)'
-                }}
-                whileHover={!active ? { y: -2 } : {}}
-              >
-                {item.label}
-                {active && (
-                  <motion.div
-                    layoutId="underline"
-                    className="absolute bottom-0 left-0 right-0 h-1 rounded-full"
-                    style={{
-                      background: 'var(--accent)',
-                      transition: 'all 0.3s ease-in-out'
-                    }}
-                  />
-                )}
+            className="relative px-3 py-2 text-sm font-medium tracking-wide"
+            style={{ color: active ? 'var(--text-primary)' : 'var(--text-secondary)' }}
+            whileHover={!active ? { y: -2 } : {}}
+          >
+            {item.label}
+            {active && (
+              <motion.div
+                layoutId="underline"
+                className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
+                style={{ background: 'var(--accent)' }}
+              />
+            )}
               </motion.button>
             );
           })}
@@ -163,14 +158,10 @@ export function NavigationBar() {
           {/* Wallet Pill */}
           <motion.div
             whileHover={{ scale: 1.05 }}
-            className="flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-sm border transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-full border"
             style={{
-              background: theme === 'day'
-                ? 'rgba(255, 255, 255, 0.5)'
-                : 'rgba(255, 255, 255, 0.1)',
-              borderColor: theme === 'day'
-                ? 'rgba(255, 255, 255, 0.15)'
-                : 'rgba(255, 255, 255, 0.08)',
+              background: theme === 'day' ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.08)',
+              borderColor: theme === 'day' ? 'rgba(90,122,90,0.18)' : 'rgba(255,255,255,0.1)',
               color: 'var(--text-primary)'
             }}
           >
@@ -182,10 +173,8 @@ export function NavigationBar() {
           <motion.button
             onClick={() => transitionTo('/profile', 'Profile')}
             whileHover={{ scale: 1.1 }}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm cursor-pointer transition-all hover:opacity-80 relative overflow-hidden"
-            style={{
-              background: 'linear-gradient(135deg, var(--accent), var(--accent-warm))'
-            }}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm cursor-pointer relative overflow-hidden"
+            style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-warm))' }}
           >
             {initial}
             {/* Live active indicator */}
@@ -193,6 +182,9 @@ export function NavigationBar() {
           </motion.button>
         </div>
       </div>
+
+      {/* Victorian Glasshouse Leaded Transom Trim Ribbon */}
+      <div className="h-1.5 w-full leaded-transom opacity-85" aria-hidden="true" />
     </motion.header>
   );
 }

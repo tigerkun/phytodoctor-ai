@@ -190,16 +190,19 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
       <section className="py-12 px-6">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-sm text-[10px] font-black uppercase tracking-[0.2em] bg-moss/10 text-moss border border-moss/25 mb-2">
+            🌿 HEAD GARDENER'S DISPATCH
+          </div>
           <motion.h2
             initial={{ opacity: 0, y: -20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-3xl font-serif font-semibold text-[var(--text-primary)]"
+            className="text-3xl font-serif font-bold text-text-bark"
           >
-            Garden Coach
+            Conservatory Coach & Telemetry
           </motion.h2>
-          <p className="text-sm text-[var(--text-muted)] mt-1">
-            Personalized botanical wisdom for your leafy companions
+          <p className="text-sm text-text-stone mt-1 font-medium">
+            Tailored botanical prescriptions, apothecary requisitions, and barometric forecasts
           </p>
         </div>
 
@@ -209,23 +212,19 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
           {/* Card 1: Treatment Suggestions */}
           <motion.div
             whileHover={!shouldDisableAnimations ? { y: -4 } : {}}
-            className="p-6 rounded-3xl border flex flex-col justify-between"
-            style={{
-              background: 'var(--bg-glass)',
-              borderColor: 'var(--border-light)'
-            }}
+            className="p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between shadow-xs"
           >
             <div>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-2xl">🩺</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-sm bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20">
                   Confidence: {activePlan.confidence}%
                 </span>
               </div>
-              <h3 className="text-lg font-serif font-bold text-[var(--text-primary)] mb-1">
-                Treatment Plan
+              <h3 className="text-lg font-serif font-bold text-text-bark mb-1">
+                Treatment Prescription
               </h3>
-              <p className="text-xs text-[var(--text-muted)] mb-4">
+              <p className="text-xs text-text-stone mb-4 font-medium">
                 {activePlan.statusText}
               </p>
 
@@ -234,14 +233,14 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
                 {activePlan.steps.map((step, i) => (
                   <label
                     key={i}
-                    className={`flex items-start gap-2.5 text-xs text-[var(--text-secondary)] cursor-pointer group ${step.done ? 'line-through opacity-50' : ''}`}
+                    className={`flex items-start gap-2.5 text-xs text-text-stone cursor-pointer group font-medium ${step.done ? 'line-through opacity-50' : ''}`}
                   >
                     <input
                       type="checkbox"
                       checked={step.done}
                       disabled={step.done}
                       onChange={() => handleStepToggle(i)}
-                      className="mt-0.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                      className="mt-0.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                     />
                     <span>{step.text}</span>
                   </label>
@@ -252,9 +251,9 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
             <button
               onClick={handleMarkAllDone}
               disabled={activePlan.steps.every(s => s.done)}
-              className="w-full py-3 min-h-[44px] rounded-[var(--radius-md)] text-xs font-bold transition-all bg-[var(--moss)] hover:bg-[var(--moss-dark)] text-white disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2 active:scale-95"
+              className="w-full py-3 min-h-[44px] rounded-xl text-xs font-serif font-bold transition-all bg-[var(--moss)] hover:bg-[var(--moss-dark)] text-white disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2 active:scale-95 shadow-xs cursor-pointer"
             >
-              {activePlan.steps.every(s => s.done) ? `✓ All Completed (+${activePlan.seedsReward} Seeds)` : 'Mark All Done'}
+              {activePlan.steps.every(s => s.done) ? `✓ All Completed (+${activePlan.seedsReward} Seeds)` : 'Mark All Executed'}
             </button>
           </motion.div>
 
@@ -262,42 +261,35 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
           <motion.div
             whileHover={!shouldDisableAnimations ? { y: -4, scale: 1.01 } : {}}
             onClick={() => transitionTo('/market', 'Garden Market')}
-            className="p-6 rounded-3xl border flex flex-col justify-between cursor-pointer relative overflow-hidden group"
-            style={{
-              background: theme === 'day' ? 'rgba(255, 248, 240, 0.7)' : 'rgba(30, 28, 26, 0.6)',
-              borderColor: theme === 'day' ? 'rgba(90, 122, 90, 0.15)' : 'rgba(255, 255, 255, 0.08)'
-            }}
+            className="p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between cursor-pointer relative overflow-hidden group shadow-xs hover:shadow-md"
           >
             {/* Shimmer Border Overlay */}
             {!shouldDisableAnimations && (
               <motion.div
-                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent dark:via-white/10 pointer-events-none"
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent pointer-events-none"
                 initial={{ x: '-100%' }}
                 animate={{ x: '100%' }}
                 transition={{
                   repeat: Infinity,
-                  duration: 2.2,
+                  duration: 2.5,
                   ease: 'easeInOut',
-                  repeatDelay: 1
+                  repeatDelay: 1.2
                 }}
               />
             )}
-            
-            {/* Pulsing border glow */}
-            <div className="absolute inset-0 rounded-3xl border border-moss/10 group-hover:border-moss/40 transition-colors duration-300 pointer-events-none" />
 
             <div>
               <div className="text-2xl mb-4 flex items-center justify-between">
                 <span>🛒</span>
-                <span className="text-[9px] font-bold uppercase tracking-wider text-moss bg-moss/10 px-2 py-0.5 rounded">
-                  Explore
+                <span className="text-[9px] font-bold uppercase tracking-wider text-moss bg-moss/10 px-2 py-0.5 rounded-sm border border-moss/20">
+                  Apothecary
                 </span>
               </div>
-              <h3 className="text-lg font-serif font-bold text-[var(--text-primary)] mb-1">
-                Market Recommendations
+              <h3 className="text-lg font-serif font-bold text-text-bark mb-1">
+                Apothecary Provisions
               </h3>
-              <p className="text-xs text-[var(--text-muted)] mb-4">
-                Based on your {selectedPlant?.species?.split(' ')[0] || 'Monstera'}'s needs
+              <p className="text-xs text-text-stone mb-4 font-medium">
+                Tailored for your {selectedPlant?.species?.split(' ')[0] || 'Monstera'}'s vitals
               </p>
 
               {/* Items List */}
@@ -305,13 +297,13 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
                 {marketItems.map(item => (
                   <div
                     key={item.id}
-                    className="flex items-center justify-between p-2 rounded-xl bg-white/20 dark:bg-white/5 border border-black/5 dark:border-white/5 hover:bg-moss/5 transition-colors duration-200"
+                    className="flex items-center justify-between p-2 rounded-xl bg-white/40 dark:bg-white/5 border border-black/5 dark:border-white/5 hover:bg-moss/10 transition-colors duration-200"
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-lg">{item.icon}</span>
                       <div>
-                        <p className="text-xs font-semibold text-[var(--text-primary)]">{item.name}</p>
-                        <p className="text-[10px] text-[var(--text-muted)]">🌱 {item.cost} Seeds</p>
+                        <p className="text-xs font-semibold text-text-bark">{item.name}</p>
+                        <p className="text-[10px] text-text-stone font-mono">🌱 {item.cost} Seeds</p>
                       </div>
                     </div>
                     <span className="text-[10px] font-bold text-moss group-hover:translate-x-0.5 transition-transform">
@@ -322,8 +314,8 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
               </div>
             </div>
 
-            <div className="text-xs font-bold text-center text-moss/90 uppercase tracking-widest flex items-center justify-center gap-1.5 mt-2">
-              <span>Go to Garden Market</span>
+            <div className="text-xs font-serif font-bold text-center text-moss uppercase tracking-widest flex items-center justify-center gap-1.5 mt-2">
+              <span>Visit Garden Market</span>
               <span>➜</span>
             </div>
           </motion.div>
@@ -331,53 +323,49 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
           {/* Card 3: Climate-Based Care */}
           <motion.div
             whileHover={!shouldDisableAnimations ? { y: -4 } : {}}
-            className="p-6 rounded-3xl border flex flex-col justify-between"
-            style={{
-              background: 'var(--bg-glass)',
-              borderColor: 'var(--border-light)'
-            }}
+            className="p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between shadow-xs"
           >
             <div>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-2xl">🌡️</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-500/20 font-mono">
                   {condition}
                 </span>
               </div>
-              <h3 className="text-lg font-serif font-bold text-[var(--text-primary)] mb-1">
-                Climate Care
+              <h3 className="text-lg font-serif font-bold text-text-bark mb-1">
+                Barometric Forecast
               </h3>
-              <p className="text-xs text-[var(--text-muted)] mb-4">
-                Delhi • {temp}°C • {humidity}% humidity
+              <p className="text-xs text-text-stone mb-4 font-medium">
+                Regional Telemetry • {temp}°C • {humidity}% RH
               </p>
 
               {/* Rain Alert Banner */}
               {isRainy && (
-                <div className="mb-4 p-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-[10px] flex items-center gap-1.5">
+                <div className="mb-4 p-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300 text-[10px] flex items-center gap-1.5">
                   <span>⛈️</span>
-                  <span className="font-semibold">Rain Alert: Hold off on watering today!</span>
+                  <span className="font-semibold">Precipitation Expected: Defer potting hydration today!</span>
                 </div>
               )}
 
               {/* Watering Forecast */}
-              <div className="space-y-2 text-xs text-[var(--text-secondary)]">
+              <div className="space-y-2 text-xs text-text-stone font-medium">
                 <div className="flex justify-between border-b border-black/5 dark:border-white/5 pb-1">
                   <span>Today</span>
-                  <span className="font-semibold text-emerald-600">Mist Ferns</span>
+                  <span className="font-bold text-emerald-700 dark:text-emerald-400">Mist Foliage</span>
                 </div>
                 <div className="flex justify-between border-b border-black/5 dark:border-white/5 pb-1">
                   <span>Tomorrow</span>
-                  <span className="font-semibold">Hold Watering</span>
+                  <span className="font-semibold">Hold Hydration</span>
                 </div>
                 <div className="flex justify-between pb-1">
                   <span>In 2 Days</span>
-                  <span className="font-semibold text-blue-600">Deep Watering</span>
+                  <span className="font-bold text-blue-700 dark:text-blue-400">Deep Saturation</span>
                 </div>
               </div>
             </div>
 
-            <div className="text-[10px] text-center text-[var(--text-muted)]">
-              Updated hourly based on local telemetry
+            <div className="text-[10px] font-mono text-center text-text-muted">
+              Synchronized hourly via atmospheric telemetry
             </div>
           </motion.div>
 
@@ -385,19 +373,15 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
           <motion.div
             whileHover={!shouldDisableAnimations ? { y: -4 } : {}}
             onClick={rotateTrivia}
-            className="p-6 rounded-3xl border flex flex-col justify-between cursor-pointer group"
-            style={{
-              background: 'var(--bg-glass)',
-              borderColor: 'var(--border-light)'
-            }}
+            className="p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between cursor-pointer group shadow-xs"
           >
             <div>
               <div className="text-2xl mb-4">💡</div>
-              <h3 className="text-lg font-serif font-bold text-[var(--text-primary)] mb-1">
-                Did You Know?
+              <h3 className="text-lg font-serif font-bold text-text-bark mb-1">
+                Botanical Lore & Notes
               </h3>
-              <p className="text-xs text-[var(--text-muted)] mb-4">
-                Tap card to read another trivia
+              <p className="text-xs text-text-stone mb-4 font-medium">
+                Folio from the head gardener's compendium
               </p>
 
               <div className="min-h-[80px] flex items-center">
@@ -407,7 +391,7 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
                     initial={{ opacity: 0, x: 10 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -10 }}
-                    className="text-xs italic leading-relaxed text-[var(--text-secondary)]"
+                    className="text-xs font-serif italic leading-relaxed text-text-stone"
                   >
                     "{TRIVIA_TIPS[triviaIdx]}"
                   </motion.p>
@@ -415,8 +399,8 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
               </div>
             </div>
 
-            <div className="text-[10px] text-center text-[var(--text-muted)] group-hover:underline">
-              Tap to cycle trivia →
+            <div className="text-[10px] font-serif font-bold text-center text-moss group-hover:underline uppercase tracking-wider">
+              Turn Folio Page →
             </div>
           </motion.div>
 

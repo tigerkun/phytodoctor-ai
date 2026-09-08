@@ -15,6 +15,7 @@ import Assistant from './pages/Assistant';
 import FloatingAssistant from './components/FloatingAssistant';
 import Auth from './pages/Auth';
 import NotFound from './pages/NotFound';
+import Clinic from './pages/Clinic';
 import { CaseStudy } from './components/CaseStudy';
 import SystemAudit from './components/SystemAudit';
 import Leafify from './components/Leafify';
@@ -52,6 +53,7 @@ export default function App() {
             
             {/* Diagnosis & Treatment */}
             <Route path="/lab" element={<BotanicalLab />} />
+            <Route path="/clinic" element={<Clinic />} />
             <Route path="/clinic/case-study" element={<CaseStudy />} />
             <Route path="/assistant" element={<Assistant />} />
             

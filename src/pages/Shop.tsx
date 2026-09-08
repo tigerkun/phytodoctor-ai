@@ -51,7 +51,8 @@ export default function Shop() {
   if (!profile) return null;
 
   return (
-    <PageWrapper className="max-w-7xl mx-auto px-6 py-12 pb-32">
+    <PageWrapper className="min-h-screen skin-exchange">
+    <div className="max-w-7xl mx-auto px-6 py-12 pb-32">
       <header className="mb-12">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
             <div>
@@ -176,6 +177,7 @@ export default function Shop() {
 
       <AnimatePresence>
       </AnimatePresence>
+    </div>
     </PageWrapper>
   );
 }

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Leaf, ArrowRight, User, Mail, Lock, ShieldCheck, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Scroll, ArrowRight, User, Mail, Lock, ShieldCheck, Eye, EyeOff, AlertCircle, CheckCircle2, Feather, Compass } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import PageWrapper from '../components/home/PageWrapper';
 import AmbientParticles from '../components/AmbientParticles';
 import { useDayNightTheme } from '../hooks/useDayNightTheme';
 import { GameService } from '../services/gameService';
+import { isValidEmail, evaluatePasswordStrength, generateLocalUserId, decodeJwtPayload } from '../services/authUtils';
 import '../styles/ambient.css';
 import '../styles/animations.css';
 
@@ -22,63 +23,6 @@ declare global {
   }
 }
 
-function decodeJwt(credential: string) {
-  const b64 = credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-  const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4));
-  return JSON.parse(atob(b64 + pad)) as { sub: string; email: string; name?: string };
-}
-
-function AuthLiveBackground() {
-  const { theme } = useDayNightTheme();
-  const isNight = theme === 'night';
-
-  return (
-    <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none" aria-hidden>
-      <div
-        className="absolute inset-0 transition-colors duration-1000"
-        style={{
-          background: isNight
-            ? 'radial-gradient(ellipse at 20% 10%, #1a3a2a 0%, #0f1419 45%, #1a1816 100%)'
-            : 'radial-gradient(ellipse at 70% 0%, #d4e8c4 0%, #e8f4e8 35%, #f5f0e8 100%)',
-        }}
-      />
-
-      <motion.div
-        className="absolute -top-24 -left-24 w-[28rem] h-[28rem] rounded-full blur-3xl"
-        style={{ background: isNight ? 'rgba(129,178,154,0.18)' : 'rgba(90,122,90,0.28)' }}
-        animate={{ x: [0, 60, 0], y: [0, 40, 0], scale: [1, 1.15, 1] }}
-        transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.div
-        className="absolute -bottom-32 -right-20 w-[32rem] h-[32rem] rounded-full blur-3xl"
-        style={{ background: isNight ? 'rgba(212,175,55,0.12)' : 'rgba(212,117,90,0.22)' }}
-        animate={{ x: [0, -50, 0], y: [0, -30, 0], scale: [1, 1.1, 1] }}
-        transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
-      />
-      <motion.div
-        className="absolute top-1/3 left-1/2 w-72 h-72 rounded-full blur-3xl"
-        style={{ background: isNight ? 'rgba(129,178,154,0.1)' : 'rgba(255,229,180,0.45)' }}
-        animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.8, 0.4] }}
-        transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
-      />
-
-      {['🌿', '🍃', '🌱', '🍂', '🌿', '🍃'].map((leaf, i) => (
-        <motion.span
-          key={i}
-          className="absolute text-2xl opacity-40"
-          style={{ left: `${8 + i * 16}%`, top: '-8%' }}
-          animate={{ y: ['0vh', '110vh'], rotate: [0, 180, 360], x: [0, i % 2 === 0 ? 30 : -24, 0] }}
-          transition={{ duration: 12 + i * 2, repeat: Infinity, delay: i * 1.4, ease: 'linear' }}
-        >
-          {leaf}
-        </motion.span>
-      ))}
-
-      <AmbientParticles theme={theme} />
-    </div>
-  );
-}
-
 function GoogleMark() {
   return (
     <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
@@ -92,6 +36,7 @@ function GoogleMark() {
 
 export default function Auth() {
   const navigate = useNavigate();
+  const { theme } = useDayNightTheme();
   const googleBtnRef = useRef<HTMLDivElement>(null);
   const [isLogin, setIsLogin] = useState(false);
   const [email, setEmail] = useState('');
@@ -108,12 +53,8 @@ export default function Auth() {
 
   const googleClientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
-  const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
-  const pwdLength = password.length >= 8;
-  const pwdUpper = /[A-Z]/.test(password);
-  const pwdNumber = /[0-9]/.test(password);
-  const pwdValid = pwdLength && pwdUpper && pwdNumber;
-  const strengthScore = [pwdLength, pwdUpper, pwdNumber].filter(Boolean).length;
+  const strength = evaluatePasswordStrength(password);
+  const pwdValid = strength.isFullyValid;
 
   const persistSession = async (userId: string, userEmail: string, displayName: string) => {
     localStorage.setItem('botanical_guardian_auth_token', 'token_' + Date.now());
@@ -136,7 +77,7 @@ export default function Auth() {
         callback: async ({ credential }) => {
           try {
             setLoading(true);
-            const payload = decodeJwt(credential);
+            const payload = decodeJwtPayload(credential);
             await persistSession(`g_${payload.sub}`, payload.email.toLowerCase(), payload.name || payload.email.split('@')[0]);
             navigate('/');
           } catch {
@@ -184,7 +125,7 @@ export default function Auth() {
     if (!validateForm()) return;
 
     setLoading(true);
-    const userId = btoa(email.toLowerCase().trim()).replace(/=/g, '');
+    const userId = generateLocalUserId(email);
     await persistSession(userId, email.toLowerCase().trim(), name || email.split('@')[0]);
 
     if (!isLogin) {
@@ -200,130 +141,142 @@ export default function Auth() {
   };
 
   return (
-    <>
-      <AuthLiveBackground />
-      <PageWrapper className="min-h-[85vh] flex items-center justify-center p-6 relative">
+    <div className="skin-gatekeeper min-h-screen relative overflow-hidden transition-colors duration-500">
+      <AmbientParticles theme={theme} />
 
-      <motion.div
-        initial={{ opacity: 0, y: 20, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.5, type: 'spring' }}
-        className="w-full max-w-md bg-white/75 backdrop-blur-xl rounded-[2.5rem] p-8 md:p-10 shadow-2xl border border-white/60 relative z-10 overflow-hidden"
-      >
-        <div className="absolute -top-10 -right-10 w-32 h-32 bg-[var(--garden-sage)]/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-[var(--garden-earth)]/10 rounded-full blur-3xl pointer-events-none" />
+      <PageWrapper className="min-h-[88vh] flex items-center justify-center p-4 sm:p-6 md:p-10 relative z-10">
+        <motion.div
+          initial={{ opacity: 0, y: 24, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
+          className="w-full max-w-lg gatekeeper-ledger p-7 sm:p-10 md:p-12 relative overflow-hidden"
+        >
+          {/* Brass corner bracket accents */}
+          <div className="absolute top-2 left-2 w-5 h-5 border-t-2 border-l-2 border-[#c5a059] pointer-events-none opacity-80" />
+          <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-[#c5a059] pointer-events-none opacity-80" />
+          <div className="absolute bottom-2 left-2 w-5 h-5 border-b-2 border-l-2 border-[#c5a059] pointer-events-none opacity-80" />
+          <div className="absolute bottom-2 right-2 w-5 h-5 border-b-2 border-r-2 border-[#c5a059] pointer-events-none opacity-80" />
 
-        <div className="relative z-10">
-          <div className="flex justify-center mb-8">
-            <motion.div
-              animate={{ rotate: [0, 8, -8, 0] }}
-              transition={{ duration: 6, repeat: Infinity }}
-              className="w-16 h-16 bg-gradient-to-br from-white to-[var(--garden-cream)] rounded-2xl flex items-center justify-center text-[var(--garden-sage)] shadow-xl shadow-[var(--garden-sage)]/10 border border-white"
-            >
-              <Leaf size={32} />
-            </motion.div>
-          </div>
+          {/* Ledger Header & Crest */}
+          <div className="relative z-10 text-center mb-8">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#2e4a34] text-[#f4eee1] shadow-lg border border-[#c5a059] mb-4">
+              <Scroll size={26} className="text-[#c5a059]" />
+            </div>
 
-          <h2 className="text-3xl font-serif font-bold text-center text-[var(--garden-earth)] mb-2">
-            {isLogin ? 'Welcome Back' : 'Join the Guardians'}
-          </h2>
-          <p className="text-center text-sm font-medium text-gray-500 mb-6">
-            {isLogin ? 'Sign in to monitor your sanctuary.' : 'Create an account to start your botanical journey.'}
-          </p>
+            <div className="inline-block px-3 py-1 mb-2 rounded-full border border-[#c5a059]/40 bg-[#f0e8d8]/60 dark:bg-[#251d16]/70 text-[10px] uppercase font-bold tracking-[0.25em] text-[#8c6e38]">
+              Royal Sanctuary Ledger • Vol. IX
+            </div>
 
-          <div ref={googleBtnRef} className="w-full min-h-[44px] flex justify-center [&>div]:w-full" />
-          {!googleClientId && (
-            <button
-              type="button"
-              onClick={() => setAuthError('Add VITE_GOOGLE_CLIENT_ID to .env (Google Cloud OAuth Web client).')}
-              className="w-full mt-2 py-3 rounded-2xl border border-gray-200 bg-white font-bold text-sm text-gray-700 flex items-center justify-center gap-2 shadow-sm hover:bg-gray-50"
-            >
-              <GoogleMark /> Continue with Google
-            </button>
-          )}
-
-          {authError && (
-            <p className="text-xs text-red-500 font-bold mt-3 flex items-center gap-1 justify-center">
-              <AlertCircle size={12} /> {authError}
+            <h2 className="text-2xl sm:text-3xl font-serif font-black tracking-tight text-[#2b2118] dark:text-[#f4eee1]">
+              {isLogin ? 'Sign the Sanctuary Registry' : 'Inscribe Your Accreditations'}
+            </h2>
+            <p className="text-xs sm:text-sm font-serif italic text-[#725e4c] dark:text-[#b8a695] mt-1.5 max-w-sm mx-auto">
+              {isLogin
+                ? 'Welcome back, Fellow. Present your seal to inspect your specimens and telemetry.'
+                : 'A new naturalist record shall be entered into the botanical fellowship archives.'}
             </p>
-          )}
-
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">or email</span>
-            <div className="flex-1 h-px bg-gray-200" />
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Google Sign-In Section */}
+          <div className="relative z-10 mb-6">
+            <div ref={googleBtnRef} className="w-full min-h-[44px] flex justify-center [&>div]:w-full" />
+            {!googleClientId && (
+              <button
+                type="button"
+                onClick={() => setAuthError('Add VITE_GOOGLE_CLIENT_ID to .env to enable Google Sign-In.')}
+                className="w-full py-3 px-4 rounded-xl border border-[#c9b491] dark:border-[#523d29] bg-white dark:bg-[#221a14] font-serif font-bold text-xs text-[#2b2118] dark:text-[#ede2d5] flex items-center justify-center gap-2 shadow-sm hover:bg-[#faf6ee] dark:hover:bg-[#2b2118] transition-colors"
+              >
+                <GoogleMark /> Continue with Google Accreditation
+              </button>
+            )}
+
+            {authError && (
+              <p className="text-xs text-red-600 dark:text-red-400 font-bold mt-2.5 flex items-center gap-1.5 justify-center">
+                <AlertCircle size={13} /> {authError}
+              </p>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div className="relative z-10 flex items-center gap-3 my-6">
+            <div className="flex-1 h-px bg-[#dcd2c0] dark:bg-[#3d2e20]" />
+            <span className="text-[10px] uppercase tracking-widest font-mono font-bold text-[#8c6e38]">or ledger folio</span>
+            <div className="flex-1 h-px bg-[#dcd2c0] dark:bg-[#3d2e20]" />
+          </div>
+
+          {/* Primary Form */}
+          <form onSubmit={handleSubmit} className="relative z-10 space-y-4">
             <AnimatePresence mode="popLayout">
               {!isLogin && (
                 <motion.div
-                  initial={{ opacity: 0, height: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, height: 'auto', scale: 1 }}
-                  exit={{ opacity: 0, height: 0, scale: 0.9 }}
-                  className="relative"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-4 overflow-hidden"
                 >
                   <div className="relative">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8c6e38]" size={17} />
                     <input
                       type="text"
                       required={!isLogin}
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="Full Name"
-                      className="w-full pl-12 pr-4 py-4 bg-white/80 text-gray-900 placeholder-gray-400 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/50 focus:border-[var(--garden-sage)] transition-all font-bold shadow-sm"
+                      placeholder="Naturalist Full Name"
+                      className="w-full pl-11 pr-4 py-3.5 guest-ledger-input rounded-xl text-sm font-medium"
                     />
                   </div>
 
-                  <div className="relative mt-4">
-                    <select
-                      required={!isLogin}
-                      value={gender}
-                      onChange={(e) => setGender(e.target.value)}
-                      className={`w-full px-4 py-4 bg-white/80 ${gender ? 'text-gray-900' : 'text-gray-400'} border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/50 focus:border-[var(--garden-sage)] transition-all font-bold shadow-sm appearance-none`}
-                    >
-                      <option value="" disabled>Select Gender</option>
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="non-binary">Non-binary</option>
-                      <option value="prefer-not-to-say">Prefer not to say</option>
-                    </select>
-                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="relative">
+                      <select
+                        required={!isLogin}
+                        value={gender}
+                        onChange={(e) => setGender(e.target.value)}
+                        className={`w-full px-3 py-3 guest-ledger-input rounded-xl text-xs font-semibold appearance-none cursor-pointer ${gender ? '' : 'text-gray-400'}`}
+                      >
+                        <option value="" disabled>Gender</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="non-binary">Non-binary</option>
+                        <option value="prefer-not-to-say">Unspecified</option>
+                      </select>
+                    </div>
 
-                  <div className="relative mt-4">
-                    <select
-                      required={!isLogin}
-                      value={experienceLevel}
-                      onChange={(e) => setExperienceLevel(e.target.value)}
-                      className={`w-full px-4 py-4 bg-white/80 ${experienceLevel ? 'text-gray-900' : 'text-gray-400'} border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/50 focus:border-[var(--garden-sage)] transition-all font-bold shadow-sm appearance-none`}
-                    >
-                      <option value="" disabled>Experience Level</option>
-                      <option value="novice">Novice (Just starting)</option>
-                      <option value="intermediate">Intermediate (Keep most alive)</option>
-                      <option value="expert">Expert (Jungle owner)</option>
-                    </select>
-                  </div>
+                    <div className="relative">
+                      <select
+                        required={!isLogin}
+                        value={experienceLevel}
+                        onChange={(e) => setExperienceLevel(e.target.value)}
+                        className={`w-full px-3 py-3 guest-ledger-input rounded-xl text-xs font-semibold appearance-none cursor-pointer ${experienceLevel ? '' : 'text-gray-400'}`}
+                      >
+                        <option value="" disabled>Rank / Skill</option>
+                        <option value="novice">Novice</option>
+                        <option value="intermediate">Keeper</option>
+                        <option value="expert">Master</option>
+                      </select>
+                    </div>
 
-                  <div className="relative mt-4">
-                    <select
-                      required={!isLogin}
-                      value={environment}
-                      onChange={(e) => setEnvironment(e.target.value)}
-                      className={`w-full px-4 py-4 bg-white/80 ${environment ? 'text-gray-900' : 'text-gray-400'} border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/50 focus:border-[var(--garden-sage)] transition-all font-bold shadow-sm appearance-none`}
-                    >
-                      <option value="" disabled>Primary Environment</option>
-                      <option value="indoor">Indoor</option>
-                      <option value="outdoor">Outdoor</option>
-                      <option value="greenhouse">Greenhouse</option>
-                      <option value="mixed">Mixed</option>
-                    </select>
+                    <div className="relative">
+                      <select
+                        required={!isLogin}
+                        value={environment}
+                        onChange={(e) => setEnvironment(e.target.value)}
+                        className={`w-full px-3 py-3 guest-ledger-input rounded-xl text-xs font-semibold appearance-none cursor-pointer ${environment ? '' : 'text-gray-400'}`}
+                      >
+                        <option value="" disabled>Sanctuary</option>
+                        <option value="indoor">Indoor</option>
+                        <option value="outdoor">Outdoor</option>
+                        <option value="greenhouse">Glasshouse</option>
+                        <option value="mixed">Mixed</option>
+                      </select>
+                    </div>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
 
             <div className="relative">
-              <Mail className={`absolute left-4 top-1/2 -translate-y-1/2 ${emailError ? 'text-red-400' : 'text-gray-400'}`} size={18} />
+              <Mail className={`absolute left-4 top-1/2 -translate-y-1/2 ${emailError ? 'text-red-500' : 'text-[#8c6e38]'}`} size={17} />
               <input
                 type="email"
                 required
@@ -333,14 +286,14 @@ export default function Auth() {
                   if (emailError) setEmailError('');
                 }}
                 onBlur={() => {
-                  if (email && !isValidEmail(email)) setEmailError('Please enter a valid email address.');
+                  if (email && !isValidEmail(email)) setEmailError('Please enter a valid ledger email address.');
                 }}
-                placeholder="Email Address"
-                className={`w-full pl-12 pr-4 py-4 bg-white/80 text-gray-900 placeholder-gray-400 border ${emailError ? 'border-red-300 focus:ring-red-500/50 focus:border-red-500' : 'border-gray-200 focus:ring-[var(--garden-sage)]/50 focus:border-[var(--garden-sage)]'} rounded-2xl focus:outline-none focus:ring-2 transition-all font-bold shadow-sm`}
+                placeholder="Dispatches Email Address"
+                className={`w-full pl-11 pr-4 py-3.5 guest-ledger-input rounded-xl text-sm font-medium ${emailError ? 'border-red-500 focus:border-red-500' : ''}`}
               />
               <AnimatePresence>
                 {emailError && (
-                  <motion.p initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-xs text-red-500 font-bold mt-2 flex items-center gap-1 pl-2">
+                  <motion.p initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-xs text-red-500 font-bold mt-1.5 flex items-center gap-1 pl-1">
                     <AlertCircle size={12} /> {emailError}
                   </motion.p>
                 )}
@@ -348,7 +301,7 @@ export default function Auth() {
             </div>
 
             <div className="relative">
-              <Lock className="absolute left-4 top-[28px] -translate-y-1/2 text-gray-400" size={18} />
+              <Lock className="absolute left-4 top-[24px] -translate-y-1/2 text-[#8c6e38]" size={17} />
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
@@ -356,15 +309,15 @@ export default function Auth() {
                 onChange={(e) => setPassword(e.target.value)}
                 onFocus={() => setPasswordFocus(true)}
                 onBlur={() => setPasswordFocus(false)}
-                placeholder="Password"
-                className="w-full pl-12 pr-12 py-4 bg-white/80 text-gray-900 placeholder-gray-400 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--garden-sage)]/50 focus:border-[var(--garden-sage)] transition-all font-bold shadow-sm"
+                placeholder="Seal Passphrase"
+                className="w-full pl-11 pr-11 py-3.5 guest-ledger-input rounded-xl text-sm font-medium"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-[28px] -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                className="absolute right-4 top-[24px] -translate-y-1/2 text-[#8c6e38] hover:text-[#2b2118] dark:hover:text-[#f4eee1] focus:outline-none"
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
 
               <AnimatePresence>
@@ -373,29 +326,29 @@ export default function Auth() {
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden mt-3"
+                    className="overflow-hidden mt-3 p-3 rounded-lg bg-[#faf6ee] dark:bg-[#201812] border border-[#dcd2c0] dark:border-[#423120]"
                   >
                     <div className="flex gap-2 mb-2">
                       {[1, 2, 3].map((level) => (
                         <div
                           key={level}
                           className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                            strengthScore >= level
-                              ? strengthScore === 1 ? 'bg-red-400' : strengthScore === 2 ? 'bg-amber-400' : 'bg-emerald-500'
-                              : 'bg-gray-200'
+                            strength.score >= level
+                              ? strength.score === 1 ? 'bg-amber-600' : strength.score === 2 ? 'bg-amber-400' : 'bg-emerald-600'
+                              : 'bg-gray-300 dark:bg-gray-700'
                           }`}
                         />
                       ))}
                     </div>
-                    <div className="grid grid-cols-1 gap-1 text-[10px] font-bold text-gray-500 pl-1">
-                      <div className={`flex items-center gap-1.5 transition-colors ${pwdLength ? 'text-emerald-600' : ''}`}>
-                        {pwdLength ? <CheckCircle2 size={12} /> : <div className="w-3 h-3 rounded-full border-2 border-gray-300" />} 8+ characters
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 text-[10px] font-mono font-bold text-gray-500">
+                      <div className={`flex items-center gap-1 transition-colors ${strength.lengthValid ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>
+                        {strength.lengthValid ? <CheckCircle2 size={11} /> : <div className="w-2.5 h-2.5 rounded-full border border-gray-400" />} 8+ chars
                       </div>
-                      <div className={`flex items-center gap-1.5 transition-colors ${pwdUpper ? 'text-emerald-600' : ''}`}>
-                        {pwdUpper ? <CheckCircle2 size={12} /> : <div className="w-3 h-3 rounded-full border-2 border-gray-300" />} 1 uppercase letter
+                      <div className={`flex items-center gap-1 transition-colors ${strength.upperValid ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>
+                        {strength.upperValid ? <CheckCircle2 size={11} /> : <div className="w-2.5 h-2.5 rounded-full border border-gray-400" />} 1 uppercase
                       </div>
-                      <div className={`flex items-center gap-1.5 transition-colors ${pwdNumber ? 'text-emerald-600' : ''}`}>
-                        {pwdNumber ? <CheckCircle2 size={12} /> : <div className="w-3 h-3 rounded-full border-2 border-gray-300" />} 1 number
+                      <div className={`flex items-center gap-1 transition-colors ${strength.numberValid ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>
+                        {strength.numberValid ? <CheckCircle2 size={11} /> : <div className="w-2.5 h-2.5 rounded-full border border-gray-400" />} 1 number
                       </div>
                     </div>
                   </motion.div>
@@ -403,28 +356,26 @@ export default function Auth() {
               </AnimatePresence>
             </div>
 
-            <motion.button
-              whileHover={(!loading && (isLogin || pwdValid)) ? { scale: 1.02 } : {}}
-              whileTap={(!loading && (isLogin || pwdValid)) ? { scale: 0.98 } : {}}
+            <button
               disabled={loading || (!isLogin && !pwdValid)}
               type="submit"
-              className="w-full py-4 mt-8 text-white rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-              style={{ background: 'linear-gradient(135deg, var(--garden-sage), #6B8E6B)', boxShadow: '0 10px 25px rgba(90, 122, 90, 0.3)' }}
+              className="w-full py-4 mt-6 ledger-seal-button rounded-xl font-serif font-bold text-sm tracking-wider uppercase flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer"
             >
               {loading ? (
-                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
-                  <Leaf size={20} />
-                </motion.div>
+                <div className="animate-spin text-[#c5a059]">
+                  <Feather size={18} />
+                </div>
               ) : (
                 <>
-                  {isLogin ? 'Sign In' : 'Create Account'}
-                  <ArrowRight size={20} />
+                  <span>{isLogin ? 'Affix Seal & Enter' : 'Register Naturalist Record'}</span>
+                  <ArrowRight size={16} className="text-[#c5a059]" />
                 </>
               )}
-            </motion.button>
+            </button>
           </form>
 
-          <div className="mt-8 text-center">
+          {/* Toggle between register & sign-in */}
+          <div className="mt-6 text-center relative z-10">
             <button
               onClick={() => {
                 setIsLogin(!isLogin);
@@ -434,19 +385,20 @@ export default function Auth() {
                 setEmailError('');
                 setAuthError('');
               }}
-              className="text-sm font-bold text-[var(--garden-sage)] hover:text-[var(--garden-earth)] transition-colors"
+              className="text-xs font-serif font-semibold text-[#8c6e38] hover:text-[#5a3d28] dark:hover:text-[#c5a059] transition-colors underline underline-offset-4 decoration-[#c5a059]/40"
             >
-              {isLogin ? "Don't have an account? Sign up" : 'Already a guardian? Sign in'}
+              {isLogin ? "No naturalist entry on file? Inscribe new record" : 'Already registered in the ledger? Open folio'}
             </button>
           </div>
 
-          <div className="mt-6 flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest text-gray-400 font-bold">
-            <ShieldCheck size={14} />
-            {googleClientId ? 'Google + email sign-in' : 'Email auth · Google needs VITE_GOOGLE_CLIENT_ID'}
+          {/* Bottom Accreditation Badge */}
+          <div className="mt-6 pt-4 border-t border-[#dcd2c0]/60 dark:border-[#3d2e20] flex items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-widest text-[#8c6e38]">
+            <ShieldCheck size={13} className="text-[#2e4a34] dark:text-[#8c6e38]" />
+            <span>{googleClientId ? 'Sanctuary OAuth & Local Keyring Active' : 'Offline Keyring Active • VITE_GOOGLE_CLIENT_ID Optional'}</span>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
       </PageWrapper>
-    </>
+    </div>
   );
 }
+

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -20,6 +21,9 @@ import {
 import { getPlantPhoto } from '../utils/plantImage';
 import { GameService } from '../services/gameService';
 import PageWrapper from '../components/home/PageWrapper';
+import { triggerHaptic, playAudio } from '../utils/hapticAudio';
+
+const ROMAN_NUMERALS = ['I.', 'II.', 'III.', 'IV.', 'V.'];
 
 
 // ─── stagger delay applied per-index (cascade entrance) ───────────────────
@@ -345,9 +349,12 @@ export default function Library() {
         d.type.toLowerCase().includes(search.toLowerCase())),
   );
 
+  const dailyFeaturedSpecimen = PHYTO_NOTES[dayNumber % PHYTO_NOTES.length];
+
   // Fetch live NASA EONET events, fall back to static cards on failure
   useEffect(() => {
-    fetch('https://eonet.gsfc.nasa.gov/api/v3/events?limit=6&status=open')
+    const controller = new AbortController();
+    fetch('https://eonet.gsfc.nasa.gov/api/v3/events?limit=6&status=open', { signal: controller.signal })
       .then(r => { if (!r.ok) throw new Error('EONET'); return r.json(); })
       .then(data => {
         const events: EarthEvent[] = (data.events || []).map((e: any) => ({
@@ -366,12 +373,17 @@ export default function Library() {
         }
       })
       .catch(() => { /* keep fallback */ });
+
+    return () => controller.abort();
   }, []);
 
   const answerQuiz = async (index: number) => {
     if (quizClaimed || selectedAnswer !== null) return;
     setSelectedAnswer(index);
-    if (index === dailyQuiz.answer) {
+    const isCorrect = index === dailyQuiz.answer;
+    triggerHaptic(isCorrect ? 'medium' : 'light');
+    playAudio(isCorrect ? 'success' : 'chime');
+    if (isCorrect) {
       setQuizMessage(`✅ Correct! ${dailyQuiz.explanation}`);
       await GameService.addSeeds(25, 'bonus', 'Daily Library Quiz');
       localStorage.setItem(quizKey, 'claimed');
@@ -384,39 +396,58 @@ export default function Library() {
   };
 
   const drawNextFact = () => {
+    triggerHaptic('light');
+    playAudio('leaf-rustle');
     setFactIndex((prev) => (prev + 1) % BOTANICAL_FACTS.length);
+  };
+
+  const nextEarthEvent = () => {
+    triggerHaptic('light');
+    setEarthIndex((prev) => (prev + 1) % earthEvents.length);
+  };
+
+  const handleFilterChange = (filter: 'All' | 'Species Profile' | 'Pathology' | 'Pest') => {
+    triggerHaptic('light');
+    setActiveFilter(filter);
+  };
+
+  const clearSearch = () => {
+    triggerHaptic('light');
+    setSearch('');
   };
 
   const currentFact = BOTANICAL_FACTS[factIndex];
 
   return (
-    <PageWrapper className="relative max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-
-      <div className="relative z-10 space-y-8 sm:space-y-12">
+    <PageWrapper className="relative skin-library px-4 sm:px-6 py-8 sm:py-12">
+      <div className="max-w-7xl mx-auto relative z-10 space-y-8 sm:space-y-12">
 
         {/* ── HERO ─────────────────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-6 sm:gap-8"
+          className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-6 sm:gap-8 mast"
         >
-          <div className="max-w-[600px] flex-grow min-w-[320px]">
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-moss mb-2 block">
-              Experimental Medicine & Care
-            </span>
-            <h1 className="font-serif text-3xl sm:text-5xl font-black text-text-bark mb-4 leading-tight">
-              Botanical Lab&nbsp;
-              <span className="italic text-moss/70 font-medium">Notes</span>
+          <div className="max-w-[620px] flex-grow min-w-[320px]">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-[#8c6d46] dark:text-[#caa651] block">
+                Naturalist's Guild Codex · Herbarium Stacks
+              </span>
+              <span className="px-2 py-0.5 rounded text-[8px] font-mono font-bold tracking-wider bg-[#8c6d46]/10 dark:bg-[#caa651]/15 text-[#8c6d46] dark:text-[#caa651] border border-[#8c7355]/30">
+                Two-Page Open Folio
+              </span>
+            </div>
+            <h1 className="font-serif text-3xl sm:text-5xl font-semibold mb-3 leading-tight text-text-bark flex items-baseline">
+              <span className="illuminated-drop-cap text-4xl sm:text-6xl mr-2">F</span>
+              <span>ield notes &amp; <em className="italic text-moss">pathology</em></span>
             </h1>
-            <p className="text-sm sm:text-base text-text-stone leading-relaxed max-w-2xl">
-              Our repository maps human interaction to plant pathology,
-              providing high-fidelity treatment protocols and evidence-based
-              medicine for your indoor ecosystem.
+            <p className="text-sm sm:text-base text-text-stone leading-relaxed max-w-2xl font-serif">
+              Bound plates of species, pests, and protocols — a double-page reading room codex, not a dashboard.
             </p>
           </div>
 
           <div className="w-full xl:w-80 relative shrink-0">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-text-stone/40">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-text-stone/50">
               <Search size={16} />
             </div>
             <input
@@ -425,24 +456,23 @@ export default function Library() {
               placeholder="Search pathology or symptoms..."
               className="
                 w-full pl-10 pr-10 py-3.5
-                bg-bg-glass backdrop-blur-md
-                rounded-xl
-                border border-border-light
-                shadow-sm
+                bg-[#fdfaf3] dark:bg-[#201a14]
                 text-text-bark
-                placeholder:text-text-stone/40
+                rounded-lg
+                border border-[#8c7355]/30 dark:border-[#8c7355]/50
+                shadow-xs
+                placeholder:text-text-stone/50
                 focus:outline-none
-                focus:border-moss
-                transition-all
-                font-bold text-xs
+                focus:border-moss focus:ring-1 focus:ring-moss
+                font-medium text-xs
               "
             />
             {search && (
               <button
-                onClick={() => setSearch('')}
+                onClick={clearSearch}
                 className="
                   absolute right-4 top-1/2 -translate-y-1/2
-                  text-text-stone/40 hover:text-terracotta
+                  text-text-stone/50 hover:text-terracotta
                   transition-colors
                 "
               >
@@ -457,19 +487,22 @@ export default function Library() {
           <motion.div
             initial={{ opacity: 0, scale: 0.99 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="p-5 sm:p-6 rounded-2xl bg-bg-glass border border-border-light shadow-sm relative overflow-hidden flex flex-col gap-5"
+            className="p-5 sm:p-6 rounded-xl antique-folio-plate shadow-sm relative overflow-hidden flex flex-col gap-4"
           >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,var(--border-glow),transparent_60%)] pointer-events-none" />
-            <div className="relative z-10 flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-moss/10 flex items-center justify-center text-moss flex-shrink-0">
-                <Sparkles size={20} className="animate-pulse" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-[#5f7161]/15 flex items-center justify-center text-moss flex-shrink-0 border border-[#5f7161]/30">
+                <Sparkles size={18} className="animate-pulse text-[#b89542]" />
               </div>
               <div className="min-w-0">
-                <span className="text-[10px] font-black uppercase tracking-wider text-moss">Featured Fact of the Day</span>
-                <h3 className="font-serif font-black text-text-bark text-base sm:text-lg leading-tight">{dailyFact.title}</h3>
+                <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[#8c6d46] dark:text-[#caa651] block">
+                  Illuminated Codex · Fact
+                </span>
+                <h3 className="font-serif font-bold text-text-bark text-sm sm:text-base leading-tight truncate">
+                  {dailyFact.title}
+                </h3>
               </div>
             </div>
-            <p className="relative z-10 text-xs text-text-stone leading-relaxed font-medium">
+            <p className="text-xs text-text-stone leading-relaxed font-sans font-medium">
               {dailyFact.fact}
             </p>
           </motion.div>
@@ -477,20 +510,21 @@ export default function Library() {
           <motion.div
             initial={{ opacity: 0, scale: 0.99 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="p-5 sm:p-6 rounded-2xl bg-bg-glass border border-border-medium shadow-sm relative overflow-hidden flex flex-col justify-between gap-4"
+            className="p-5 sm:p-6 rounded-xl antique-folio-plate shadow-sm relative overflow-hidden flex flex-col justify-between gap-4"
           >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(224,122,95,0.06),transparent_60%)] pointer-events-none" />
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">{currentFact.icon}</span>
-                <div>
-                  <span className="text-[9px] font-black uppercase tracking-wider text-terracotta">Botanical Oracle</span>
-                  <h4 className="font-serif font-black text-text-bark text-sm sm:text-base leading-tight mt-0.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xl shrink-0">{currentFact.icon}</span>
+                <div className="min-w-0">
+                  <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-terracotta block">
+                    Botanical Oracle
+                  </span>
+                  <h4 className="font-serif font-bold text-text-bark text-sm sm:text-base leading-tight mt-0.5 truncate">
                     {currentFact.title}
                   </h4>
                 </div>
               </div>
-              <span className="px-2 py-0.5 bg-terracotta/10 text-terracotta text-[8px] font-black uppercase tracking-wider rounded-md border border-terracotta/20 shrink-0">
+              <span className="px-2 py-0.5 bg-terracotta/10 text-terracotta text-[8px] font-mono font-bold uppercase tracking-wider rounded border border-terracotta/20 shrink-0">
                 {currentFact.category}
               </span>
             </div>
@@ -503,19 +537,19 @@ export default function Library() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -5 }}
                   transition={{ duration: 0.2 }}
-                  className="text-xs text-text-stone leading-relaxed font-medium"
+                  className="text-xs text-text-stone leading-relaxed font-sans font-medium"
                 >
                   {currentFact.fact}
                 </motion.p>
               </AnimatePresence>
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-border-light">
+            <div className="flex justify-end pt-2 border-t border-[#8c7355]/20">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={drawNextFact}
-                className="flex items-center gap-2 px-3 py-1.5 bg-moss hover:bg-moss-dark text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors shadow-xs"
+                className="flex items-center gap-2 px-3 py-1.5 bg-moss hover:bg-moss-dark text-white rounded-md text-[10px] font-mono font-bold uppercase tracking-widest transition-colors shadow-xs"
               >
                 <RotateCw size={11} />
                 New Leaf
@@ -523,99 +557,117 @@ export default function Library() {
             </div>
           </motion.div>
 
+          {/* Socratic Study Carrel Examination Slip */}
           <motion.div
             initial={{ opacity: 0, scale: 0.99 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="p-5 sm:p-6 rounded-2xl bg-bg-glass border border-border-medium shadow-sm relative overflow-hidden flex flex-col gap-4"
+            className="p-5 sm:p-6 study-carrel-slip flex flex-col gap-3 relative"
           >
-            <div className="flex items-start justify-between gap-3">
+            {/* Brass Thumb-Tack Graphic */}
+            <div className="brass-thumb-tack" />
+
+            <div className="flex items-start justify-between gap-3 pt-1">
               <div className="min-w-0">
-                <span className="text-[9px] font-black uppercase tracking-wider text-moss">Daily Quiz</span>
-                <h4 className="font-serif font-black text-text-bark text-sm sm:text-base leading-tight mt-0.5">
+                <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[#8c6d46] dark:text-[#caa651] block">
+                  Socratic Study Carrel // Exam Slip
+                </span>
+                <h4 className="font-serif font-bold text-text-bark text-sm sm:text-base leading-tight mt-0.5">
                   {dailyQuiz.question}
                 </h4>
               </div>
-              <span className="px-2 py-1 rounded-md bg-gold/10 text-gold text-[9px] font-black border border-gold/20 shrink-0">
+              <span className="px-2 py-0.5 rounded bg-[#b89542]/15 text-[#b89542] text-[9px] font-mono font-bold border border-[#b89542]/30 shrink-0">
                 +25 Seeds
               </span>
             </div>
 
             <div className="space-y-2">
               {dailyQuiz.options.map((option, index) => {
-                const isCorrect = selectedAnswer !== null && index === dailyQuiz.answer;
+                const isCorrect = (selectedAnswer !== null && index === dailyQuiz.answer) || (quizClaimed && index === dailyQuiz.answer);
                 const isWrong = selectedAnswer === index && index !== dailyQuiz.answer;
                 return (
                   <button
                     key={option}
+                    disabled={quizClaimed || selectedAnswer !== null}
                     onClick={() => answerQuiz(index)}
-                    className={`w-full min-h-[42px] rounded-lg px-3 py-2 text-left text-xs font-black border transition-colors ${
+                    className={`w-full min-h-[40px] rounded-lg px-3 py-1.5 text-left text-xs font-sans transition-colors border flex items-center justify-between gap-2 disabled:cursor-default ${
                       isCorrect
-                        ? 'bg-moss text-white border-moss'
+                        ? 'bg-moss text-white border-moss font-bold'
                         : isWrong
-                          ? 'bg-terracotta/10 text-terracotta border-terracotta/20'
-                          : 'bg-bg-secondary/60 text-text-bark border-border-light hover:border-moss/50'
+                          ? 'bg-terracotta/15 text-terracotta border-terracotta/30 font-bold'
+                          : 'bg-black/5 dark:bg-white/5 text-text-bark border-[#8c7355]/25 hover:border-[#8c7355]/60 disabled:hover:border-[#8c7355]/25'
                     }`}
                   >
-                    <span className="flex items-center justify-between gap-2">
-                      {option}
-                      {isCorrect && <CheckCircle2 size={14} />}
+                    <span className="flex items-center gap-2">
+                      <span className={`font-serif font-bold text-xs w-5 shrink-0 ${
+                        isCorrect ? 'text-white' : isWrong ? 'text-terracotta' : 'text-[#8c6d46] dark:text-[#caa651]'
+                      }`}>
+                        {ROMAN_NUMERALS[index] || `${index + 1}.`}
+                      </span>
+                      <span>{option}</span>
                     </span>
+                    {isCorrect && <CheckCircle2 size={14} className="shrink-0 text-white" />}
                   </button>
                 );
               })}
             </div>
 
-            <p className="min-h-[34px] text-[10px] text-text-stone leading-relaxed font-bold">
-              {quizMessage || (quizClaimed ? 'Seed bonus claimed for today. Come back tomorrow.' : `Wallet: ${(profile?.seeds ?? 0).toLocaleString()} seeds`)}
+            <p className="min-h-[28px] text-[10px] text-text-stone font-mono leading-relaxed">
+              {quizMessage || (quizClaimed ? 'Daily examination completed. Seed bonus claimed.' : `Wallet: ${(profile?.seeds ?? 0).toLocaleString()} seeds`)}
             </p>
           </motion.div>
 
+          {/* Expeditionary Botanical Telegraph Wire */}
           <motion.div
             initial={{ opacity: 0, scale: 0.99 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="p-5 sm:p-6 rounded-2xl bg-bg-glass border border-border-medium shadow-sm relative overflow-hidden flex flex-col justify-between gap-4"
+            className="p-5 sm:p-6 rounded-xl telegraph-ticker-tape shadow-sm relative overflow-hidden flex flex-col justify-between gap-4"
           >
-            <div className="flex items-start justify-between gap-3">
+            {/* Circular Ink Cancellation Stamp */}
+            <div className="ink-cancellation-stamp" />
+
+            <div className="flex items-start justify-between gap-3 relative z-10">
               <div className="flex items-center gap-2 min-w-0">
-                <Globe2 size={18} className="text-moss shrink-0" />
+                <Globe2 size={17} className="text-moss shrink-0" />
                 <div className="min-w-0">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-moss">Earth Watch</span>
-                  <h4 className="font-serif font-black text-text-bark text-sm sm:text-base leading-tight mt-0.5 line-clamp-2">
+                  <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[#8c6d46] dark:text-[#caa651] block">
+                    Telegraph Wire // Dispatch
+                  </span>
+                  <h4 className="font-serif font-bold text-text-bark text-sm sm:text-base leading-tight mt-0.5 line-clamp-2">
                     {currentEvent.title}
                   </h4>
                 </div>
               </div>
-              <span className={`px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded-md border shrink-0 ${
-                earthLive ? 'bg-moss/10 text-moss border-moss/20' : 'bg-bg-secondary text-text-stone border-border-light'
+              <span className={`px-2 py-0.5 text-[8px] font-mono font-bold uppercase tracking-wider rounded border shrink-0 ${
+                earthLive ? 'bg-moss/10 text-moss border-moss/30' : 'bg-black/5 dark:bg-white/5 text-text-stone border-[#8c7355]/20'
               }`}>
-                {earthLive ? 'Live' : 'Fallback'}
+                {earthLive ? 'Live' : 'Archive'}
               </span>
             </div>
 
-            <div className="space-y-2">
-              <p className="text-xs text-text-stone leading-relaxed font-medium">
-                {currentEvent.category} / {currentEvent.date}
+            <div className="space-y-1.5 relative z-10 font-mono">
+              <p className="text-xs text-text-stone leading-relaxed">
+                {currentEvent.category} // {currentEvent.date}
               </p>
               {currentEvent.magnitude && (
-                <p className="text-[10px] font-black uppercase tracking-wider text-terracotta">
-                  {currentEvent.magnitude}
+                <p className="text-[10px] font-bold uppercase tracking-wider text-terracotta">
+                  MAG: {currentEvent.magnitude}
                 </p>
               )}
-              <p className="text-[10px] text-text-muted font-bold">Source: {currentEvent.source}</p>
+              <p className="text-[10px] text-text-muted">SOURCE: {currentEvent.source}</p>
             </div>
 
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-border-light">
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#8c7355]/20 relative z-10">
               <a
                 href={currentEvent.url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-moss hover:text-moss-dark"
+                className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-widest text-moss hover:text-moss-dark"
               >
                 Open Record <ExternalLink size={11} />
               </a>
               <button
-                onClick={() => setEarthIndex((prev) => (prev + 1) % earthEvents.length)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-bg-secondary hover:bg-moss/10 text-text-bark rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-border-light"
+                onClick={nextEarthEvent}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-black/5 dark:bg-white/5 hover:bg-moss/10 text-text-bark rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-colors border border-[#8c7355]/25"
               >
                 <RotateCw size={11} />
                 Next
@@ -623,178 +675,230 @@ export default function Library() {
             </div>
           </motion.div>
         </div>
+
         {/* ── CATEGORY FILTER TABS ─────────────────────────────────── */}
-        <div className="flex flex-wrap gap-2 pb-2 border-b border-border-light">
+        <div className="flex flex-wrap gap-2 pb-2 border-b border-[#8c7355]/20">
           {(['All', 'Species Profile', 'Pathology', 'Pest'] as const).map((filter) => (
             <button
               key={filter}
-              onClick={() => setActiveFilter(filter)}
-              className={`px-4 py-2.5 sm:py-3 min-h-[44px] rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2 ${
+              onClick={() => handleFilterChange(filter)}
+              className={`px-4 py-2.5 sm:py-3 min-h-[44px] rounded-lg text-xs font-mono font-bold uppercase tracking-wider transition-all duration-200 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2 ${
                 activeFilter === filter
-                  ? 'bg-moss border-moss text-white'
-                  : 'bg-bg-glass border-border-medium text-text-stone hover:bg-moss/5 hover:text-text-bark'
+                  ? 'bg-moss border-moss text-white shadow-xs'
+                  : 'bg-[#fdfaf3]/90 dark:bg-[#201a14]/90 border-[#8c7355]/30 text-text-stone hover:border-[#8c7355]/60 hover:text-text-bark'
               }`}
             >
-              {filter === 'All' ? 'All Publications' : filter}
+              {filter === 'All' ? 'All Folio Plates' : filter}
             </button>
           ))}
         </div>
 
-        {/* ── CARD GRID ─────────────────────────────────────────────── */}
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="grid gap-6"
-          style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))' }}
-        >
-          {filtered.map((disease, i) => (
-            <motion.div
-              key={`${disease.name}-${i}`}
-              variants={cardVariants}
-              className="
-                relative
-                bg-bg-glass
-                rounded-2xl
-                border border-border-light
-                shadow-xs
-                overflow-hidden
-                flex flex-col
-                h-full
-                transition-all duration-300
-                hover:-translate-y-1.5
-                hover:shadow-md
-              "
+        {/* ── CARD GRID / EMPTY STATE ───────────────────────────── */}
+        {filtered.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-8 sm:p-12 text-center antique-folio-plate rounded-xl space-y-4 my-6 max-w-xl mx-auto"
+          >
+            <div className="w-12 h-12 mx-auto rounded-full bg-[#8c7355]/10 dark:bg-[#caa651]/10 flex items-center justify-center text-[#8c7355] dark:text-[#caa651]">
+              <BookOpen size={24} />
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-serif text-lg font-bold text-text-bark">
+                No Folio Plates Found
+              </h3>
+              <p className="text-xs text-text-stone leading-relaxed font-serif">
+                {search
+                  ? `No botanical specimens matched "${search}" in the active codex filter.`
+                  : 'No records available in this section.'}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                clearSearch();
+                setActiveFilter('All');
+              }}
+              className="px-4 py-2 bg-moss hover:bg-moss-dark text-white rounded-md text-xs font-mono font-bold uppercase tracking-wider transition-colors shadow-xs"
             >
-              {/* Image Header */}
-              <div className="card-media-frame w-full h-44 relative overflow-hidden bg-bg-secondary border-b border-border-light">
-                <img 
-                  src={disease.image || getPlantPhoto(null, disease.name)}
-                  alt={`${disease.name} — botanical specimen`}
-                  width={600}
-                  height={450}
-                  loading="lazy"
-                  decoding="async"
-                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
-                />
-                
-                {/* target badge */}
-                <div className="absolute top-3 left-3 flex items-center gap-1.5
-                  px-2.5 py-1.5 bg-bg-glass/95 backdrop-blur-sm rounded-md
-                  text-[11px] font-black uppercase tracking-wide text-text-bark border border-border-light shadow-xs">
-                  {organIcons[disease.organ] ?? (
-                    <Sprout className="text-moss" size={12} />
+              Reset Search &amp; Filters
+            </button>
+          </motion.div>
+        ) : (
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="grid gap-6"
+            style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))' }}
+          >
+            {filtered.map((disease, i) => {
+              const isDailyFeatured = disease.name === dailyFeaturedSpecimen.name;
+              return (
+                <motion.div
+                  key={`${disease.name}-${i}`}
+                  variants={cardVariants}
+                  className="
+                    relative
+                    antique-folio-plate
+                    flex flex-col
+                    h-full
+                    transition-all duration-300
+                    hover:-translate-y-1.5
+                  "
+                >
+                  {/* Dangling vermilion silk ribbon bookmark marking daily featured specimen */}
+                  {isDailyFeatured && (
+                    <div
+                      className="ribbon-bookmark"
+                      title="Daily Featured Specimen · Naturalist Codex"
+                      aria-label="Daily Featured Specimen"
+                    />
                   )}
-                  <span>{disease.organ}</span>
-                </div>
-              </div>
 
-              {/* Severity Pulse line */}
-              <div
-                className="h-[3px] w-full"
-                style={{
-                  backgroundColor: severityStripColor[disease.severity] ?? 'var(--moss)',
-                }}
-              />
-
-              {/* Body Content */}
-              <div className="p-5 flex-grow flex flex-col justify-between space-y-4">
-                <div className="flex justify-between items-start gap-3">
-                  <div className="min-w-0">
-                    <h3 className="font-serif text-base sm:text-lg font-black text-text-bark leading-tight truncate">
-                      {disease.name}
-                    </h3>
-                    <p className="text-[10px] uppercase font-mono tracking-widest text-moss/80 mt-0.5 truncate">
-                      {disease.scientific}
-                    </p>
+                  {/* Folio Plate Tabula Identification */}
+                  <div className="px-3.5 py-1.5 border-b border-[#8c7355]/20 flex items-center justify-between text-[9px] font-mono font-bold tracking-widest text-[#8c7355] dark:text-[#caa651] uppercase bg-black/[0.02] dark:bg-white/[0.02] rounded-t-[7px]">
+                    <span>Tabula {String(i + 1).padStart(2, '0')}</span>
+                    <span>{disease.type}</span>
                   </div>
+
+                  {/* Image Header */}
+                  <div className="card-media-frame w-full h-44 relative overflow-hidden bg-bg-secondary border-b border-[#8c7355]/20">
+                    <img 
+                      src={disease.image || getPlantPhoto(null, disease.name)}
+                      alt={`${disease.name} — botanical specimen`}
+                      width={600}
+                      height={450}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                    />
+                    
+                    {/* target badge */}
+                    <div className="absolute top-3 left-3 flex items-center gap-1.5
+                      px-2.5 py-1.5 bg-bg-glass/95 backdrop-blur-sm rounded-md
+                      text-[11px] font-bold uppercase tracking-wide text-text-bark border border-[#8c7355]/30 shadow-xs">
+                      {organIcons[disease.organ] ?? (
+                        <Sprout className="text-moss" size={12} />
+                      )}
+                      <span>{disease.organ}</span>
+                    </div>
+                  </div>
+
+                  {/* Severity Pulse line */}
+                  <div
+                    className="h-[3px] w-full"
+                    style={{
+                      backgroundColor: severityStripColor[disease.severity] ?? 'var(--moss)',
+                    }}
+                  />
+
+                  {/* Body Content */}
+                  <div className="p-5 flex-grow flex flex-col justify-between space-y-4">
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="min-w-0">
+                        <h3 className="font-serif text-base sm:text-lg font-bold text-text-bark leading-tight truncate">
+                          {disease.name}
+                        </h3>
+                        <p className="text-[10px] uppercase font-mono tracking-widest text-moss/90 mt-0.5 truncate">
+                          {disease.scientific}
+                        </p>
+                      </div>
+                      <div
+                        className="
+                          px-2 py-0.5
+                          bg-black/5 dark:bg-white/5
+                          text-text-bark
+                          text-[8px] font-mono font-bold uppercase tracking-wider
+                          rounded whitespace-nowrap flex-shrink-0 border border-[#8c7355]/30
+                        "
+                      >
+                        {disease.severity}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 flex-grow">
+                      <div className="p-3.5 bg-black/[0.03] dark:bg-white/[0.03] rounded-lg space-y-2.5 border border-[#8c7355]/20">
+                        <div>
+                          <h5 className="text-[8px] font-mono font-bold uppercase tracking-widest text-text-muted mb-1">
+                            Clinical Symptoms
+                          </h5>
+                          <p className="text-xs text-text-stone leading-relaxed font-sans">
+                            {disease.symptoms}
+                          </p>
+                        </div>
+
+                        <div className="border-t border-[#8c7355]/15 pt-2">
+                          <h5 className="text-[8px] font-mono font-bold uppercase tracking-widest text-moss mb-1">
+                            Treatment Protocol
+                          </h5>
+                          <p className="text-xs font-medium text-text-bark leading-relaxed font-sans">
+                            {disease.protocol}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Evidence grade footer */}
                   <div
                     className="
-                      px-2 py-0.5
-                      bg-bg-secondary
-                      text-text-bark
-                      text-[8px] font-black uppercase tracking-wider
-                      rounded-md whitespace-nowrap flex-shrink-0 border border-border-light
+                      px-5 py-2.5
+                      bg-black/[0.02] dark:bg-white/[0.02]
+                      flex justify-between items-center
+                      text-[9px] font-mono font-bold uppercase tracking-wider
+                      text-text-stone
+                      border-t border-[#8c7355]/20
                     "
                   >
-                    {disease.type}
+                    <span>Evidence / Habitat</span>
+                    <span className="text-moss font-bold tracking-widest text-[9px]">
+                      {disease.evidenceLevel}
+                    </span>
                   </div>
-                </div>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        )}
 
-                <div className="space-y-3 flex-grow">
-                  <div className="p-4 bg-bg-secondary/60 rounded-xl space-y-3 border border-border-light">
-                    <div>
-                      <h5 className="text-[8px] font-black uppercase tracking-widest text-text-muted mb-1">
-                        Clinical Symptoms
-                      </h5>
-                      <p className="text-xs text-text-stone leading-relaxed font-medium">
-                        {disease.symptoms}
-                      </p>
-                    </div>
-
-                    <div className="border-t border-border-light pt-2">
-                      <h5 className="text-[8px] font-black uppercase tracking-widest text-moss mb-1">
-                        Treatment Protocol
-                      </h5>
-                      <p className="text-xs font-bold text-text-bark leading-relaxed">
-                        {disease.protocol}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Evidence grade footer */}
-              <div
-                className="
-                  px-5 py-2.5
-                  bg-bg-secondary/40
-                  flex justify-between items-center
-                  text-[9px] font-black uppercase tracking-wider
-                  text-text-stone
-                  border-t border-border-light
-                "
-              >
-                <span>Evidence / Habitat</span>
-                <span className="text-moss font-black tracking-widest text-[9px]">
-                  {disease.evidenceLevel}
-                </span>
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
-
-        {/* ── CTA ─────────────────────────────────────────────────────── */}
+        {/* ── CTA / COLOPHON ─────────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, scale: 0.99 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           className="
             p-6 sm:p-10 md:p-12
-            bg-bg-glass
-            border border-border-medium
+            antique-folio-plate
             rounded-2xl
             text-text-bark
-            flex flex-col md:flex-row items-center gap-6 sm:gap-8
+            flex flex-col md:flex-row items-center justify-between gap-6 sm:gap-8
             relative overflow-hidden
-            shadow-sm
           "
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,var(--border-glow),transparent_60%)] pointer-events-none" />
-          <div className="absolute top-0 right-0 p-12 opacity-[0.03] pointer-events-none">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(184,149,82,0.08),transparent_60%)] pointer-events-none" />
+          <div className="absolute top-0 right-0 p-12 opacity-[0.04] pointer-events-none">
             <BookOpen size={200} className="text-text-bark" />
           </div>
 
           <div className="relative z-10 space-y-3 sm:space-y-4 max-w-2xl flex-grow min-w-0">
-            <h2 className="font-serif text-2xl sm:text-3xl font-black leading-tight">
-              Join the&nbsp;
-              <span className="text-moss italic">Botanical Research</span>
-              &nbsp;Network
+            <h2 className="font-serif text-2xl sm:text-3xl font-bold leading-tight flex items-baseline">
+              <span className="illuminated-drop-cap text-3xl sm:text-4xl mr-1.5 align-baseline">J</span>
+              <span>oin the <span className="text-moss italic">Botanical Research</span> Network</span>
             </h2>
-            <p className="text-text-stone text-xs sm:text-sm leading-relaxed">
-              Contribute cases, validated treatments, and field notes to
-              the world's most precise diagnostic database. Help build a thriving global community.
+            <p className="text-text-stone text-xs sm:text-sm leading-relaxed font-serif">
+              Contribute cases, validated treatments, and naturalist field notes to
+              the guild's open codex database. Help cultivate a thriving global community of plant care.
             </p>
+          </div>
+
+          <div className="relative z-10 shrink-0">
+            <Link
+              to="/lab"
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-moss hover:bg-moss-dark text-white font-mono text-xs font-bold uppercase tracking-wider transition-colors shadow-xs"
+            >
+              <span>Open Botanical Lab</span>
+              <ExternalLink size={13} />
+            </Link>
           </div>
         </motion.div>
 

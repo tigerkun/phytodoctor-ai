@@ -35,146 +35,134 @@ const FEATURES = [
   { icon: Bell, title: 'Smart Alerts', desc: 'Weather-aware watering reminders, drift detection, and predictive health forecasts — so no plant gets forgotten.', color: '#6B8E6B' },
 ];
 
-function WelcomeLanding({ onGetStarted }: { onGetStarted: () => void }) {
+function WelcomeLanding({ onGetStarted, onSignIn }: { onGetStarted: () => void; onSignIn: () => void }) {
   return (
-    <PageWrapper className="min-h-screen w-full relative overflow-hidden">
-      {/* Background gradient */}
-      <div className="absolute inset-0 -z-10" style={{
-        background: 'linear-gradient(160deg, #f0f7ef 0%, #e8f0e0 30%, #fdf8f0 60%, #f5efe5 100%)'
-      }} />
+    <PageWrapper className="min-h-screen w-full relative overflow-hidden bg-[#FAF7F2] dark:bg-[#121619]">
+      {/* Background architectural glasshouse & estate ambience */}
+      <div className="absolute inset-0 -z-10 gatehouse-stone opacity-95" />
 
-      {/* Floating decorative circles */}
-      <motion.div
-        className="absolute top-20 -right-20 w-96 h-96 rounded-full opacity-[0.07]"
-        style={{ background: 'radial-gradient(circle, #5A7A5A, transparent 70%)' }}
-        animate={{ y: [0, -30, 0], x: [0, 15, 0] }}
-        transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.div
-        className="absolute -bottom-10 -left-20 w-80 h-80 rounded-full opacity-[0.06]"
-        style={{ background: 'radial-gradient(circle, #C17F59, transparent 70%)' }}
-        animate={{ y: [0, 20, 0], x: [0, -10, 0] }}
-        transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
-      />
-
-      {/* Hero */}
-      <motion.section
-        className="relative z-10 max-w-5xl mx-auto px-6 pt-16 md:pt-28 pb-12 text-center"
-        initial={{ opacity: 0, y: 40 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-      >
+      {/* Weathered Stone Gatehouse Arch Container */}
+      <div className="relative z-10 max-w-5xl mx-auto px-6 pt-12 md:pt-20 pb-16">
+        
+        {/* Gatehouse Arch Apex & Crest */}
         <motion.div
-          className="inline-block text-6xl md:text-7xl mb-6"
-          animate={{ rotate: [0, 6, -4, 0], scale: [1, 1.08, 0.97, 1] }}
-          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7 }}
+          className="flex flex-col items-center mb-6 text-center"
         >
-          🌿
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#b89552]/40 bg-[#f7edd6]/80 dark:bg-[#2b2416]/80 text-[#7a602f] dark:text-[#d4af37] text-[10px] font-black uppercase tracking-[0.25em] shadow-xs">
+            🏛️ ESTATE CONSERVATORY · GATEHOUSE № 01
+          </div>
+          <div className="w-32 h-px bg-gradient-to-r from-transparent via-[#b89552]/50 to-transparent mt-3" />
         </motion.div>
 
-        <h1 className="font-serif text-5xl md:text-7xl font-bold leading-tight mb-6" style={{ color: '#3D405B' }}>
-          Your plants deserve a
-          <span className="block" style={{ color: '#5A7A5A' }}>guardian.</span>
-        </h1>
-
-        <p className="text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed" style={{ color: '#7A7D8D' }}>
-          Botanical Guardian combines AI-powered diagnostics, collectible plant cards,
-          and competitive care challenges — turning everyday plant care into an adventure.
-        </p>
-
-        <motion.button
-          onClick={onGetStarted}
-          whileHover={{ scale: 1.05, boxShadow: '0 20px 50px rgba(90,122,90,0.3)' }}
-          whileTap={{ scale: 0.97 }}
-          className="inline-flex items-center gap-3 px-10 py-5 rounded-full text-white font-bold text-lg shadow-xl transition-all"
-          style={{
-            background: 'linear-gradient(135deg, #5A7A5A 0%, #7FA87F 100%)',
-            boxShadow: '0 12px 35px rgba(90,122,90,0.25)'
-          }}
+        {/* Gatehouse Stone Portico Header */}
+        <motion.section
+          className="text-center max-w-3xl mx-auto mb-14"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
         >
-          🌱 Start Your Garden
-          <ArrowRight size={20} />
-        </motion.button>
+          <motion.div
+            className="inline-block text-6xl md:text-7xl mb-4 filter drop-shadow-sm"
+            animate={{ rotate: [0, 4, -3, 0], scale: [1, 1.05, 0.98, 1] }}
+            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            🌿
+          </motion.div>
 
-        <p className="mt-4 text-xs" style={{ color: '#A0A3B1' }}>
-          Free forever · No account needed · Works offline
-        </p>
-      </motion.section>
+          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-4 text-[#2C2419] dark:text-[#F5F0E8]">
+            Enter the Grand Estate
+            <span className="block italic text-[#5A7D5A] dark:text-[#8FB58F]">Conservatory.</span>
+          </h1>
 
-      {/* Feature Cards */}
-      <section className="relative z-10 max-w-6xl mx-auto px-6 py-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {FEATURES.map((f, i) => (
-            <motion.div
-              key={f.title}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 + i * 0.1, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              whileHover={{ y: -8, scale: 1.02 }}
-              className="rounded-3xl p-7 border backdrop-blur-sm cursor-default"
-              style={{
-                background: 'rgba(255,255,255,0.65)',
-                borderColor: 'rgba(255,255,255,0.4)',
-                boxShadow: '0 8px 30px rgba(61,64,91,0.06)'
-              }}
-            >
-              <div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center mb-5"
-                style={{ background: `${f.color}15`, color: f.color }}
-              >
-                <f.icon size={22} />
-              </div>
-              <h3 className="font-serif text-xl font-bold mb-2" style={{ color: '#3D405B' }}>{f.title}</h3>
-              <p className="text-sm leading-relaxed" style={{ color: '#7A7D8D' }}>{f.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* Social Proof */}
-      <motion.section
-        className="relative z-10 max-w-3xl mx-auto px-6 py-16 text-center"
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-      >
-        <div className="rounded-3xl p-10 border" style={{
-          background: 'rgba(255,255,255,0.5)',
-          borderColor: 'rgba(255,255,255,0.3)',
-          boxShadow: '0 8px 40px rgba(61,64,91,0.06)'
-        }}>
-          <p className="font-serif text-2xl md:text-3xl italic leading-relaxed mb-6" style={{ color: '#3D405B' }}>
-            "I used to forget to water my plants every week. Now I'm on a 47-day streak and my Monstera just hit Level 20."
+          <p className="text-base md:text-lg max-w-2xl mx-auto mb-8 leading-relaxed text-[#6B5E51] dark:text-[#A8B5A0]">
+            Step across the threshold into an intelligent botanical sanctuary. Gemini AI clinical diagnostics,
+            heirloom specimen cards, and weather-synchronized care regimens.
           </p>
-          <div className="flex items-center justify-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#5A7A5A] to-[#7FA87F] flex items-center justify-center text-white font-bold text-sm">P</div>
-            <div className="text-left">
-              <p className="font-bold text-sm" style={{ color: '#3D405B' }}>Priya S.</p>
-              <p className="text-xs" style={{ color: '#A0A3B1' }}>Guardian Level 12 · 23 PhytoCards</p>
+
+          <motion.button
+            onClick={onGetStarted}
+            whileHover={{ scale: 1.03, y: -2 }}
+            whileTap={{ scale: 0.97 }}
+            className="inline-flex items-center gap-3 px-9 py-4 rounded-full text-white font-bold text-base shadow-xl transition-all cursor-pointer"
+            style={{
+              background: 'linear-gradient(135deg, #3D5A3D 0%, #5A7D5A 100%)',
+              boxShadow: '0 10px 28px rgba(61,90,61,0.28)'
+            }}
+          >
+            🌱 Open Sanctuary Gates
+            <ArrowRight size={18} />
+          </motion.button>
+
+          <p className="mt-3 text-xs tracking-wider uppercase text-[#9C8E80] dark:text-[#7A756D] font-mono">
+            Free forever · Private offline database · No sign-up barrier
+          </p>
+        </motion.section>
+
+        {/* Feature Cards — Carved Stone Plaque Aesthetic */}
+        <section className="mb-14">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {FEATURES.map((f, i) => (
+              <motion.div
+                key={f.title}
+                initial={{ opacity: 0, y: 25 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 + i * 0.08, duration: 0.5 }}
+                whileHover={{ y: -5 }}
+                className="rounded-2xl p-6 border transition-all cursor-default relative overflow-hidden bg-white/70 dark:bg-[#1E1B17]/70 border-[#D2C7B5]/60 dark:border-[#3D3830] shadow-xs hover:shadow-md"
+              >
+                <div
+                  className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 border border-black/5 dark:border-white/10"
+                  style={{ background: `${f.color}18`, color: f.color }}
+                >
+                  <f.icon size={20} />
+                </div>
+                <h3 className="font-serif text-lg font-bold mb-1.5 text-[#2C2419] dark:text-[#F5F0E8]">{f.title}</h3>
+                <p className="text-xs leading-relaxed text-[#6B5E51] dark:text-[#A8B5A0]">{f.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        {/* Guest Register Endorsement */}
+        <motion.section
+          className="max-w-2xl mx-auto text-center"
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+        >
+          <div className="rounded-2xl p-8 border border-[#D2C7B5]/70 dark:border-[#3D3830] bg-[#FAF7F2]/90 dark:bg-[#1A1714]/90 shadow-sm relative">
+            <p className="font-serif text-xl italic leading-relaxed mb-4 text-[#2C2419] dark:text-[#F5F0E8]">
+              "The diagnostic precision and potting reminders brought my conservatory back to life. A proper heritage tool for any true plant lover."
+            </p>
+            <div className="flex items-center justify-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-[#5A7D5A] text-white flex items-center justify-center font-serif font-bold text-xs">
+                P
+              </div>
+              <div className="text-left">
+                <p className="font-bold text-xs text-[#2C2419] dark:text-[#F5F0E8]">Priya Sharma</p>
+                <p className="text-[10px] uppercase font-mono tracking-wider text-[#9C8E80]">Conservator · 23 PhytoCards</p>
+              </div>
             </div>
           </div>
-        </div>
-      </motion.section>
+        </motion.section>
 
-      {/* Bottom CTA */}
-      <section className="relative z-10 text-center pb-20 flex flex-col items-center">
-        <motion.button
-          onClick={onGetStarted}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.97 }}
-          className="inline-flex items-center gap-3 px-8 py-4 rounded-full text-white font-bold shadow-lg mb-6"
-          style={{ background: 'linear-gradient(135deg, #5A7A5A, #7FA87F)' }}
-        >
-          🌱 Get Started — It's Free
-          <ArrowRight size={18} />
-        </motion.button>
-        <p className="text-sm font-medium" style={{ color: '#7A7D8D' }}>
-          Already a guardian?{' '}
-          <a href="/auth" className="font-bold hover:underline" style={{ color: '#5A7A5A' }}>
-            Sign In
-          </a>
-        </p>
-      </section>
+        {/* Secondary Sign-in Anchor */}
+        <div className="text-center mt-8">
+          <p className="text-xs text-[#6B5E51] dark:text-[#A8B5A0]">
+            Already holding estate keys?{' '}
+            <button
+              onClick={onSignIn}
+              className="font-bold underline text-[#5A7D5A] dark:text-[#8FB58F] hover:opacity-80 cursor-pointer bg-transparent border-none p-0 inline"
+            >
+              Sign In to Sanctuary
+            </button>
+          </p>
+        </div>
+
+      </div>
     </PageWrapper>
   );
 }
@@ -206,30 +194,23 @@ export default function HomePage() {
   const dbPlants = useLiveQuery(() => db.plants.where('userId').equals(userId).toArray(), [userId]);
   const checkins = useLiveQuery(() => db.checkins.toArray()) || [];
   const profile = useLiveQuery(() => GameService.getProfile(userId), [userId]);
-  const todayKey = new Date().toDateString();
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const forceRefreshProfile = () => setProfileRefreshKey(prev => prev + 1);
 
-
-  // Map database plants — useMemo prevents recalculation on every render
+  // Map database plants — all user non-demo plants form the living collection
   const mappedPlants = useMemo(() => {
-    const todayIds = new Set(
-      checkins
-        .filter(c => new Date(c.timestamp).toDateString() === todayKey)
-        .map(c => c.plantId)
-    );
     return (dbPlants || [])
-      .filter(p => !p.isDemo && (todayIds.has(p.id) || new Date(p.createdAt).toDateString() === todayKey))
+      .filter(p => !p.isDemo)
       .map(p => ({
         id: p.id,
         nickname: p.name,
         species: p.species,
         healthScore: p.guardianScore || 50,
-        lastWatered: p.updatedAt ? new Date(p.updatedAt) : new Date(),
+        lastWatered: p.updatedAt ? new Date(p.updatedAt) : new Date(p.createdAt || Date.now()),
         image: getPlantPhoto(p.photoUrl, p.species),
         lastPhoto: p.checkInTime ? `Analyzed ${p.checkInTime}` : 'Never analyzed',
       }));
-  }, [dbPlants, checkins, todayKey]);
+  }, [dbPlants]);
 
   const [selectedPlant, setSelectedPlant] = useState<any>(mappedPlants[0] ?? null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -289,14 +270,20 @@ export default function HomePage() {
   const isDarkText = ['dawn', 'morning', 'afternoon'].includes(activeTimePeriod);
   const textColorClass = isDarkText ? 'text-[#3D405B]' : 'text-[#FAF7F2]';
 
+  const selectedPlantIndex = useMemo(() => {
+    if (!selectedPlant) return 0;
+    const idx = mappedPlants.findIndex(p => p.id === selectedPlant.id);
+    return idx >= 0 ? idx : 0;
+  }, [mappedPlants, selectedPlant]);
+
   // Gate: show welcome landing for first-time visitors
   if (!onboarded) {
-    return <WelcomeLanding onGetStarted={handleGetStarted} />;
+    return <WelcomeLanding onGetStarted={handleGetStarted} onSignIn={() => transitionTo('/auth', 'Sign In')} />;
   }
 
   return (
     <PageWrapper
-      className={`min-h-screen w-full relative ${textColorClass} transition-colors duration-1000`}
+      className={`min-h-screen w-full relative skin-conservatory ${textColorClass} transition-colors duration-1000`}
     >
       {/* Ambient Animations */}
       <AmbientAnimations overrideTimePeriod={activeTimePeriod} />
@@ -318,6 +305,8 @@ export default function HomePage() {
           photoUrl={getPlantPhoto(selectedPlant?.image || selectedPlant?.photoUrl, selectedPlant?.species)}
           profile={profile}
           totalPlants={mappedPlants.length}
+          plantIndex={selectedPlantIndex}
+          weather={weather}
           currentTimePeriod={activeTimePeriod}
           onTimePeriodChange={(period) => setTimePeriodOverride(period)}
           onAddPlant={() => {

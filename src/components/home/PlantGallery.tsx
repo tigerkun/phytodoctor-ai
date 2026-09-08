@@ -61,7 +61,7 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
           className="text-4xl font-serif font-bold mb-4"
           style={{ color: theme === 'day' ? '#3D405B' : '#E8DCC8' }}
         >
-          Today's Sanctuary
+          The Living Conservatory Collection
         </motion.h2>
         <motion.p
           initial={{ opacity: 0 }}
@@ -70,7 +70,7 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
           className="text-lg mb-12"
           style={{ color: theme === 'day' ? '#5F7161' : '#A8B5A0' }}
         >
-          {plants.length === 0 ? 'Empty until you index a plant today' : `${plants.length} plant${plants.length === 1 ? '' : 's'} indexed today`}
+          {plants.length === 0 ? 'No specimens currently cataloged in sanctuary' : `${plants.length} botanical specimen${plants.length === 1 ? '' : 's'} flourishing under your stewardship`}
         </motion.p>
 
         <motion.div
@@ -80,9 +80,11 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
           viewport={{ once: true, margin: '-100px' }}
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
         >
-          {plants.map((plant) => {
+          {plants.map((plant, index) => {
             const healthColor = getHealthColor(plant.healthScore);
             const daysSince = getDaysSinceWater(plant.lastWatered);
+            // Alternate subtle rotation angles for authentic handmade botanical stake feel
+            const rotationClass = index % 2 === 0 ? '-rotate-2' : 'rotate-1';
 
             return (
               <motion.div
@@ -93,16 +95,11 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
                 className="cursor-pointer group"
               >
                 <div
-                  className="rounded-2xl overflow-hidden backdrop-blur-md border transition-all duration-300 hover:shadow-xl h-full flex flex-col"
-                  style={{
-                    background: theme === 'day'
-                      ? 'rgba(255, 248, 240, 0.7)'
-                      : 'rgba(30, 28, 26, 0.6)',
-                    borderColor: theme === 'day'
-                      ? 'rgba(255, 255, 255, 0.15)'
-                      : 'rgba(255, 255, 255, 0.08)'
-                  }}
+                  className="rounded-2xl overflow-hidden oiled-teak-frame transition-all duration-300 hover:shadow-xl h-full flex flex-col relative"
                 >
+                  {/* Top Teak Molding Slat */}
+                  <div className="h-1.5 w-full bg-gradient-to-r from-[#4d321d] via-[#785333] to-[#4d321d] opacity-80" />
+
                   {/* Image Container */}
                   <div className="relative h-48 bg-gradient-to-b from-gray-300 to-gray-400 overflow-hidden">
                     <motion.img
@@ -110,65 +107,66 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
                       alt={plant.nickname}
                       className="w-full h-full object-cover"
                       initial={{ scale: 1 }}
-                      whileHover={!shouldDisableAnimations ? { scale: 1.1 } : {}}
+                      whileHover={!shouldDisableAnimations ? { scale: 1.08 } : {}}
                       transition={{ duration: 0.4 }}
                     />
 
-                    {/* Health Pulse */}
-                    <motion.div
-                      className="absolute top-3 right-3 w-3 h-3 rounded-full"
-                      style={{
-                        background: healthColor,
-                        boxShadow: `0 0 10px ${healthColor}`
-                      }}
-                      animate={!shouldDisableAnimations ? { scale: [1, 1.3, 1] } : {}}
-                      transition={{ duration: 2, repeat: Infinity }}
-                    />
-
-                    {/* Watering Indicator */}
+                    {/* Rotated Zinc / Slate Seedling Stake Tag */}
                     <div
-                      className="absolute bottom-3 left-3 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-sm"
-                      style={{
-                        background: `${healthColor}33`,
-                        color: healthColor,
-                        border: `1px solid ${healthColor}66`
-                      }}
+                      className={`absolute top-3 left-3 ${rotationClass} zinc-stake px-2.5 py-1 rounded-xs text-[10px] font-serif font-bold tracking-widest uppercase flex items-center gap-1.5 z-10`}
+                    >
+                      <span className="opacity-80">№ 0{index + 1}</span>
+                      <span className="w-1 h-1 rounded-full bg-white/60" />
+                      <span className="truncate max-w-[110px]">{plant.nickname}</span>
+                    </div>
+
+                    {/* Health Indicator Mini Barometer Pip */}
+                    <div
+                      className="absolute top-3 right-3 px-2 py-0.5 rounded-full brass-bezel text-[9px] font-serif font-black text-[#2c1d08] dark:text-[#f7edd6] shadow-xs"
+                      title={`${plant.healthScore}% health`}
+                    >
+                      {plant.healthScore}%
+                    </div>
+
+                    {/* Stamped Slate Watering Indicator */}
+                    <div
+                      className="absolute bottom-3 left-3 px-2.5 py-0.5 rounded-xs text-[10px] font-mono tracking-wider font-semibold backdrop-blur-md bg-black/50 text-white/90 border border-white/20"
                     >
                       💧 {daysSince}d ago
                     </div>
                   </div>
 
-                  {/* Content */}
-                  <div className="flex-1 p-4">
-                    <h3
-                      className="text-lg font-serif font-bold mb-1 truncate"
-                      style={{ color: theme === 'day' ? '#3D405B' : '#E8DCC8' }}
-                    >
-                      {plant.nickname}
-                    </h3>
-                    <p
-                      className="text-xs mb-3 truncate"
-                      style={{ color: theme === 'day' ? '#5F7161' : '#A8B5A0' }}
-                    >
-                      {plant.species}
-                    </p>
+                  {/* Content & Botanical Specimen Plate */}
+                  <div className="flex-1 p-5 flex flex-col justify-between">
+                    <div>
+                      <h3
+                        className="text-lg font-serif font-bold mb-1 truncate text-text-bark"
+                      >
+                        {plant.nickname}
+                      </h3>
+                      <p
+                        className="text-xs font-serif italic mb-3 truncate text-moss"
+                      >
+                        {plant.species}
+                      </p>
+                    </div>
 
                     {/* Health Score Bar */}
-                    <div className="h-2 rounded-full overflow-hidden" style={{ background: theme === 'day' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' }}>
-                      <motion.div
-                        className="h-full rounded-full transition-all"
-                        style={{ background: healthColor, width: `${plant.healthScore}%` }}
-                        initial={{ width: 0 }}
-                        whileInView={{ width: `${plant.healthScore}%` }}
-                        transition={{ duration: 0.6, delay: 0.2 }}
-                      />
+                    <div>
+                      <div className="h-1.5 rounded-full overflow-hidden bg-black/10 dark:bg-white/10">
+                        <motion.div
+                          className="h-full rounded-full transition-all"
+                          style={{ background: healthColor, width: `${plant.healthScore}%` }}
+                          initial={{ width: 0 }}
+                          whileInView={{ width: `${plant.healthScore}%` }}
+                          transition={{ duration: 0.6, delay: 0.2 }}
+                        />
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] font-mono mt-1.5 text-text-stone">
+                        <span>Vitality</span>
+                        <span style={{ color: healthColor }} className="font-bold">{plant.healthScore}%</span>
+                      </div>
                     </div>
-                    <p
-                      className="text-xs mt-2 font-mono"
-                      style={{ color: healthColor }}
-                    >
-                      {plant.healthScore}% healthy
-                    </p>
                   </div>
                 </div>
               </motion.div>

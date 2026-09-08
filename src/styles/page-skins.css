@@ -1,0 +1,2342 @@
+/* ── Home: The Victorian Estate Conservatory & Oiled Teak Potting Bench ── */
+.skin-conservatory {
+  background-color: var(--bg-primary);
+  background-image:
+    repeating-linear-gradient(90deg, transparent 0 64px, rgba(90, 125, 90, 0.035) 64px 65px),
+    repeating-linear-gradient(0deg, transparent 0 80px, rgba(90, 125, 90, 0.03) 80px 81px);
+}
+
+.leaded-transom {
+  background:
+    repeating-linear-gradient(90deg, rgba(60, 75, 60, 0.4) 0px, rgba(60, 75, 60, 0.4) 1px, transparent 1px, transparent 28px),
+    repeating-linear-gradient(45deg, rgba(90, 125, 90, 0.15) 0px, rgba(90, 125, 90, 0.15) 1px, transparent 1px, transparent 14px),
+    repeating-linear-gradient(-45deg, rgba(90, 125, 90, 0.15) 0px, rgba(90, 125, 90, 0.15) 1px, transparent 1px, transparent 14px);
+  border-bottom: 1px solid rgba(60, 75, 60, 0.2);
+}
+
+.oiled-teak-frame {
+  background: linear-gradient(180deg, rgba(253, 251, 247, 0.95), rgba(245, 239, 229, 0.95));
+  border: 2px solid rgba(120, 80, 50, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -1px 0 rgba(70, 45, 25, 0.2),
+    0 12px 36px rgba(45, 30, 20, 0.08);
+}
+
+:root[data-theme="night"] .oiled-teak-frame {
+  background: linear-gradient(180deg, rgba(32, 27, 22, 0.95), rgba(24, 20, 16, 0.95));
+  border-color: rgba(140, 95, 60, 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 12px 36px rgba(0, 0, 0, 0.4);
+}
+
+.brass-bezel {
+  border: 3.5px solid #c5a059;
+  background: radial-gradient(circle at 40% 35%, #fffbf0 0%, #faecd0 65%, #e0c285 100%);
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.9),
+    inset 0 -2px 4px rgba(90, 65, 25, 0.45),
+    0 6px 16px rgba(40, 30, 15, 0.25);
+}
+
+:root[data-theme="night"] .brass-bezel {
+  background: radial-gradient(circle at 40% 35%, #382e1c 0%, #292113 65%, #1c160c 100%);
+  border-color: #d4af37;
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.2),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.6),
+    0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+.zinc-stake {
+  background: linear-gradient(150deg, #4b5563 0%, #374151 50%, #1f2937 100%);
+  color: #f8fafc;
+  border-left: 2.5px solid #94a3b8;
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+  letter-spacing: 0.12em;
+}
+
+.slate-stake {
+  background: linear-gradient(145deg, #334155 0%, #1e293b 100%);
+  color: #e2e8f0;
+  border-left: 2px solid #64748b;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+}
+
+.linen-guide {
+  background-color: #fbf9f4;
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(139, 115, 85, 0.025) 3px 6px),
+    repeating-linear-gradient(90deg, transparent 0 3px, rgba(139, 115, 85, 0.025) 3px 6px);
+  border: 1px solid rgba(180, 160, 135, 0.35);
+}
+
+:root[data-theme="night"] .linen-guide {
+  background-color: #1e1b17;
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 255, 255, 0.02) 3px 6px),
+    repeating-linear-gradient(90deg, transparent 0 3px, rgba(255, 255, 255, 0.02) 3px 6px);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.gatehouse-stone {
+  background-color: #f4f0e7;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(212, 175, 55, 0.1), transparent 60%),
+    repeating-linear-gradient(0deg, transparent 0 48px, rgba(120, 110, 95, 0.05) 48px 49px);
+}
+
+:root[data-theme="night"] .gatehouse-stone {
+  background-color: #1a1714;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(212, 175, 55, 0.12), transparent 60%),
+    repeating-linear-gradient(0deg, transparent 0 48px, rgba(255, 255, 255, 0.04) 48px 49px);
+}
+
+/* Market stall chrome — used only on /market */
+.awning {
+  height: 1.25rem;
+  width: 100%;
+  background: repeating-linear-gradient(90deg, #c17f59 0 22px, #f4e4c1 22px 44px, #5a7d5a 44px 66px);
+}
+.bazaar-kicker {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #c17f59;
+}
+.bazaar-mast {
+  background: rgba(247, 240, 228, 0.94);
+  border-bottom: 1px solid #d9c4a0;
+}
+.bazaar-tab {
+  padding: 0.5rem 1rem;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: 1px solid #d9c4a0;
+  color: #7a6a50;
+  background: transparent;
+}
+.bazaar-tab.is-on {
+  background: #3d2a1c;
+  color: #f4e4c1;
+  border-color: #3d2a1c;
+}
+
+/* ── Library: The Ancient Guild Codex & Naturalist Folio ── */
+.skin-library {
+  background-color: #f7f2e7;
+  background-image:
+    /* Debossed leather spine shadow down the center (open folio crease) */
+    linear-gradient(90deg, 
+      transparent 0%,
+      transparent calc(50% - 40px),
+      rgba(40, 25, 12, 0.03) calc(50% - 20px),
+      rgba(25, 15, 6, 0.08) calc(50% - 5px),
+      rgba(15, 8, 3, 0.15) 50%,
+      rgba(25, 15, 6, 0.08) calc(50% + 5px),
+      rgba(40, 25, 12, 0.03) calc(50% + 20px),
+      transparent calc(50% + 40px),
+      transparent 100%
+    ),
+    /* Soft vellum warmth & outer folio edge vignette */
+    radial-gradient(ellipse at 50% 20%, rgba(184, 149, 82, 0.07), transparent 75%),
+    linear-gradient(180deg, #f5efe3 0%, #f8f4ec 50%, #f4ede1 100%);
+  position: relative;
+  min-height: 100vh;
+}
+
+:root[data-theme="night"] .skin-library {
+  background-color: #16120e;
+  background-image:
+    /* Debossed leather spine shadow down the center for dark mode */
+    linear-gradient(90deg, 
+      transparent 0%,
+      transparent calc(50% - 40px),
+      rgba(0, 0, 0, 0.25) calc(50% - 20px),
+      rgba(0, 0, 0, 0.55) calc(50% - 5px),
+      rgba(0, 0, 0, 0.8) 50%,
+      rgba(0, 0, 0, 0.55) calc(50% + 5px),
+      rgba(0, 0, 0, 0.25) calc(50% + 20px),
+      transparent calc(50% + 40px),
+      transparent 100%
+    ),
+    radial-gradient(ellipse at 50% 20%, rgba(212, 175, 55, 0.05), transparent 75%),
+    linear-gradient(180deg, #181410 0%, #15110d 50%, #120e0a 100%);
+}
+
+.skin-library .mast { color: var(--text-bark); }
+
+/* 24kt Gold-Leaf Illuminated Drop-Cap */
+.illuminated-drop-cap {
+  display: inline-block;
+  font-family: "Cinzel", "Cormorant Garamond", Georgia, serif;
+  font-weight: 700;
+  line-height: 0.9;
+  background: linear-gradient(135deg, #b8860b 0%, #d4af37 35%, #8a5a12 70%, #d4af37 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 1px rgba(90, 65, 15, 0.35));
+}
+
+:root[data-theme="night"] .illuminated-drop-cap {
+  background: linear-gradient(135deg, #fff3b0 0%, #d4af37 40%, #f6d860 75%, #a8791b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1.5px 3px rgba(0, 0, 0, 0.7));
+}
+
+.illuminated-drop-cap-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-right: 0.75rem;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.18) 0%, rgba(138, 90, 25, 0.12) 100%);
+  border: 1.5px solid #d4af37;
+  outline: 1px solid rgba(212, 175, 55, 0.45);
+  outline-offset: -3px;
+  border-radius: 4px;
+  font-family: "Cinzel", "Cormorant Garamond", Georgia, serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #b8860b;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.7);
+  box-shadow: 0 2px 6px rgba(45, 30, 10, 0.15);
+}
+
+:root[data-theme="night"] .illuminated-drop-cap-box {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.22) 0%, rgba(80, 50, 15, 0.3) 100%);
+  border-color: #d4af37;
+  color: #f7d560;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* Double-ruled Botanical Woodcut Plate Print */
+.antique-folio-plate,
+.skin-library .lib-plate {
+  background-color: #faf6ed;
+  border: 1.5px solid #8c7355;
+  outline: 1px solid rgba(140, 115, 85, 0.35);
+  outline-offset: -5px;
+  border-radius: 8px;
+  box-shadow:
+    0 6px 20px rgba(40, 30, 20, 0.08),
+    inset 0 0 16px rgba(184, 149, 82, 0.04);
+  position: relative;
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s ease;
+}
+
+.antique-folio-plate:hover,
+.skin-library .lib-plate:hover {
+  box-shadow:
+    0 12px 28px rgba(40, 30, 20, 0.14),
+    inset 0 0 20px rgba(184, 149, 82, 0.07);
+}
+
+:root[data-theme="night"] .antique-folio-plate,
+:root[data-theme="night"] .skin-library .lib-plate {
+  background-color: #1e1914;
+  border-color: #634f3a;
+  outline-color: rgba(212, 175, 55, 0.22);
+  box-shadow:
+    0 6px 22px rgba(0, 0, 0, 0.5),
+    inset 0 0 24px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme="night"] .antique-folio-plate:hover,
+:root[data-theme="night"] .skin-library .lib-plate:hover {
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.65),
+    inset 0 0 28px rgba(0, 0, 0, 0.5);
+}
+
+/* Dangling Vermilion Silk Ribbon Bookmark */
+.ribbon-bookmark {
+  position: absolute;
+  top: -6px;
+  right: 18px;
+  width: 24px;
+  height: 48px;
+  background: linear-gradient(180deg, #d32f2f 0%, #b71c1c 70%, #7f0000 100%);
+  box-shadow: 0 4px 10px rgba(183, 28, 28, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  z-index: 25;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 6px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 9px), 0 100%);
+  pointer-events: none;
+}
+
+.ribbon-bookmark::before {
+  content: '★';
+  font-size: 10px;
+  color: #fff9c4;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* Expeditionary Botanical Telegraph Wire */
+.telegraph-ticker-tape {
+  background-color: #fbf7ee;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 20px,
+    rgba(140, 115, 85, 0.08) 20px,
+    rgba(140, 115, 85, 0.08) 21px
+  );
+  border: 1px dashed rgba(140, 115, 85, 0.45);
+  border-top: 3px double rgba(140, 115, 85, 0.7);
+  border-bottom: 3px double rgba(140, 115, 85, 0.7);
+  position: relative;
+  overflow: hidden;
+}
+
+:root[data-theme="night"] .telegraph-ticker-tape {
+  background-color: #1a1612;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 20px,
+    rgba(212, 175, 55, 0.05) 20px,
+    rgba(212, 175, 55, 0.05) 21px
+  );
+  border-color: rgba(184, 149, 82, 0.35);
+  border-top-color: rgba(212, 175, 55, 0.6);
+  border-bottom-color: rgba(212, 175, 55, 0.6);
+}
+
+/* Circular Ink Cancellation Stamp */
+.ink-cancellation-stamp {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  width: 68px;
+  height: 68px;
+  border: 1.5px solid rgba(175, 45, 35, 0.45);
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(-14deg);
+  pointer-events: none;
+  user-select: none;
+  color: rgba(175, 45, 35, 0.65);
+  text-transform: uppercase;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  box-shadow: inset 0 0 0 1.5px rgba(175, 45, 35, 0.2);
+}
+
+.ink-cancellation-stamp::before {
+  content: 'EXPEDITION';
+  display: block;
+  font-size: 6px;
+  letter-spacing: 0.12em;
+  line-height: 1;
+}
+
+.ink-cancellation-stamp::after {
+  content: 'DISPATCH';
+  display: block;
+  font-size: 6px;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  border-top: 1px dashed rgba(175, 45, 35, 0.35);
+  margin-top: 3px;
+  padding-top: 2px;
+}
+
+:root[data-theme="night"] .ink-cancellation-stamp {
+  border-color: rgba(220, 80, 70, 0.4);
+  color: rgba(220, 80, 70, 0.5);
+  box-shadow: inset 0 0 0 1.5px rgba(220, 80, 70, 0.15);
+}
+
+:root[data-theme="night"] .ink-cancellation-stamp::after {
+  border-top-color: rgba(220, 80, 70, 0.25);
+}
+
+/* Socratic Study Carrel Quiz Slip */
+.study-carrel-slip {
+  background-color: #fdfaf3;
+  border: 2px solid #8c6d46;
+  border-radius: 12px;
+  box-shadow:
+    0 6px 18px rgba(45, 30, 15, 0.1),
+    inset 0 0 28px rgba(140, 109, 70, 0.06);
+  position: relative;
+}
+
+:root[data-theme="night"] .study-carrel-slip {
+  background-color: #1f1913;
+  border-color: #6d5436;
+  box-shadow:
+    0 6px 22px rgba(0, 0, 0, 0.5),
+    inset 0 0 28px rgba(0, 0, 0, 0.4);
+}
+
+/* Brass Thumb-Tack Graphic */
+.brass-thumb-tack {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffffff 0%, #d4af37 40%, #7a5c1e 85%, #4a3810 100%);
+  box-shadow:
+    0 3px 6px rgba(0, 0, 0, 0.35),
+    inset 0 1px 1px rgba(255, 255, 255, 0.8);
+  border: 1px solid #5a4214;
+  z-index: 15;
+}
+
+.brass-thumb-tack::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* ── Arena: The Sun-Drenched Terra Coliseum & Tournament Grounds ── */
+.skin-arena {
+  background-color: #f6efe2;
+  background-image:
+    /* Fine travertine quarry grain */
+    radial-gradient(ellipse at 50% 0%, rgba(212, 160, 90, 0.14) 0%, transparent 60%),
+    /* Travertine ashlar masonry courses */
+    repeating-linear-gradient(0deg, transparent 0 54px, rgba(160, 120, 80, 0.07) 54px 56px),
+    repeating-linear-gradient(90deg, transparent 0 108px, rgba(160, 120, 80, 0.05) 108px 109px),
+    linear-gradient(180deg, #231911 0 320px, #f6efe2 320px);
+  min-height: 100vh;
+}
+
+:root[data-theme="night"] .skin-arena {
+  background-color: #14100c;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(212, 175, 55, 0.09) 0%, transparent 60%),
+    repeating-linear-gradient(0deg, transparent 0 54px, rgba(255, 255, 255, 0.03) 54px 56px),
+    repeating-linear-gradient(90deg, transparent 0 108px, rgba(255, 255, 255, 0.02) 108px 109px),
+    linear-gradient(180deg, #0e0a07 0 320px, #14100c 320px);
+}
+
+.skin-arena .arena-stat {
+  background: linear-gradient(180deg, #2b1e14 0%, #1c140d 100%);
+  border: 1.5px solid #c9a356;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.5),
+    0 4px 14px rgba(25, 16, 9, 0.35);
+  color: #f7ecd5;
+  padding: 1rem 1.5rem;
+  border-radius: 0.75rem;
+}
+
+/* 1. Chiseled Sandstone Travertine Ashlar Masonry */
+.sandstone-coliseum {
+  background-color: #fbf7ee;
+  background-image:
+    linear-gradient(to right, rgba(160, 120, 80, 0.09) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(160, 120, 80, 0.09) 1px, transparent 1px);
+  background-size: 110px 44px;
+  border: 2px solid #cfb895;
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -2px 0 rgba(110, 80, 45, 0.22),
+    0 10px 28px rgba(60, 40, 20, 0.08);
+}
+
+:root[data-theme="night"] .sandstone-coliseum {
+  background-color: #1e1812;
+  background-image:
+    linear-gradient(to right, rgba(212, 175, 55, 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(212, 175, 55, 0.07) 1px, transparent 1px);
+  border-color: #5c472d;
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.5),
+    0 10px 28px rgba(0, 0, 0, 0.5);
+}
+
+.sandstone-bevel {
+  border: 1.5px solid #c4ab84;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.8),
+    inset -1px -1px 0 rgba(90, 60, 30, 0.3);
+}
+
+:root[data-theme="night"] .sandstone-bevel {
+  border-color: #4a3822;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.1),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.6);
+}
+
+.sandstone-banner {
+  background:
+    linear-gradient(to right, rgba(212, 175, 55, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(212, 175, 55, 0.08) 1px, transparent 1px),
+    linear-gradient(180deg, #362618 0%, #22160d 100%);
+  background-size: 110px 44px, 110px 44px, auto;
+  border: 1.5px solid #9e7a46;
+  color: #f7edd8;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 4px 12px rgba(20, 14, 8, 0.25);
+}
+
+:root[data-theme="night"] .sandstone-banner {
+  background:
+    linear-gradient(to right, rgba(212, 175, 55, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(212, 175, 55, 0.06) 1px, transparent 1px),
+    linear-gradient(180deg, #20160d 0%, #120b06 100%);
+  background-size: 110px 44px, 110px 44px, auto;
+  border-color: #5c472d;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.7),
+    0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* 2. Sanded Tournament Paddock */
+.tournament-paddock {
+  background:
+    radial-gradient(ellipse at 50% 50%, #e2aa76 0%, #c98852 45%, #a86733 80%, #824b20 100%);
+  border: 4px solid #7d4e28;
+  box-shadow:
+    inset 0 0 40px rgba(70, 35, 10, 0.45),
+    inset 0 2px 8px rgba(255, 220, 180, 0.35),
+    0 16px 36px rgba(50, 30, 15, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+:root[data-theme="night"] .tournament-paddock {
+  background:
+    radial-gradient(ellipse at 50% 50%, #8a532c 0%, #693b1b 50%, #47240d 85%, #2b1405 100%);
+  border-color: #523117;
+  box-shadow:
+    inset 0 0 45px rgba(0, 0, 0, 0.7),
+    0 16px 36px rgba(0, 0, 0, 0.6);
+}
+
+.tournament-paddock::before {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border: 1.5px dashed rgba(255, 235, 205, 0.35);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.stone-pedestal {
+  background: linear-gradient(180deg, #eae1ce 0%, #cfc0a3 70%, #b8a685 100%);
+  border: 2px solid #948163;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -3px 0 rgba(80, 65, 45, 0.4),
+    0 8px 20px rgba(45, 30, 15, 0.28);
+  border-radius: 1rem;
+}
+
+:root[data-theme="night"] .stone-pedestal {
+  background: linear-gradient(180deg, #30261d 0%, #241c14 70%, #19120c 100%);
+  border-color: #5a4632;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.6),
+    0 8px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* 3. Sunbaked Clay Challenge Tokens */
+.clay-token {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #e67d4d 0%, #c45727 60%, #8f3411 100%);
+  border: 2px solid #732608;
+  box-shadow:
+    inset 0 2px 3px rgba(255, 200, 170, 0.6),
+    inset 0 -2px 4px rgba(60, 15, 5, 0.5),
+    0 4px 10px rgba(60, 20, 10, 0.3);
+  color: #ffeedd;
+  font-family: "Cinzel", "Cormorant Garamond", serif;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  position: relative;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.clay-token.is-pro {
+  background: radial-gradient(circle at 35% 35%, #f7d468 0%, #d4af37 55%, #8f6c14 100%);
+  border-color: #634b07;
+  color: #3b2802;
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 220, 0.8),
+    inset 0 -2px 4px rgba(80, 50, 5, 0.6),
+    0 4px 12px rgba(180, 140, 20, 0.35);
+}
+
+.clay-token.is-spent {
+  background: radial-gradient(circle at 35% 35%, #8c786c 0%, #635147 65%, #42352e 100%);
+  border-color: #342923;
+  color: #aba098;
+  opacity: 0.65;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.15),
+    inset 0 -1px 3px rgba(0, 0, 0, 0.5),
+    0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.clay-token.is-spent::after {
+  content: '';
+  position: absolute;
+  top: 15%;
+  left: 45%;
+  width: 2px;
+  height: 70%;
+  background: linear-gradient(180deg, rgba(30, 20, 15, 0.9) 0%, rgba(20, 12, 8, 0.7) 100%);
+  transform: rotate(24deg);
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+/* 4. Cast Bronze Laurel Medallions */
+.bronze-laurel-medal {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.bronze-laurel-disc {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #f3c27e 0%, #c48738 45%, #8c5218 85%, #5a2e0a 100%);
+  border: 2.5px solid #4a2406;
+  box-shadow:
+    inset 0 2px 4px rgba(255, 240, 200, 0.7),
+    inset 0 -3px 5px rgba(50, 20, 5, 0.7),
+    0 6px 16px rgba(45, 20, 5, 0.35);
+  color: #fff4e0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Cinzel", "Cormorant Garamond", serif;
+  font-weight: 800;
+  font-size: 0.875rem;
+  text-shadow: 0 1px 2px rgba(40, 15, 0, 0.8);
+  position: relative;
+  z-index: 2;
+}
+
+.bronze-laurel-medal.is-sm .bronze-laurel-disc {
+  width: 38px;
+  height: 38px;
+  font-size: 0.75rem;
+  border-width: 2px;
+}
+
+.bronze-laurel-medal.is-lg .bronze-laurel-disc {
+  width: 64px;
+  height: 64px;
+  font-size: 1.25rem;
+  border-width: 3px;
+}
+
+.tournament-pennant {
+  width: 20px;
+  height: 24px;
+  margin-top: -6px;
+  background: linear-gradient(180deg, #99281a 0%, #70160a 100%);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 6px), 0 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+  z-index: 1;
+}
+
+.bronze-laurel-medal.is-sm .tournament-pennant {
+  width: 16px;
+  height: 20px;
+  margin-top: -5px;
+}
+
+.bronze-laurel-medal.is-lg .tournament-pennant {
+  width: 26px;
+  height: 30px;
+  margin-top: -8px;
+}
+
+/* 5. Carved Carrara Marble Honor Roll Tablet */
+.marble-tablet {
+  background-color: #faf9f6;
+  background-image:
+    linear-gradient(125deg, rgba(160, 145, 130, 0.07) 0%, transparent 35%, rgba(180, 165, 150, 0.05) 70%, transparent 100%),
+    repeating-linear-gradient(0deg, transparent 0 32px, rgba(140, 125, 110, 0.035) 32px 33px);
+  border: 2px solid #c2b5a1;
+  border-radius: 1.5rem;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -2px 0 rgba(90, 75, 60, 0.25),
+    0 16px 40px rgba(50, 40, 30, 0.09);
+  position: relative;
+}
+
+:root[data-theme="night"] .marble-tablet {
+  background-color: #1a1713;
+  background-image:
+    linear-gradient(125deg, rgba(255, 255, 255, 0.03) 0%, transparent 35%, rgba(255, 255, 255, 0.02) 70%, transparent 100%),
+    repeating-linear-gradient(0deg, transparent 0 32px, rgba(255, 255, 255, 0.02) 32px 33px);
+  border-color: #4f4233;
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.6),
+    0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.chiseled-numeral {
+  font-family: "Cinzel", "Cormorant Garamond", Georgia, serif;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #785a3a;
+  text-shadow:
+    1px 1px 0 rgba(255, 255, 255, 0.8),
+    -1px -1px 0 rgba(80, 55, 30, 0.35);
+}
+
+:root[data-theme="night"] .chiseled-numeral {
+  color: #d4b27d;
+  text-shadow:
+    1px 1px 0 rgba(0, 0, 0, 0.9),
+    -1px -1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* ── Lab: instrument bench / graph paper ── */
+.skin-lab {
+  background-color: #e8eee8;
+  background-image:
+    linear-gradient(rgba(61, 107, 74, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(61, 107, 74, 0.07) 1px, transparent 1px),
+    linear-gradient(180deg, #d5e2d6 0%, #e8eee8 34%);
+  background-size: 24px 24px, 24px 24px, auto;
+}
+
+:root[data-theme="night"] .skin-lab {
+  background-color: #111613;
+  background-image:
+    linear-gradient(rgba(143, 181, 143, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(143, 181, 143, 0.05) 1px, transparent 1px),
+    linear-gradient(180deg, #0d120f 0%, #111613 34%);
+}
+
+.skin-lab .lab-kicker {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: #3d6b4a;
+  font-family: ui-monospace, monospace;
+}
+
+:root[data-theme="night"] .skin-lab .lab-kicker {
+  color: #8fb58f;
+}
+
+/* 1mm Coordinate Graph Dissection Board */
+.dissection-board {
+  background-color: #f7faf6;
+  background-image:
+    linear-gradient(to right, rgba(61, 107, 74, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(61, 107, 74, 0.08) 1px, transparent 1px),
+    linear-gradient(to right, rgba(61, 107, 74, 0.18) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(61, 107, 74, 0.18) 1px, transparent 1px);
+  background-size: 8px 8px, 8px 8px, 40px 40px, 40px 40px;
+  box-shadow:
+    inset 0 0 0 1px rgba(61, 107, 74, 0.22),
+    0 8px 24px rgba(35, 55, 40, 0.06);
+}
+
+:root[data-theme="night"] .dissection-board {
+  background-color: #131a15;
+  background-image:
+    linear-gradient(to right, rgba(143, 181, 143, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(143, 181, 143, 0.05) 1px, transparent 1px),
+    linear-gradient(to right, rgba(143, 181, 143, 0.14) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(143, 181, 143, 0.14) 1px, transparent 1px);
+  box-shadow:
+    inset 0 0 0 1px rgba(143, 181, 143, 0.18),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Brass Reticle Eyepiece Ring */
+.brass-eyepiece {
+  border: 4px solid #b89552;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35) 0%, rgba(210, 235, 220, 0.1) 40%, rgba(35, 65, 45, 0.15) 80%, rgba(18, 38, 24, 0.35) 100%),
+    linear-gradient(135deg, #e8d39c 0%, #b89552 45%, #7a602f 85%, #caa661 100%);
+  box-shadow:
+    inset 0 2px 5px rgba(255, 255, 255, 0.7),
+    inset 0 -3px 6px rgba(50, 35, 15, 0.5),
+    0 0 0 1px #705524,
+    0 8px 22px rgba(45, 30, 10, 0.22);
+}
+
+:root[data-theme="night"] .brass-eyepiece {
+  border-color: #caa661;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.15) 0%, rgba(40, 75, 55, 0.2) 40%, rgba(15, 30, 20, 0.7) 100%),
+    linear-gradient(135deg, #7a602f 0%, #caa661 50%, #4a3818 100%);
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.3),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.8),
+    0 0 0 1px #8a6c33,
+    0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* Hand-Clipped Botanical Index Card */
+.botanical-index-card {
+  background-color: rgba(253, 251, 247, 0.95);
+  background-image:
+    linear-gradient(135deg, rgba(184, 149, 82, 0.05) 0%, transparent 100%),
+    repeating-linear-gradient(0deg, transparent 0 20px, rgba(180, 165, 140, 0.04) 20px 21px);
+  border: 1px solid rgba(180, 165, 140, 0.35);
+  position: relative;
+  clip-path: polygon(0% 0%, calc(100% - 12px) 0%, 100% 12px, 100% 100%, 0% 100%);
+  box-shadow: 0 2px 8px rgba(40, 30, 20, 0.04);
+}
+
+.botanical-index-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  background: linear-gradient(135deg, transparent 50%, rgba(184, 149, 82, 0.3) 50%);
+  pointer-events: none;
+}
+
+:root[data-theme="night"] .botanical-index-card {
+  background-color: rgba(26, 32, 28, 0.94);
+  background-image:
+    linear-gradient(135deg, rgba(143, 181, 143, 0.05) 0%, transparent 100%),
+    repeating-linear-gradient(0deg, transparent 0 20px, rgba(143, 181, 143, 0.03) 20px 21px);
+  border-color: rgba(143, 181, 143, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+:root[data-theme="night"] .botanical-index-card::after {
+  background: linear-gradient(135deg, transparent 50%, rgba(143, 181, 143, 0.3) 50%);
+}
+
+/* Mounted Glass Specimen Slide */
+.specimen-glass-slide {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(246, 250, 246, 0.78) 100%);
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(8px);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.95),
+    inset -1px -1px 0 rgba(45, 65, 45, 0.08),
+    0 6px 20px rgba(35, 50, 35, 0.07);
+}
+
+:root[data-theme="night"] .specimen-glass-slide {
+  background: linear-gradient(135deg, rgba(28, 36, 31, 0.88) 0%, rgba(19, 25, 21, 0.82) 100%);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.14),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.4),
+    0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+/* Ivory Adhesive Tape Header */
+.ivory-tape-header {
+  background-color: #fbf7ee;
+  border-bottom: 1px dashed rgba(184, 149, 82, 0.4);
+  box-shadow: 0 1px 3px rgba(60, 45, 25, 0.05);
+}
+
+:root[data-theme="night"] .ivory-tape-header {
+  background-color: #272c24;
+  border-bottom: 1px dashed rgba(184, 149, 82, 0.35);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Litmus Paper Moisture Indicator Strip */
+.litmus-paper-track {
+  background: linear-gradient(to right, #d97736 0%, #e3a847 28%, #8fa352 60%, #2d6a4f 100%);
+  border-radius: 9999px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Consult: The Chief Botanist's Study & Telegram Correspondence Desk ── */
+.skin-consult {
+  background-color: #f3efe6;
+  background-image:
+    /* Fine wood desk grain & warm ambient library lamp glow */
+    radial-gradient(ellipse at 50% 0%, rgba(197, 160, 89, 0.12) 0%, transparent 60%),
+    repeating-linear-gradient(0deg, transparent 0 31px, rgba(45, 56, 45, 0.04) 31px 32px),
+    linear-gradient(180deg, #eae3d2 0%, #f4f0e6 45%, #e8e0ce 100%);
+  min-height: 100vh;
+}
+
+:root[data-theme="night"] .skin-consult {
+  background-color: #121613;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(212, 175, 55, 0.08) 0%, transparent 60%),
+    repeating-linear-gradient(0deg, transparent 0 31px, rgba(255, 255, 255, 0.02) 31px 32px),
+    linear-gradient(180deg, #101511 0%, #151c16 45%, #0d120e 100%);
+}
+
+/* 1. Hunter-Green Leather Desk Blotter */
+.desk-blotter {
+  background-color: #1c3324;
+  background-image:
+    radial-gradient(ellipse at 50% 10%, rgba(90, 140, 105, 0.22) 0%, transparent 70%),
+    repeating-linear-gradient(45deg, transparent 0 4px, rgba(0, 0, 0, 0.03) 4px 8px),
+    linear-gradient(180deg, #223c2c 0%, #172a1e 60%, #101e15 100%);
+  border: 3px solid #284432;
+  border-radius: 14px;
+  position: relative;
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.15),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.6),
+    0 16px 48px rgba(10, 24, 15, 0.35),
+    0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Gilded Saddle-Stitched Inset Border */
+.desk-blotter::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border: 1px dashed rgba(212, 175, 55, 0.45);
+  border-radius: 9px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+:root[data-theme="night"] .desk-blotter {
+  background-color: #112016;
+  background-image:
+    radial-gradient(ellipse at 50% 10%, rgba(60, 110, 80, 0.2) 0%, transparent 70%),
+    repeating-linear-gradient(45deg, transparent 0 4px, rgba(0, 0, 0, 0.06) 4px 8px),
+    linear-gradient(180deg, #15271b 0%, #0d1a12 60%, #08110b 100%);
+  border-color: #1c3524;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.06),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.8),
+    0 20px 50px rgba(0, 0, 0, 0.65);
+}
+
+/* Ornate Brass Corner Brackets */
+.tactile-brass-corner {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  z-index: 25;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 35% 35%, #fff1c0 0%, #d4af37 40%, #8c6a1e 80%, #5a4210 100%);
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.45),
+    inset 0 1px 1px rgba(255, 255, 255, 0.7);
+  border: 1px solid #5a4210;
+}
+
+/* Fastened rivet in corner */
+.tactile-brass-corner::after {
+  content: '';
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffffff 0%, #b89535 50%, #4a3408 100%);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+}
+
+.tactile-brass-corner-tl {
+  top: 0;
+  left: 0;
+  border-top-left-radius: 12px;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+.tactile-brass-corner-tl::after {
+  top: 6px;
+  left: 6px;
+}
+
+.tactile-brass-corner-tr {
+  top: 0;
+  right: 0;
+  border-top-right-radius: 12px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+.tactile-brass-corner-tr::after {
+  top: 6px;
+  right: 6px;
+}
+
+.tactile-brass-corner-bl {
+  bottom: 0;
+  left: 0;
+  border-bottom-left-radius: 12px;
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+.tactile-brass-corner-bl::after {
+  bottom: 6px;
+  left: 6px;
+}
+
+.tactile-brass-corner-br {
+  bottom: 0;
+  right: 0;
+  border-bottom-right-radius: 12px;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+.tactile-brass-corner-br::after {
+  bottom: 6px;
+  right: 6px;
+}
+
+/* 2. Folded Vellum Slips (User Message) */
+.vellum-slip {
+  background-color: #faf6ee;
+  background-image:
+    linear-gradient(135deg, rgba(212, 175, 55, 0.08) 0%, transparent 50%),
+    repeating-linear-gradient(0deg, transparent 0 20px, rgba(140, 115, 85, 0.04) 20px 21px);
+  border: 1px solid rgba(170, 140, 100, 0.4);
+  border-radius: 8px 2px 8px 8px;
+  box-shadow:
+    0 3px 10px rgba(35, 25, 15, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  color: #2c2014;
+  position: relative;
+}
+
+:root[data-theme="night"] .vellum-slip {
+  background-color: #231e17;
+  background-image:
+    linear-gradient(135deg, rgba(212, 175, 55, 0.05) 0%, transparent 50%),
+    repeating-linear-gradient(0deg, transparent 0 20px, rgba(255, 255, 255, 0.02) 20px 21px);
+  border-color: rgba(184, 149, 82, 0.3);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #ede2cd;
+}
+
+/* 3. Chief Botanist Observatory Letter */
+.observatory-letter {
+  background-color: #fcf9f2;
+  background-image:
+    /* Fine watermark pattern */
+    radial-gradient(circle at 50% 50%, rgba(90, 125, 90, 0.04) 0%, transparent 65%),
+    repeating-linear-gradient(0deg, transparent 0 28px, rgba(160, 130, 95, 0.06) 28px 29px);
+  border: 1.5px solid #a89476;
+  outline: 1px solid rgba(168, 148, 118, 0.25);
+  outline-offset: -4px;
+  border-radius: 4px;
+  box-shadow:
+    0 4px 16px rgba(30, 20, 10, 0.1),
+    inset 0 0 24px rgba(184, 149, 82, 0.04);
+  position: relative;
+  color: #1e1812;
+}
+
+:root[data-theme="night"] .observatory-letter {
+  background-color: #181d18;
+  background-image:
+    radial-gradient(circle at 50% 50%, rgba(143, 181, 143, 0.04) 0%, transparent 65%),
+    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.02) 28px 29px);
+  border-color: #4a5c4d;
+  outline-color: rgba(143, 181, 143, 0.15);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.5),
+    inset 0 0 24px rgba(0, 0, 0, 0.4);
+  color: #dce5dc;
+}
+
+/* 4. Circular Postal Franking Stamp */
+.tactile-postal-stamp {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 2px dashed rgba(186, 147, 245, 0.85);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(186, 147, 245, 0.3),
+    0 1px 4px rgba(0, 0, 0, 0.25);
+  background: rgba(142, 68, 173, 0.12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(-9deg);
+  pointer-events: none;
+  user-select: none;
+  color: rgba(216, 185, 255, 0.95);
+  text-transform: uppercase;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+  text-align: center;
+  padding: 4px;
+}
+
+@media (min-width: 640px) {
+  .tactile-postal-stamp {
+    width: 78px;
+    height: 78px;
+    font-size: 6.5px;
+  }
+}
+
+:root[data-theme="night"] .tactile-postal-stamp {
+  border-color: rgba(200, 162, 255, 0.85);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(200, 162, 255, 0.3),
+    0 1px 6px rgba(0, 0, 0, 0.5);
+  background: rgba(142, 68, 173, 0.18);
+  color: rgba(230, 210, 255, 0.98);
+}
+
+/* 5. Vintage Brass Telegraph Keys */
+.telegraph-key-send {
+  background: radial-gradient(circle at 35% 30%, #fff0b8 0%, #d4af37 40%, #8c6a1e 85%, #5a4210 100%);
+  border: 2px solid #4a3508;
+  color: #2b1f06;
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.8),
+    inset 0 -2.5px 4px rgba(0, 0, 0, 0.5),
+    0 4px 10px rgba(0, 0, 0, 0.35);
+  transition: all 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
+  font-weight: 800;
+}
+
+.telegraph-key-send:hover:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow:
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.9),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.4),
+    0 6px 14px rgba(212, 175, 55, 0.4);
+}
+
+.telegraph-key-send:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.6),
+    0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.telegraph-key-mic {
+  background: radial-gradient(circle at 35% 30%, #f6e4a8 0%, #c5a044 45%, #7a5a15 90%, #4a3508 100%);
+  border: 1.5px solid #5a4210;
+  color: #382606;
+  border-radius: 10px;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.7),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.45),
+    0 3px 6px rgba(0, 0, 0, 0.25);
+  transition: all 0.15s ease;
+}
+
+.telegraph-key-mic.is-listening {
+  background: radial-gradient(circle at 35% 30%, #ff8a80 0%, #d32f2f 50%, #800f0f 100%);
+  border-color: #590808;
+  color: #fff0f0;
+  box-shadow:
+    0 0 14px rgba(220, 38, 38, 0.6),
+    inset 0 1px 2px rgba(255, 255, 255, 0.5);
+  animation: telegraphPulse 1.2s infinite ease-in-out;
+}
+
+@keyframes telegraphPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* ── Clinic: The Botanical Sanatorium & Herbal Dispensary ── */
+.skin-clinic {
+  background-color: var(--bg-primary, #f6f3eb);
+  background-image:
+    radial-gradient(circle at 12% 8%, rgba(95, 113, 97, 0.12) 0%, transparent 38%),
+    radial-gradient(circle at 88% 82%, rgba(193, 127, 89, 0.08) 0%, transparent 44%),
+    repeating-linear-gradient(0deg, transparent 0 40px, rgba(184, 149, 82, 0.035) 40px 41px),
+    linear-gradient(180deg, #f8f5ee 0%, #ede6d6 100%);
+}
+
+:root[data-theme="night"] .skin-clinic {
+  background-color: #171411;
+  background-image:
+    radial-gradient(circle at 12% 8%, rgba(95, 113, 97, 0.08) 0%, transparent 38%),
+    radial-gradient(circle at 88% 82%, rgba(193, 127, 89, 0.05) 0%, transparent 44%),
+    repeating-linear-gradient(0deg, transparent 0 40px, rgba(212, 175, 55, 0.025) 40px 41px),
+    linear-gradient(180deg, #181512 0%, #110e0c 100%);
+}
+
+/* Masonite Triage Clipboard */
+.masonite-clipboard {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(210, 170, 130, 0.16) 0%, transparent 65%),
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(80, 50, 25, 0.025) 2px 4px),
+    repeating-linear-gradient(90deg, transparent 0 3px, rgba(80, 50, 25, 0.02) 3px 6px),
+    linear-gradient(180deg, #d2b38c 0%, #bf9e74 38%, #ab8b62 100%);
+  border: 4px solid #7d5934;
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.45),
+    inset 0 -3px 6px rgba(45, 28, 14, 0.4),
+    0 16px 36px rgba(35, 22, 12, 0.2);
+  position: relative;
+}
+
+:root[data-theme="night"] .masonite-clipboard {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(200, 160, 120, 0.08) 0%, transparent 65%),
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(0, 0, 0, 0.16) 2px 4px),
+    repeating-linear-gradient(90deg, transparent 0 3px, rgba(0, 0, 0, 0.12) 3px 6px),
+    linear-gradient(180deg, #2b2118 0%, #201812 40%, #17110c 100%);
+  border-color: #543c26;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.07),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.7),
+    0 16px 36px rgba(0, 0, 0, 0.55);
+}
+
+.tactile-clipboard-clip {
+  width: 150px;
+  height: 38px;
+  margin: 0 auto -19px auto;
+  position: relative;
+  z-index: 25;
+  background: linear-gradient(180deg, #e2e8f0 0%, #a0aec0 30%, #64748b 70%, #334155 100%);
+  border: 1.5px solid #1e293b;
+  border-radius: 6px 6px 3px 3px;
+  box-shadow:
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.85),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.6),
+    0 6px 14px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+}
+
+.tactile-clipboard-clip::before,
+.tactile-clipboard-clip::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffffff 0%, #94a3b8 50%, #1e293b 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.6),
+    0 1px 2px rgba(0, 0, 0, 0.6);
+  border: 1px solid #0f172a;
+}
+
+/* Apothecary Prescription (℞) Slip */
+.apothecary-rx-slip {
+  background-color: #fdfbf7;
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 24px, rgba(184, 149, 82, 0.055) 24px 25px);
+  border: 1px solid rgba(184, 149, 82, 0.35);
+  border-top: 2.5px dashed rgba(184, 149, 82, 0.65);
+  box-shadow:
+    0 4px 14px rgba(60, 45, 25, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  position: relative;
+  overflow: hidden;
+}
+
+:root[data-theme="night"] .apothecary-rx-slip {
+  background-color: #1e1b16;
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 24px, rgba(212, 175, 55, 0.035) 24px 25px);
+  border-color: rgba(184, 149, 82, 0.28);
+  border-top: 2.5px dashed rgba(212, 175, 55, 0.45);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.apothecary-rx-slip::after {
+  content: '℞';
+  position: absolute;
+  right: 14px;
+  bottom: 6px;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 5.5rem;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(184, 149, 82, 0.12);
+  pointer-events: none;
+  user-select: none;
+}
+
+:root[data-theme="night"] .apothecary-rx-slip::after {
+  color: rgba(212, 175, 55, 0.09);
+}
+
+/* Hazard Quarantine Ribbon */
+.quarantine-ribbon {
+  transform: rotate(-2deg);
+  background: repeating-linear-gradient(
+    -45deg,
+    #dc2626 0px,
+    #dc2626 16px,
+    #18181b 16px,
+    #18181b 32px
+  );
+  color: #fff1f2;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+  box-shadow:
+    0 6px 16px rgba(220, 38, 38, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.35);
+  border-top: 2px solid #ef4444;
+  border-bottom: 2px solid #ef4444;
+  user-select: none;
+}
+
+/* Antique Brass Balance Scale Component Styles */
+.brass-scale-gauge {
+  background: radial-gradient(circle at 50% 25%, #fcf8ec 0%, #f4ebd2 65%, #e2d1a8 100%);
+  border: 2px solid #b89542;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.9),
+    inset 0 -1.5px 3px rgba(80, 55, 20, 0.3),
+    0 4px 12px rgba(45, 30, 15, 0.12);
+}
+
+:root[data-theme="night"] .brass-scale-gauge {
+  background: radial-gradient(circle at 50% 25%, #262016 0%, #1c1810 65%, #15110a 100%);
+  border-color: #caa651;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.1),
+    inset 0 -1.5px 3px rgba(0, 0, 0, 0.7),
+    0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+
+/* ── Vault: The Royal Specimen Herbarium & Hermetic Climate Terrarium ── */
+.skin-vault {
+  background:
+    radial-gradient(ellipse at 85% 0%, rgba(196, 160, 53, 0.14), transparent 45%),
+    radial-gradient(circle at 10% 90%, rgba(61, 107, 74, 0.09), transparent 40%),
+    linear-gradient(180deg, #f8f3e8 0%, #eee4cf 100%);
+}
+
+:root[data-theme="night"] .skin-vault {
+  background:
+    radial-gradient(ellipse at 85% 0%, rgba(196, 160, 53, 0.08), transparent 45%),
+    radial-gradient(circle at 10% 90%, rgba(90, 125, 90, 0.06), transparent 40%),
+    linear-gradient(180deg, #181410 0%, #100d0a 100%);
+}
+
+/* Walnut Card-Catalog Drawer Pulls */
+.walnut-drawer {
+  background: linear-gradient(180deg, #3d271a 0%, #26170e 100%);
+  border: 1.5px solid #523724;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.5),
+    0 4px 12px rgba(20, 12, 7, 0.22);
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  position: relative;
+}
+
+.walnut-drawer.is-active {
+  border-color: #cda85c;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.6),
+    0 8px 22px rgba(184, 149, 82, 0.28),
+    0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.walnut-drawer.is-done {
+  border-color: rgba(90, 125, 90, 0.6);
+}
+
+.brass-label-holder {
+  background: linear-gradient(135deg, #e3c166 0%, #b89535 50%, #7d6118 100%);
+  border: 1px solid #634b0f;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.5),
+    0 2px 4px rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+  padding: 3px 5px;
+}
+
+.brass-label-card {
+  background: #fbf7ec;
+  color: #2b1f14;
+  border: 1px solid rgba(140, 110, 80, 0.35);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.brass-cup-pull {
+  width: 24px;
+  height: 6px;
+  margin: 0 auto;
+  background: linear-gradient(180deg, #e0bd60 0%, #9e7b25 100%);
+  border-radius: 0 0 12px 12px;
+  box-shadow:
+    inset 0 -1px 2px rgba(0, 0, 0, 0.5),
+    0 2px 3px rgba(0, 0, 0, 0.4);
+  border: 1px solid #634b0f;
+  border-top: none;
+}
+
+/* Ruled Naturalist Ledger Blotter */
+.ruled-ledger-blotter {
+  background-color: #fcf9f2;
+  background-image:
+    linear-gradient(to right, rgba(193, 127, 89, 0.35) 0px, rgba(193, 127, 89, 0.35) 1.5px, transparent 1.5px),
+    repeating-linear-gradient(0deg, transparent 0 27px, rgba(160, 130, 95, 0.12) 27px 28px);
+  background-position: 40px 0, 0 0;
+  border: 1px solid rgba(150, 120, 85, 0.32);
+  box-shadow:
+    inset 0 0 32px rgba(180, 140, 90, 0.08),
+    0 12px 32px rgba(40, 28, 15, 0.08);
+}
+
+:root[data-theme="night"] .ruled-ledger-blotter {
+  background-color: #1e1a15;
+  background-image:
+    linear-gradient(to right, rgba(193, 127, 89, 0.25) 0px, rgba(193, 127, 89, 0.25) 1.5px, transparent 1.5px),
+    repeating-linear-gradient(0deg, transparent 0 27px, rgba(255, 255, 255, 0.035) 27px 28px);
+  background-position: 40px 0, 0 0;
+  border-color: rgba(184, 149, 82, 0.25);
+  box-shadow:
+    inset 0 0 32px rgba(0, 0, 0, 0.3),
+    0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.copperplate-script {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  letter-spacing: 0.02em;
+}
+
+/* Hermetic Terrarium Climate Dials */
+.hermetic-climate-dial {
+  background: radial-gradient(circle at 45% 35%, #fffdf8 0%, #f4edd9 70%, #dfd3b7 100%);
+  border: 2px solid #b89535;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.9),
+    inset 0 -1px 3px rgba(70, 50, 20, 0.25),
+    0 2px 8px rgba(35, 25, 12, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+:root[data-theme="night"] .hermetic-climate-dial {
+  background: radial-gradient(circle at 45% 35%, #252019 0%, #1c1813 70%, #15110d 100%);
+  border-color: #b89535;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.1),
+    inset 0 -1px 3px rgba(0, 0, 0, 0.6),
+    0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.dial-stamped-ticks {
+  background-image: repeating-linear-gradient(90deg, rgba(120, 90, 45, 0.35) 0 1px, transparent 1px 5px);
+  height: 4px;
+  width: 100%;
+}
+
+:root[data-theme="night"] .dial-stamped-ticks {
+  background-image: repeating-linear-gradient(90deg, rgba(212, 175, 55, 0.3) 0 1px, transparent 1px 5px);
+}
+
+:root[data-theme="night"] .brass-label-card {
+  background: #2b2319;
+  color: #f4edd9;
+  border-color: rgba(184, 149, 82, 0.4);
+}
+
+/* Royal Survivability Deed & 3D Wax Seal */
+.royal-parchment-deed {
+  background: #fcf8ee;
+  color: #241c14;
+  border: 2px solid #8c7355;
+  outline: 1px dashed rgba(140, 115, 85, 0.45);
+  outline-offset: -7px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.5),
+    inset 0 0 36px rgba(184, 149, 82, 0.1),
+    0 24px 60px rgba(35, 24, 14, 0.18);
+  position: relative;
+}
+
+/* Deckled feathered border accents */
+.deckled-border {
+  position: relative;
+}
+
+.deckled-border::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 2px dotted rgba(140, 115, 85, 0.35);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+:root[data-theme="night"] .deckled-border::after {
+  border-color: rgba(184, 149, 82, 0.3);
+}
+
+:root[data-theme="night"] .royal-parchment-deed {
+  background: #1c1813;
+  color: #ede3cc;
+  border-color: #8c7355;
+  outline-color: rgba(184, 149, 82, 0.3);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 0 36px rgba(0, 0, 0, 0.5),
+    0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.tactile-wax-seal {
+  background: radial-gradient(circle at 35% 30%, #cb3224 0%, #a21c12 55%, #6a0e07 100%);
+  border-radius: 48% 52% 51% 49% / 52% 49% 51% 48%;
+  box-shadow:
+    inset 0 3px 6px rgba(255, 140, 120, 0.45),
+    inset 0 -4px 8px rgba(40, 0, 0, 0.7),
+    0 8px 24px rgba(110, 18, 12, 0.38),
+    0 2px 4px rgba(0, 0, 0, 0.25);
+  border: 3px solid #82140c;
+  color: #fff1ee;
+  text-shadow: -1px -1px 1px rgba(0, 0, 0, 0.6), 1px 1px 1px rgba(255, 120, 100, 0.4);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.tactile-wax-seal::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(255, 210, 200, 0.35);
+  pointer-events: none;
+}
+
+.sepia-accession-mark {
+  border: 2px dashed rgba(140, 85, 45, 0.75);
+  border-radius: 6px;
+  color: #8c552d;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: rgba(140, 85, 45, 0.05);
+  box-shadow: inset 0 0 6px rgba(140, 85, 45, 0.06);
+}
+
+:root[data-theme="night"] .sepia-accession-mark {
+  border-color: rgba(212, 160, 90, 0.65);
+  color: #dfad6c;
+  background: rgba(212, 160, 90, 0.06);
+}
+
+/* ── Identity / profile: The Guild Master's Field Passport & Fellowship Ledger ── */
+.skin-identity {
+  background-color: #f2ece1;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(197, 160, 89, 0.12) 0%, transparent 70%),
+    repeating-linear-gradient(45deg, transparent 0 24px, rgba(90, 70, 45, 0.02) 24px 25px),
+    repeating-linear-gradient(-45deg, transparent 0 24px, rgba(90, 70, 45, 0.02) 24px 25px),
+    linear-gradient(180deg, #ede6d6 0%, #f7f3ea 40%, #eee6d8 100%);
+  color: #2b2118;
+}
+
+:root[data-theme="night"] .skin-identity {
+  background-color: #15120e;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(212, 175, 55, 0.08) 0%, transparent 70%),
+    repeating-linear-gradient(45deg, transparent 0 24px, rgba(255, 255, 255, 0.015) 24px 25px),
+    repeating-linear-gradient(-45deg, transparent 0 24px, rgba(255, 255, 255, 0.015) 24px 25px),
+    linear-gradient(180deg, #181410 0%, #120f0c 40%, #16120e 100%);
+  color: #ede2cf;
+}
+
+/* Passport buckram booklet cover */
+.passport-buckram-booklet {
+  background-color: #1c2b20;
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(0, 0, 0, 0.15) 2px 3px),
+    repeating-linear-gradient(90deg, transparent 0 2px, rgba(0, 0, 0, 0.15) 2px 3px),
+    radial-gradient(circle at 50% 10%, rgba(212, 175, 55, 0.15), transparent 75%),
+    linear-gradient(180deg, #223628 0%, #18261c 100%);
+  border: 2px solid #3c5440;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.15),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.6),
+    0 16px 36px rgba(15, 22, 17, 0.35);
+  position: relative;
+}
+
+:root[data-theme="night"] .passport-buckram-booklet {
+  background-color: #141f17;
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(0, 0, 0, 0.25) 2px 3px),
+    repeating-linear-gradient(90deg, transparent 0 2px, rgba(0, 0, 0, 0.25) 2px 3px),
+    radial-gradient(circle at 50% 10%, rgba(212, 175, 55, 0.12), transparent 75%),
+    linear-gradient(180deg, #1b281f 0%, #0e1610 100%);
+  border-color: #2c3e30;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.08),
+    0 18px 40px rgba(0, 0, 0, 0.7);
+}
+
+/* Stitched thread border */
+.passport-stitch-border {
+  border: 2px dashed rgba(212, 175, 55, 0.45);
+  box-shadow: inset 0 0 0 4px rgba(0, 0, 0, 0.15);
+}
+
+/* Passport cloth spine tape */
+.passport-spine-tape {
+  background: linear-gradient(90deg, #121b14 0%, #293d2e 30%, #152219 100%);
+  border-right: 2px solid rgba(212, 175, 55, 0.3);
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.4);
+}
+
+/* Debossed gold foil insignia & headers */
+.gold-foil-debossed {
+  color: #dfbe76;
+  text-shadow:
+    0 1px 1px rgba(255, 255, 255, 0.25),
+    0 -1px 2px rgba(0, 0, 0, 0.85);
+  letter-spacing: 0.15em;
+}
+
+/* Passport visa page / foliation */
+.passport-visa-folio {
+  background-color: #faf6ec;
+  background-image:
+    repeating-linear-gradient(45deg, transparent 0 8px, rgba(197, 160, 89, 0.04) 8px 9px),
+    repeating-linear-gradient(-45deg, transparent 0 8px, rgba(197, 160, 89, 0.04) 8px 9px),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.7) 0%, transparent 80%),
+    linear-gradient(180deg, #fbf7ee 0%, #f5eee0 100%);
+  border: 1.5px solid #dcd1be;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.8),
+    inset 0 0 20px rgba(140, 110, 75, 0.06),
+    0 10px 24px rgba(45, 35, 25, 0.08);
+}
+
+:root[data-theme="night"] .passport-visa-folio {
+  background-color: #1e1914;
+  background-image:
+    repeating-linear-gradient(45deg, transparent 0 8px, rgba(212, 175, 55, 0.03) 8px 9px),
+    repeating-linear-gradient(-45deg, transparent 0 8px, rgba(212, 175, 55, 0.03) 8px 9px),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.02) 0%, transparent 80%),
+    linear-gradient(180deg, #211c16 0%, #191410 100%);
+  border-color: #3d3326;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 10px 28px rgba(0, 0, 0, 0.55);
+}
+
+/* Security guilloche border frame */
+.guilloche-frame {
+  border: 1px solid rgba(197, 160, 89, 0.4);
+  box-shadow: inset 0 0 0 3px rgba(197, 160, 89, 0.1);
+}
+
+/* Tintype member locket: oval brass portrait mount */
+.tintype-locket {
+  position: relative;
+  width: 130px;
+  height: 156px;
+  border-radius: 50% / 46%;
+  background: radial-gradient(circle at 35% 30%, #fff4cf 0%, #c59f48 55%, #6a4f1d 100%);
+  padding: 6px;
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.8),
+    inset 0 -3px 6px rgba(50, 35, 10, 0.8),
+    0 8px 20px rgba(35, 25, 15, 0.3);
+}
+
+:root[data-theme="night"] .tintype-locket {
+  background: radial-gradient(circle at 35% 30%, #e0be6c 0%, #9e7a2b 55%, #3d2b0e 100%);
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.4),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.9),
+    0 8px 24px rgba(0, 0, 0, 0.65);
+}
+
+.tintype-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50% / 46%;
+  overflow: hidden;
+  background: #251b14;
+  border: 2px solid rgba(70, 48, 20, 0.6);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.85);
+  position: relative;
+}
+
+.tintype-inner img {
+  filter: sepia(0.22) contrast(1.08) brightness(0.96);
+}
+
+.tintype-hinge {
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 9px;
+  background: linear-gradient(180deg, #faecd0 0%, #b89242 70%, #684a16 100%);
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* Inked consular visa stamps */
+.consular-visa-stamp {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 2px dashed #8b2500;
+  border-radius: 50%;
+  color: #8b2500;
+  background: rgba(139, 37, 0, 0.04);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  text-transform: uppercase;
+  font-weight: 800;
+  line-height: 1.1;
+  padding: 8px;
+  user-select: none;
+  box-shadow: inset 0 0 0 2px rgba(139, 37, 0, 0.15);
+}
+
+.consular-visa-stamp.indigo-stamp {
+  border-color: #1e3a5f;
+  color: #1e3a5f;
+  background: rgba(30, 58, 95, 0.04);
+  box-shadow: inset 0 0 0 2px rgba(30, 58, 95, 0.15);
+}
+
+.consular-visa-stamp.forest-stamp {
+  border-color: #244b2f;
+  color: #244b2f;
+  background: rgba(36, 75, 47, 0.04);
+  box-shadow: inset 0 0 0 2px rgba(36, 75, 47, 0.15);
+}
+
+:root[data-theme="night"] .consular-visa-stamp {
+  border-color: #d15632;
+  color: #ff7d58;
+  background: rgba(209, 86, 50, 0.08);
+  box-shadow: inset 0 0 0 2px rgba(209, 86, 50, 0.2);
+}
+
+:root[data-theme="night"] .consular-visa-stamp.indigo-stamp {
+  border-color: #5c8fc7;
+  color: #82b5ed;
+  background: rgba(92, 143, 199, 0.08);
+  box-shadow: inset 0 0 0 2px rgba(92, 143, 199, 0.2);
+}
+
+:root[data-theme="night"] .consular-visa-stamp.forest-stamp {
+  border-color: #569e6b;
+  color: #79cb91;
+  background: rgba(86, 158, 107, 0.08);
+  box-shadow: inset 0 0 0 2px rgba(86, 158, 107, 0.2);
+}
+
+/* Frank stamp (circular consular verification seal) */
+.frank-stamp {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1.5px solid currentColor;
+  box-shadow: inset 0 0 0 1.5px rgba(0,0,0,0.06);
+  letter-spacing: 0.12em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Engraved copper credentials plate */
+.copper-plate {
+  background: linear-gradient(135deg, #e38a55 0%, #b86235 45%, #7e3b18 100%);
+  border: 1.5px solid #ffaa75;
+  color: #3b1706;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.6),
+    inset 0 -2px 4px rgba(50, 20, 5, 0.5),
+    0 8px 20px rgba(50, 20, 8, 0.22);
+  position: relative;
+}
+
+:root[data-theme="night"] .copper-plate {
+  background: linear-gradient(135deg, #b06232 0%, #87411a 45%, #52230a 100%);
+  border-color: #d47e4b;
+  color: #ffdeb8;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.25),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.7),
+    0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.copper-rivet {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff 0%, #c49a45 60%, #4a3410 100%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* Consular seal / distinction badge */
+.consular-seal-badge {
+  position: relative;
+  background: radial-gradient(circle at 45% 40%, #ffffff 0%, #f4eee2 60%, #e8dcc8 100%);
+  border: 2px solid #bba37b;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.9),
+    inset 0 0 10px rgba(140, 110, 75, 0.12),
+    0 6px 16px rgba(45, 35, 25, 0.08);
+}
+
+.consular-seal-badge.is-active {
+  border-color: #c5a059;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 1),
+    inset 0 0 12px rgba(197, 160, 89, 0.2),
+    0 8px 20px rgba(197, 160, 89, 0.25);
+}
+
+:root[data-theme="night"] .consular-seal-badge {
+  background: radial-gradient(circle at 45% 40%, #28221b 0%, #1c1712 60%, #15110d 100%);
+  border-color: #4a3c2c;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.06),
+    0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme="night"] .consular-seal-badge.is-active {
+  border-color: #d4af37;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.12),
+    inset 0 0 12px rgba(212, 175, 55, 0.15),
+    0 8px 22px rgba(0, 0, 0, 0.6);
+}
+
+/* Consular activity ledger & seed treasury */
+.seed-treasury-ledger {
+  background-color: #fdfbf7;
+  background-image:
+    repeating-linear-gradient(180deg, transparent 0 31px, rgba(140, 110, 80, 0.08) 31px 32px);
+  border: 1.5px solid #d8cbba;
+}
+
+:root[data-theme="night"] .seed-treasury-ledger {
+  background-color: #1a1612;
+  background-image:
+    repeating-linear-gradient(180deg, transparent 0 31px, rgba(255, 255, 255, 0.03) 31px 32px);
+  border-color: #3b3024;
+}
+
+/* Antique brass mechanical toggle */
+.passport-toggle-switch {
+  width: 44px;
+  height: 24px;
+  background: #d4c8b6;
+  border-radius: 9999px;
+  border: 1.5px solid #a89a84;
+  position: relative;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.passport-toggle-switch.is-on {
+  background: linear-gradient(90deg, #3d6844 0%, #528c5c 100%);
+  border-color: #2a4c30;
+}
+
+.passport-toggle-nub {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff 0%, #e0c890 60%, #856a2e 100%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s ease;
+}
+
+.passport-toggle-switch.is-on .passport-toggle-nub {
+  transform: translateX(20px);
+}
+
+/* ── Shop: greenhouse glass (not the bazaar) ── */
+.skin-exchange {
+  background:
+    linear-gradient(90deg, rgba(90, 125, 90, 0.08) 0 12%, transparent 12%),
+    linear-gradient(180deg, #c5d9c4 0%, #eef5ee 28%, #f7f4ee 100%);
+}
+
+/* ── Specimen / plant detail: The Expeditionary Specimen Field Dossier ── */
+.skin-specimen {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(42, 31, 22, 0.92) 0%, rgba(26, 19, 13, 0.98) 180px, transparent 181px),
+    linear-gradient(180deg, #231a12 0 160px, #f4eee3 160px);
+}
+
+:root[data-theme="night"] .skin-specimen {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(15, 12, 9, 0.98) 0%, rgba(10, 8, 6, 1) 180px, transparent 181px),
+    linear-gradient(180deg, #120e0a 0 160px, #16120e 160px);
+}
+
+.dossier-binder-cover {
+  background-color: #faf5eb;
+  background-image:
+    repeating-linear-gradient(90deg, transparent 0 32px, rgba(140, 110, 80, 0.02) 32px 33px),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.6), transparent 80%);
+  border: 2px solid #d4c5ab;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 0 16px rgba(120, 95, 65, 0.05),
+    0 16px 40px rgba(35, 25, 15, 0.12);
+}
+
+:root[data-theme="night"] .dossier-binder-cover {
+  background-color: #1a1612;
+  background-image:
+    repeating-linear-gradient(90deg, transparent 0 32px, rgba(255, 255, 255, 0.015) 32px 33px),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.02), transparent 80%);
+  border-color: #3d3225;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.dossier-prong {
+  background: linear-gradient(180deg, #d8bc78 0%, #b89750 45%, #8f7234 100%);
+  border-radius: 9999px;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.6),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.4),
+    0 2px 5px rgba(0, 0, 0, 0.25);
+  position: relative;
+}
+
+.dossier-prong::after {
+  content: '';
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  background: #4a3818;
+  border-radius: 50%;
+  top: 50%;
+  transform: translateY(-50%);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.8), 0 0.5px 0.5px rgba(255, 255, 255, 0.3);
+}
+
+.dossier-prong-left::after {
+  left: 6px;
+}
+
+.dossier-prong-right::after {
+  right: 6px;
+}
+
+.dossier-tab-button {
+  background: #ede3ce;
+  border: 1.5px solid #cbb898;
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
+  color: #6a573e;
+  font-weight: 800;
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+  position: relative;
+}
+
+.dossier-tab-button.active {
+  background: #faf5eb;
+  color: #2b1f14;
+  border-color: #b8a27e;
+  border-bottom: 2px solid #faf5eb;
+  margin-bottom: -2px;
+  z-index: 10;
+  box-shadow: 0 -3px 8px rgba(50, 35, 20, 0.06);
+}
+
+:root[data-theme="night"] .dossier-tab-button {
+  background: #241d16;
+  border-color: #382c20;
+  color: #9d8870;
+}
+
+:root[data-theme="night"] .dossier-tab-button.active {
+  background: #1a1612;
+  color: #ede2cf;
+  border-color: #55422e;
+  border-bottom: 2px solid #1a1612;
+}
+
+.dossier-specimen-mat {
+  background: #fdfbf7;
+  border: 4px solid #ebe2d0;
+  box-shadow:
+    inset 0 0 0 1px rgba(160, 130, 95, 0.2),
+    0 10px 28px rgba(35, 25, 15, 0.15);
+  position: relative;
+}
+
+:root[data-theme="night"] .dossier-specimen-mat {
+  background: #16120e;
+  border-color: #2e2419;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 10px 28px rgba(0, 0, 0, 0.5);
+}
+
+.photo-corner-mount {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-color: #5a4531;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.photo-corner-mount-tl {
+  top: 8px;
+  left: 8px;
+  border-top: 4px solid #5a4531;
+  border-left: 4px solid #5a4531;
+}
+
+.photo-corner-mount-tr {
+  top: 8px;
+  right: 8px;
+  border-top: 4px solid #5a4531;
+  border-right: 4px solid #5a4531;
+}
+
+.photo-corner-mount-bl {
+  bottom: 8px;
+  left: 8px;
+  border-bottom: 4px solid #5a4531;
+  border-left: 4px solid #5a4531;
+}
+
+.photo-corner-mount-br {
+  bottom: 8px;
+  right: 8px;
+  border-bottom: 4px solid #5a4531;
+  border-right: 4px solid #5a4531;
+}
+
+.dossier-notebook-ruled {
+  background-color: #fdfbf7;
+  background-image:
+    repeating-linear-gradient(180deg, transparent 0 27px, rgba(140, 110, 80, 0.08) 27px 28px),
+    linear-gradient(90deg, transparent 0 60px, rgba(200, 70, 70, 0.15) 60px, transparent 62px);
+  border: 1.5px solid #d4c7b2;
+}
+
+:root[data-theme="night"] .dossier-notebook-ruled {
+  background-color: #181410;
+  background-image:
+    repeating-linear-gradient(180deg, transparent 0 27px, rgba(255, 255, 255, 0.03) 27px 28px),
+    linear-gradient(90deg, transparent 0 60px, rgba(220, 90, 90, 0.15) 60px, transparent 62px);
+  border-color: #382c20;
+}
+
+.archetype-stamp {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 900;
+  font-size: 9px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.archetype-stamp.is-observation {
+  background: rgba(30, 90, 160, 0.08);
+  border: 1.5px solid rgba(30, 90, 160, 0.6);
+  color: #1e5aa0;
+}
+
+:root[data-theme="night"] .archetype-stamp.is-observation {
+  background: rgba(70, 140, 220, 0.1);
+  border-color: rgba(90, 160, 240, 0.6);
+  color: #70b0ff;
+}
+
+.archetype-stamp.is-action {
+  background: rgba(180, 85, 30, 0.08);
+  border: 1.5px solid rgba(180, 85, 30, 0.6);
+  color: #b4551e;
+}
+
+:root[data-theme="night"] .archetype-stamp.is-action {
+  background: rgba(230, 115, 50, 0.1);
+  border-color: rgba(230, 115, 50, 0.6);
+  color: #f09560;
+}
+
+.archetype-stamp.is-milestone {
+  background: rgba(120, 50, 160, 0.08);
+  border: 1.5px solid rgba(120, 50, 160, 0.6);
+  color: #7832a0;
+}
+
+:root[data-theme="night"] .archetype-stamp.is-milestone {
+  background: rgba(180, 90, 230, 0.1);
+  border-color: rgba(180, 90, 230, 0.6);
+  color: #d090ff;
+}
+
+/* ── Lineage: The Royal Genealogist's Family Tree Scroll ── */
+.skin-lineage {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(212, 175, 55, 0.25) 0%, transparent 60%),
+    repeating-linear-gradient(90deg, transparent 0 48px, rgba(140, 110, 80, 0.02) 48px 49px),
+    #f3e9d2;
+}
+
+:root[data-theme="night"] .skin-lineage {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(212, 160, 60, 0.12) 0%, transparent 60%),
+    repeating-linear-gradient(90deg, transparent 0 48px, rgba(255, 255, 255, 0.015) 48px 49px),
+    #18130e;
+}
+
+.royal-lineage-scroll {
+  background-color: #faf5ea;
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 32px, rgba(140, 110, 70, 0.02) 32px 33px),
+    radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.7), transparent 75%);
+  border: 2px solid #d5c4a7;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 30px rgba(130, 95, 55, 0.06),
+    0 20px 60px rgba(35, 22, 10, 0.15);
+  position: relative;
+}
+
+:root[data-theme="night"] .royal-lineage-scroll {
+  background-color: #1e1813;
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 32px, rgba(255, 255, 255, 0.015) 32px 33px),
+    radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.02), transparent 75%);
+  border-color: #423425;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.spindle-dowel {
+  height: 18px;
+  background: linear-gradient(180deg, #6e4e32 0%, #442f1d 50%, #281b10 100%);
+  border-radius: 9px;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.35),
+    inset 0 1px 1px rgba(255, 255, 255, 0.25),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.6);
+  position: relative;
+}
+
+.spindle-dowel::before,
+.spindle-dowel::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  width: 14px;
+  height: 24px;
+  background: linear-gradient(180deg, #f0d68a 0%, #c5a059 50%, #7e5e26 100%);
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.spindle-dowel::before {
+  left: -8px;
+}
+
+.spindle-dowel::after {
+  right: -8px;
+}
+
+.lineage-cartouche {
+  background: #fdfbf7;
+  border: 2px solid #c9b491;
+  border-radius: 1.5rem;
+  box-shadow:
+    inset 0 0 0 1px rgba(197, 160, 89, 0.25),
+    0 8px 24px rgba(45, 30, 15, 0.08);
+  position: relative;
+}
+
+:root[data-theme="night"] .lineage-cartouche {
+  background: #17130f;
+  border-color: #4e3d2a;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.lineage-pedestal {
+  background: linear-gradient(180deg, #faf5eb 0%, #f0e4cf 100%);
+  border: 2px solid #c5a059;
+  border-radius: 2rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 12px 32px rgba(45, 30, 15, 0.12);
+}
+
+:root[data-theme="night"] .lineage-pedestal {
+  background: linear-gradient(180deg, #241c15 0%, #1a140e 100%);
+  border-color: #8c6e38;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 16px 36px rgba(0, 0, 0, 0.6);
+}
+
+/* ── Gatekeeper Guest Ledger (Auth.tsx) ── */
+.skin-gatekeeper {
+  background:
+    radial-gradient(ellipse at 50% 15%, rgba(197, 160, 89, 0.18), transparent 60%),
+    radial-gradient(circle at 10% 85%, rgba(46, 74, 52, 0.12), transparent 45%),
+    linear-gradient(180deg, #faf6ee 0%, #f4eee1 100%);
+  color: #2b2118;
+}
+
+:root[data-theme="night"] .skin-gatekeeper {
+  background:
+    radial-gradient(ellipse at 50% 15%, rgba(197, 160, 89, 0.1), transparent 60%),
+    radial-gradient(circle at 10% 85%, rgba(46, 74, 52, 0.15), transparent 45%),
+    linear-gradient(180deg, #181411 0%, #100d0b 100%);
+  color: #ede2d5;
+}
+
+.gatekeeper-ledger {
+  background: #fdfbf7;
+  border: 3px solid #5a3d28;
+  border-radius: 1.5rem;
+  box-shadow:
+    inset 0 0 0 1px rgba(197, 160, 89, 0.35),
+    0 16px 40px rgba(45, 30, 15, 0.15);
+  position: relative;
+}
+
+:root[data-theme="night"] .gatekeeper-ledger {
+  background: #191410;
+  border-color: #3b281a;
+  box-shadow:
+    inset 0 0 0 1px rgba(197, 160, 89, 0.2),
+    0 20px 48px rgba(0, 0, 0, 0.6);
+}
+
+.guest-ledger-input {
+  background: #faf6ee;
+  border: 1.5px solid #dcd2c0;
+  color: #2b2118;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  box-shadow: inset 0 2px 4px rgba(45, 30, 15, 0.05);
+  transition: all 0.2s ease-in-out;
+}
+
+.guest-ledger-input:focus {
+  background: #ffffff;
+  border-color: #2e4a34;
+  box-shadow:
+    inset 0 1px 3px rgba(45, 30, 15, 0.06),
+    0 0 0 3px rgba(46, 74, 52, 0.15);
+  outline: none;
+}
+
+:root[data-theme="night"] .guest-ledger-input {
+  background: #241c16;
+  border-color: #4a3828;
+  color: #ede2d5;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme="night"] .guest-ledger-input:focus {
+  background: #2b221b;
+  border-color: #8c6e38;
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.5),
+    0 0 0 3px rgba(197, 160, 89, 0.2);
+}
+
+.ledger-seal-button {
+  background: linear-gradient(135deg, #2e4a34 0%, #1c3322 100%);
+  border: 1px solid #c5a059;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 8px 20px rgba(28, 51, 34, 0.25);
+  color: #fdfbf7;
+}
+
+.ledger-seal-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #37583f 0%, #223f2a 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 10px 24px rgba(28, 51, 34, 0.35);
+}
+
+:root[data-theme="night"] .ledger-seal-button {
+  background: linear-gradient(135deg, #28442e 0%, #182c1d 100%);
+  border-color: #a47f3b;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Lost ── */
+.skin-lost {
+  background:
+    radial-gradient(ellipse at 50% 70%, rgba(90, 125, 90, 0.28), transparent 52%),
+    linear-gradient(180deg, #121812, #1c2418);
+}

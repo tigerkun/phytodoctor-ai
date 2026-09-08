@@ -17,6 +17,8 @@ interface HeroSectionProps {
   photoUrl: string;
   profile: any;
   totalPlants: number;
+  plantIndex?: number;
+  weather?: any;
   onAddPlant: () => void;
   currentTimePeriod: TimePeriod;
   onTimePeriodChange: (period: TimePeriod) => void;
@@ -31,6 +33,8 @@ export function HeroSection({
   photoUrl,
   profile,
   totalPlants,
+  plantIndex = 0,
+  weather,
   onAddPlant,
   currentTimePeriod,
   onTimePeriodChange
@@ -51,11 +55,18 @@ export function HeroSection({
     setEditedName(plantName);
   }, [plantName]);
 
-  const handleTriggerAction = (action: 'water' | 'prune' | 'nourish') => {
+  const handleTriggerAction = async (action: 'water' | 'prune' | 'nourish') => {
     triggerHaptic('medium');
     
     if (action === 'water') {
       playAudio('water-drop');
+      if (plantId) {
+        try {
+          await db.plants.update(plantId, { updatedAt: new Date() });
+        } catch (err) {
+          console.error('Failed to update plant hydration date:', err);
+        }
+      }
     } else if (action === 'prune') {
       playAudio('leaf-rustle');
     } else {
@@ -103,37 +114,43 @@ export function HeroSection({
           transition={{ delay: 0.3, duration: 0.6 }}
         >
           {totalPlants === 0 ? (
-            <div className="relative rounded-3xl p-10 backdrop-blur-2xl border border-border-light bg-bg-secondary text-center flex flex-col items-center justify-center min-h-[420px] shadow-lg">
-              <div className="w-20 h-20 rounded-full bg-moss/10 flex items-center justify-center text-4xl mb-6 shadow-inner">
+            <div className="relative rounded-3xl p-10 oiled-teak-frame text-center flex flex-col items-center justify-center min-h-[420px] shadow-lg">
+              <div className="w-20 h-20 rounded-full bg-moss/10 flex items-center justify-center text-4xl mb-6 shadow-inner border border-moss/20">
                 🪴
               </div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm -rotate-1 zinc-stake font-serif tracking-widest text-[10px] uppercase font-bold mb-4">
+                🏷️ VACANT POTTING BENCH
+              </div>
               <h2 className="text-3xl font-serif font-bold text-text-bark mb-3">
-                No Plants Indexed Today
+                No Specimens in Sanctuary
               </h2>
-              <p className="text-sm text-text-stone max-w-md mb-8 leading-relaxed">
-                Today’s sanctuary resets at midnight. Scan a plant in the Botanical Lab to mark your streak and pin it here until the day changes.
+              <p className="text-sm text-text-stone max-w-md mb-8 leading-relaxed font-medium">
+                The conservatory potting benches are ready. Catalog your first botanical specimen in the Lab to record its vitality and mount it on the teak bench.
               </p>
               <motion.button
                 onClick={onAddPlant}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="px-8 py-4 rounded-full font-bold text-white shadow-lg flex items-center gap-2"
+                className="px-8 py-4 rounded-full font-bold text-white shadow-lg flex items-center gap-2 cursor-pointer"
                 style={{
                   background: 'linear-gradient(135deg, var(--moss) 0%, var(--moss-light) 100%)',
                   boxShadow: '0 10px 25px rgba(90, 125, 90, 0.3)'
                 }}
               >
-                🌱 Add Your First Plant
+                🌱 Induct First Specimen
               </motion.button>
             </div>
           ) : (
             <div
-              className="relative rounded-3xl overflow-hidden backdrop-blur-2xl border border-border-light bg-bg-secondary transition-all duration-300 hover:shadow-2xl"
+              className="relative rounded-3xl overflow-hidden oiled-teak-frame transition-all duration-300 hover:shadow-2xl"
             >
+            {/* Oiled Teak Top Slat Molding Accent */}
+            <div className="h-2 w-full bg-gradient-to-r from-[#4d321d] via-[#785333] to-[#4d321d] opacity-90 shadow-inner" />
+
             {/* Vine border animation */}
             {!shouldDisableAnimations && (
               <motion.svg
-                className="absolute inset-0 w-full h-full pointer-events-none"
+                className="absolute inset-0 w-full h-full pointer-events-none z-10"
                 viewBox="0 0 400 600"
                 initial={{ strokeDashoffset: 1000 }}
                 animate={{ strokeDashoffset: 0 }}
@@ -150,7 +167,7 @@ export function HeroSection({
               </motion.svg>
             )}
 
-            {/* Plant Photo */}
+            {/* Plant Photo Container */}
             <div className="relative h-96 bg-bg-tertiary overflow-hidden">
               <motion.img
                 src={photoUrl}
@@ -260,56 +277,62 @@ export function HeroSection({
                 )}
               </AnimatePresence>
 
-              {/* Health Score Ring */}
+              {/* Engraved Brass Barometer / Score Ring */}
               <motion.div
-                className="absolute bottom-6 right-6 w-24 h-24 rounded-full border-4 flex items-center justify-center backdrop-blur-sm"
-                style={{
-                  borderColor: healthColor,
-                  background: `radial-gradient(circle, ${healthColor}15, transparent)`
-                }}
+                className="absolute bottom-5 right-5 w-26 h-26 rounded-full brass-bezel flex flex-col items-center justify-center backdrop-blur-md text-center cursor-default z-20 p-1"
                 animate={!shouldDisableAnimations ? {
                   boxShadow: [
-                    `0 0 0px ${healthColor}40`,
-                    `0 0 24px ${healthColor}70`,
-                    `0 0 0px ${healthColor}40`
+                    '0 4px 14px rgba(184,149,82,0.3), inset 0 2px 4px rgba(255,255,255,0.9), inset 0 -2px 4px rgba(90,65,25,0.45)',
+                    '0 6px 22px rgba(184,149,82,0.55), inset 0 2px 4px rgba(255,255,255,0.9), inset 0 -2px 4px rgba(90,65,25,0.45)',
+                    '0 4px 14px rgba(184,149,82,0.3), inset 0 2px 4px rgba(255,255,255,0.9), inset 0 -2px 4px rgba(90,65,25,0.45)'
                   ]
                 } : {}}
-                transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
               >
-                <div className="text-center">
-                  <div className="text-2xl font-bold" style={{ color: healthColor }}>
-                    {healthScore}%
-                  </div>
-                  <div className="text-xs" style={{ color: healthColor }}>
-                    {healthLabel}
-                  </div>
+                <div className="text-[7px] font-black uppercase tracking-[0.22em] text-[#7a602f] dark:text-[#d4af37]/90 leading-tight">
+                  BAROMETER
+                </div>
+                <div className="text-2xl font-serif font-black text-[#2c1d08] dark:text-[#f7edd6] leading-none my-0.5">
+                  {healthScore}%
+                </div>
+                <div className="text-[8px] font-bold uppercase tracking-wider text-[#3d5a3d] dark:text-[#8fb58f]">
+                  {healthLabel}
+                </div>
+                <div className="text-[6px] font-mono tracking-widest text-[#7a602f]/70 dark:text-[#d4af37]/60 mt-0.5">
+                  VITALITY GAUGE
                 </div>
               </motion.div>
 
-              {/* Analyzed Badge */}
+              {/* Analyzed Zinc Badge */}
               <motion.div
-                className="absolute top-6 right-6 px-4 py-2 rounded-full backdrop-blur-md border border-border-light bg-bg-secondary/80"
+                className="absolute top-5 right-5 px-3 py-1.5 rounded-sm zinc-stake text-[11px] font-serif tracking-wider shadow-sm flex items-center gap-1.5"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6, duration: 0.4 }}
               >
-                <span className="text-xs font-medium text-text-bark">✨ {lastAnalyzed}</span>
+                <span>✨</span>
+                <span>{lastAnalyzed}</span>
               </motion.div>
             </div>
 
-            {/* Plant Info */}
-            <div className="p-8">
+            {/* Plant Info & Oiled Teak Potting Bench Actions */}
+            <div className="p-8 bg-gradient-to-b from-transparent to-black/[0.02] dark:to-white/[0.02]">
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.5, duration: 0.4 }}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <h2
-                    className="text-3xl font-serif font-bold text-text-bark"
-                  >
-                    {plantName}
-                  </h2>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm -rotate-1 zinc-stake font-serif tracking-widest text-[10px] uppercase font-bold shadow-xs">
+                      🏷️ SPECIMEN NO. 0{plantIndex + 1}
+                    </span>
+                    <h2
+                      className="text-3xl font-serif font-bold text-text-bark"
+                    >
+                      {plantName}
+                    </h2>
+                  </div>
                   <motion.button
                     whileHover={{ scale: 1.2 }}
                     whileTap={{ scale: 0.9 }}
@@ -324,36 +347,39 @@ export function HeroSection({
                   </motion.button>
                 </div>
                 <p
-                  className="text-sm mb-4 text-moss"
+                  className="text-xs font-serif italic mb-5 text-moss tracking-wide"
                 >
-                  {plantSpecies}
+                  Botanical Classification: {plantSpecies}
                 </p>
 
-                {/* Quick Care Actions Tray */}
-                <div className="mt-6 flex flex-wrap items-center gap-3">
+                {/* Potting Bench Care Tools Tray */}
+                <div className="pt-4 border-t border-border-light/60 flex flex-wrap items-center gap-3">
+                  <span className="text-[9px] uppercase font-mono tracking-widest text-text-stone/70 mr-1">
+                    Bench Tools:
+                  </span>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => handleTriggerAction('water')}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-blue-500/20 bg-blue-500/5 text-blue-600 hover:bg-blue-500 hover:text-white transition-all text-xs font-bold focus:outline-none"
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-md border border-blue-500/25 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-600 hover:text-white transition-all text-xs font-bold font-serif focus:outline-none cursor-pointer"
                   >
-                    💧 Water
+                    💧 Hydrate Specimen
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => handleTriggerAction('prune')}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all text-xs font-bold focus:outline-none"
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-md border border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white transition-all text-xs font-bold font-serif focus:outline-none cursor-pointer"
                   >
-                    ✂️ Prune
+                    ✂️ Prune Foliage
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => handleTriggerAction('nourish')}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-amber-500/20 bg-amber-500/5 text-amber-600 hover:bg-amber-500 hover:text-white transition-all text-xs font-bold focus:outline-none"
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-md border border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-600 hover:text-white transition-all text-xs font-bold font-serif focus:outline-none cursor-pointer"
                   >
-                    🧪 Nourish
+                    🧪 Botanical Tonic
                   </motion.button>
                 </div>
               </motion.div>
@@ -414,8 +440,8 @@ export function HeroSection({
             {/* Mini Stats */}
             <div className="grid grid-cols-2 gap-4">
               {[
-                { icon: '🌡️', label: 'Temp', value: '28°C' },
-                { icon: '💧', label: 'Humidity', value: '62%' },
+                { icon: '🌡️', label: 'Temp', value: weather?.temp != null ? `${Math.round(weather.temp)}°C` : '28°C' },
+                { icon: '💧', label: 'Humidity', value: weather?.humidity != null ? `${Math.round(weather.humidity)}%` : '62%' },
                 { icon: '🌱', label: 'Plants', value: totalPlants.toString() },
                 { icon: '🔥', label: 'Streak', value: `${profile?.currentStreak || 0}d` }
               ].map((stat, idx) => (

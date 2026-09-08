@@ -20,5 +20,6 @@ export async function chatWithGardener(messages: Message[]): Promise<string> {
     console.warn("Network or server connection issue for Chat API:", err);
     throw err;
   }
-
 }
+
+export const chatWithBotanist = chatWithGardener;

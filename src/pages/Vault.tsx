@@ -78,10 +78,17 @@ export default function VaultPage() {
   const [issuedAt, setIssuedAt] = useState<Date | null>(null);
   const [left, setLeft] = useState(assessmentsLeftToday);
 
-  const knownSpecies = useMemo(
-    () => [...new Set(dbPlants.filter(p => !p.isDemo).map(p => p.species).filter(Boolean))],
-    [dbPlants]
-  );
+  React.useEffect(() => {
+    if (!cityQuery && city && city !== 'Your Location') {
+      setCityQuery(city);
+    }
+  }, [city, cityQuery]);
+
+  const knownSpecies = useMemo(() => {
+    const list = [...new Set(dbPlants.map(p => p.species).filter(Boolean))];
+    if (list.length > 0) return list;
+    return ['Monstera deliciosa', 'Ficus lyrata', 'Olea europaea', 'Lavandula angustifolia', 'Sansevieria trifasciata'];
+  }, [dbPlants]);
 
   const caseId = useMemo(() => {
     const d = issuedAt || new Date();
@@ -168,71 +175,155 @@ export default function VaultPage() {
   const stamp = report ? tone(report.survivalChance) : tone(50);
 
   return (
-    <PageWrapper className="min-h-screen text-text-bark">
+    <PageWrapper className="min-h-screen skin-vault text-text-bark">
       <div className="pointer-events-none fixed inset-0 opacity-[0.35]" style={{
         backgroundImage: 'radial-gradient(ellipse at 20% 0%, rgba(90,125,90,0.18), transparent 50%), radial-gradient(ellipse at 90% 80%, rgba(193,127,89,0.12), transparent 45%)'
       }} />
 
       <main className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 pt-10 pb-28">
-        {step !== 'report' && (
-          <header className="mb-10">
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] bg-moss text-white">
-                <Leaf size={11} /> PhytoDoctor · Clinical Lab
-              </span>
-              <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.16em] border border-gold/40 text-gold bg-gold/10">
-                {left} of {ASSESSMENTS_PER_DAY} reports remaining today
-              </span>
-            </div>
-            <h1 className="font-serif text-4xl sm:text-5xl font-semibold tracking-tight text-text-bark">
-              Botanical placement <em className="italic text-moss">sandbox</em>
-            </h1>
-            <p className="mt-3 max-w-xl text-sm leading-relaxed text-text-stone">
-              Intake a species, lock a real or simulated climate, then issue a scored clinical survivability document.
-            </p>
+        <header className="mb-10 print:hidden">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] bg-moss text-white">
+              <Leaf size={11} /> PhytoDoctor · Clinical Lab
+            </span>
+            <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.16em] border border-gold/40 text-gold bg-gold/10">
+              {left} of {ASSESSMENTS_PER_DAY} reports remaining today
+            </span>
+          </div>
+          <h1 className="font-serif text-4xl sm:text-5xl font-semibold tracking-tight text-text-bark">
+            Botanical placement <em className="italic text-moss">sandbox</em>
+          </h1>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-text-stone">
+            Intake a species, lock a real or simulated climate, then issue a scored clinical survivability document.
+          </p>
 
-            <ol className="mt-8 grid grid-cols-3 gap-2">
-              {STEPS.map((s, i) => {
-                const active = step === s.id;
-                const done = STEPS.findIndex(x => x.id === step) > i;
-                return (
-                  <li key={s.id} className={`rounded-2xl border px-3 py-3 ${active ? 'border-moss bg-moss/10' : done ? 'border-moss/30 bg-bg-secondary' : 'border-border-light bg-bg-secondary/60'}`}>
-                    <p className={`font-mono text-[10px] ${active ? 'text-moss' : 'text-text-muted'}`}>{s.n}</p>
-                    <p className="text-[11px] font-bold uppercase tracking-wider mt-0.5">{s.label}</p>
-                  </li>
-                );
-              })}
-            </ol>
-          </header>
-        )}
+          <ol className="mt-8 grid grid-cols-3 gap-3" role="tablist" aria-label="Herbarium workflow drawers">
+            {STEPS.map((s, i) => {
+              const active = step === s.id;
+              const done = (s.id === 'species' && !!dossier) || (s.id === 'site' && !!site && step === 'report');
+              const isNavigable = s.id === 'species' || (s.id === 'site' && !!dossier) || (s.id === 'report' && !!report);
+
+              return (
+                <li key={s.id} className="relative">
+                  <button
+                    type="button"
+                    disabled={!isNavigable}
+                    onClick={() => {
+                      if (isNavigable) setStep(s.id);
+                    }}
+                    className={`w-full text-left rounded-xl walnut-drawer p-3 sm:p-4 flex flex-col justify-between h-full transition-all ${
+                      active ? 'is-active' : done ? 'is-done cursor-pointer' : isNavigable ? 'cursor-pointer hover:border-gold/50' : 'opacity-70 cursor-not-allowed'
+                    }`}
+                    title={isNavigable ? `Open drawer: ${s.label}` : `${s.label} locked`}
+                  >
+                    {/* Brass label holder frame */}
+                    <div className="brass-label-holder w-full flex items-center justify-between mb-2">
+                      <span className="font-mono text-[9px] font-black tracking-widest text-[#4a350d]">
+                        DW-{s.n}
+                      </span>
+                      {done && (
+                        <span className="w-2 h-2 rounded-full bg-moss inline-block shadow-sm" title="Completed" />
+                      )}
+                      {active && (
+                        <span className="w-2 h-2 rounded-full bg-gold inline-block animate-pulse" title="Active drawer" />
+                      )}
+                    </div>
+
+                    {/* Drawer Face Index Card */}
+                    <div className="brass-label-card px-2 py-1.5 rounded text-center">
+                      <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#2d2216] truncate font-serif">
+                        {s.label}
+                      </p>
+                    </div>
+
+                    {/* Brass Cup Pull Handle */}
+                    <div className="mt-2.5 flex justify-center">
+                      <div className="brass-cup-pull" />
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </header>
 
         {step === 'species' && (
-          <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="rounded-[1.75rem] border border-border-medium bg-bg-secondary/90 backdrop-blur-md shadow-xl overflow-hidden">
-            <div className="h-1.5 bg-gradient-to-r from-moss via-gold to-terracotta" />
-            <div className="p-7 sm:p-10 space-y-6">
+          <motion.section
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="ruled-ledger-blotter rounded-3xl p-7 sm:p-10 relative overflow-hidden text-text-bark"
+          >
+            {/* Ledger folio banner */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#a0825f]/30 pb-4 mb-6">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-moss">Specimen intake</p>
-                <h2 className="font-serif text-2xl mt-1">What will you place?</h2>
-                <p className="text-sm text-text-stone mt-1">The engine compiles origin, hardiness, and ideal abiotic ranges before any site is chosen.</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-moss">
+                  Naturalist Specimen Register · Folio No. 1894
+                </p>
+                <h2 className="font-serif italic text-2xl sm:text-3xl mt-1 text-text-bark font-medium copperplate-script">
+                  Taxon Accession & Hardiness Inquiry
+                </h2>
+                <p className="text-xs sm:text-sm text-text-stone mt-1 max-w-xl leading-relaxed">
+                  Enter binomial nomenclature or common cultivar. The engine compiles origin, hardiness, and ideal abiotic ranges before any site is chosen.
+                </p>
               </div>
-              <input
-                value={speciesInput}
-                onChange={(e) => setSpeciesInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && runProfile()}
-                placeholder="Binomial or common name — Monstera deliciosa, olive, tomato…"
-                className="w-full p-5 rounded-2xl bg-bg-primary border border-border-medium font-serif text-xl italic text-text-bark placeholder:text-text-muted/70 focus:outline-none focus:ring-2 focus:ring-moss/40"
-              />
-              {knownSpecies.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {knownSpecies.slice(0, 8).map(s => (
-                    <button key={s} onClick={() => setSpeciesInput(s)} className="px-3 py-1.5 text-xs rounded-full border border-border-light hover:border-moss hover:bg-moss/10 transition-colors">
-                      {s}
+              <div className="sepia-accession-mark px-3 py-1.5 text-[10px] rotate-[-2deg] shrink-0">
+                ROYAL HERBARIUM INTAKE
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <label htmlFor="species-input" className="block text-[11px] font-bold uppercase tracking-wider text-text-stone mb-2">
+                  Specimen Taxon
+                </label>
+                <div className="relative">
+                  <input
+                    id="species-input"
+                    value={speciesInput}
+                    onChange={(e) => setSpeciesInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && runProfile()}
+                    placeholder="e.g. Monstera deliciosa, Olea europaea, Ficus lyrata, tomato…"
+                    className="w-full p-4 sm:p-5 rounded-2xl bg-bg-primary/90 border-2 border-[#b89552]/40 font-serif italic text-xl sm:text-2xl text-text-bark placeholder:text-text-muted/60 focus:outline-none focus:border-moss focus:ring-2 focus:ring-moss/20 shadow-inner"
+                  />
+                  {speciesInput && (
+                    <button
+                      type="button"
+                      onClick={() => setSpeciesInput('')}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-text-stone hover:text-text-bark font-bold"
+                    >
+                      Clear
                     </button>
-                  ))}
+                  )}
+                </div>
+              </div>
+
+              {knownSpecies.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-text-stone mb-2">
+                    {dbPlants.length > 0 ? 'Recorded Specimens in Personal Herbarium:' : 'Cataloged Reference Specimens:'}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {knownSpecies.slice(0, 8).map(s => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setSpeciesInput(s)}
+                        className="px-3 py-1.5 text-xs rounded-full border border-[#b89552]/30 bg-bg-primary/70 hover:border-moss hover:bg-moss/10 text-text-bark transition-colors font-serif italic flex items-center gap-1.5 shadow-sm"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-moss/70" />
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
-              <button onClick={runProfile} disabled={loadingProfile} className="w-full py-4 rounded-2xl bg-moss text-white font-black uppercase tracking-[0.18em] text-xs flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-moss/20">
-                <Sparkles size={15} /> {loadingProfile ? 'Compiling species dossier…' : 'Compile species dossier'}
+
+              <button
+                onClick={runProfile}
+                disabled={loadingProfile}
+                className="w-full py-4 rounded-2xl bg-moss hover:bg-moss/90 text-white font-black uppercase tracking-[0.18em] text-xs flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-moss/20 transition-all active:scale-[0.99]"
+              >
+                <Sparkles size={15} /> {loadingProfile ? 'Compiling botanical profile…' : 'Compile species dossier'}
               </button>
             </div>
           </motion.section>
@@ -240,12 +331,12 @@ export default function VaultPage() {
 
         {step === 'site' && dossier && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <section className="rounded-[1.75rem] border border-border-medium bg-bg-secondary/90 p-7 shadow-lg">
+            <section className="botanical-index-card rounded-3xl p-7 shadow-lg">
               <div className="flex justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-moss">Dossier</p>
-                  <h2 className="font-serif text-3xl leading-tight">{dossier.commonName}</h2>
-                  <p className="italic text-text-stone">{dossier.scientificName}</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-moss">Herbarium Dossier Record</p>
+                  <h2 className="font-serif text-3xl leading-tight text-text-bark">{dossier.commonName}</h2>
+                  <p className="italic text-text-stone font-serif">{dossier.scientificName}</p>
                 </div>
                 <button onClick={reset} className="h-fit text-[11px] font-bold uppercase tracking-wider text-text-stone hover:text-text-bark flex items-center gap-1">
                   <RotateCcw size={12} /> Reset
@@ -304,31 +395,69 @@ export default function VaultPage() {
             )}
 
             {site && (
-              <div className="rounded-3xl border border-border-medium bg-bg-secondary p-6 sm:p-8 shadow-lg">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gold">Site conditions locked</p>
-                <h3 className="font-serif text-2xl mt-1">{site.label}</h3>
-                <p className="text-xs text-text-stone mt-1">{site.weather} · {new Date(site.datetime).toLocaleString()}</p>
-                <div className="mt-5 overflow-hidden rounded-2xl border border-border-light">
+              <div className="rounded-3xl border border-[#b89552]/40 bg-bg-secondary/95 p-6 sm:p-8 shadow-lg">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-moss">
+                    Hermetic Terrarium Instrumentation · Calibrated Abiotic Sheet
+                  </p>
+                  <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border border-gold/40 bg-gold/10 text-[#7a5c1e] dark:text-[#d4af37]">
+                    LOCKED AT SITE
+                  </span>
+                </div>
+                <h3 className="font-serif text-2xl sm:text-3xl mt-1 text-text-bark font-bold">{site.label}</h3>
+                <p className="text-xs text-text-stone mt-1">
+                  Condition: {site.weather} · Epoch: {new Date(site.datetime).toLocaleString()}
+                </p>
+
+                {/* Hermetic Terrarium Calibrated Brass Dials */}
+                <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
-                    ['Air temperature', `${site.temp} °C`, <Thermometer size={14} key="t" />],
-                    ['Relative humidity', `${site.humidity}%`, <Droplets size={14} key="h" />],
-                    ['Wind', `${site.windSpeed} km/h`, <Wind size={14} key="w" />],
-                    ['Precipitation', `${site.rainfallMm} mm`, <Droplets size={14} key="r" />],
-                    ['UV index', String(site.uvIndex), <Sun size={14} key="u" />],
-                    ['Photoperiod', `${site.photoperiodHours} h`, <Sun size={14} key="p" />],
-                    ['Soil texture', site.soilType, <FlaskConical size={14} key="s" />],
-                    ['Soil pH', String(site.soilPh), <FlaskConical size={14} key="ph" />],
-                  ].map((row, i) => (
-                    <div key={i} className={`flex items-center justify-between px-4 py-2.5 text-sm ${i % 2 ? 'bg-bg-primary/40' : 'bg-transparent'}`}>
-                      <span className="flex items-center gap-2 text-text-stone">{row[2]} {row[0]}</span>
-                      <span className="font-mono font-bold">{row[1]}</span>
+                    { label: 'Air Temperature', val: `${site.temp}°C`, sub: 'Thermometer', icon: Thermometer },
+                    { label: 'Relative Humidity', val: `${site.humidity}%`, sub: 'Hygrometer', icon: Droplets },
+                    { label: 'Wind Velocity', val: `${site.windSpeed} km/h`, sub: 'Anemometer', icon: Wind },
+                    { label: 'Precipitation', val: `${site.rainfallMm} mm`, sub: 'Pluviometer', icon: Droplets },
+                    { label: 'Solar UV Index', val: String(site.uvIndex), sub: 'Actinometer', icon: Sun },
+                    { label: 'Photoperiod', val: `${site.photoperiodHours} h`, sub: 'Solar Cycle', icon: Sun },
+                    { label: 'Soil Substrate', val: site.soilType, sub: 'Texture Gauge', icon: FlaskConical },
+                    { label: 'Substrate Reaction', val: `pH ${site.soilPh}`, sub: 'Ion Meter', icon: FlaskConical },
+                  ].map((dial, idx) => (
+                    <div
+                      key={idx}
+                      className="hermetic-climate-dial rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between text-center min-h-[118px] transition-transform hover:scale-[1.02]"
+                    >
+                      <div className="dial-stamped-ticks mb-1" />
+                      <div className="flex items-center justify-center gap-1 text-[#8c6b2d] dark:text-[#caa661]">
+                        <dial.icon size={13} />
+                        <span className="text-[9px] uppercase tracking-[0.16em] font-black">{dial.sub}</span>
+                      </div>
+                      <div className="my-1 font-serif font-black text-xl sm:text-2xl text-text-bark truncate">
+                        {dial.val}
+                      </div>
+                      <div className="text-[10px] uppercase font-bold tracking-wider text-text-stone truncate">
+                        {dial.label}
+                      </div>
                     </div>
                   ))}
                 </div>
-                <button onClick={runAssessment} disabled={loadingReport || left <= 0} className="mt-6 w-full py-4 rounded-2xl bg-[#1c1916] text-[#faf7f2] font-black uppercase tracking-[0.18em] text-xs flex items-center justify-center gap-2 disabled:opacity-40">
-                  {loadingReport ? 'Issuing clinical report…' : <><FileText size={15} /> Issue clinical assessment <ArrowRight size={14} /></>}
+
+                <button
+                  onClick={runAssessment}
+                  disabled={loadingReport || left <= 0}
+                  className="mt-6 w-full py-4 rounded-2xl bg-moss hover:bg-moss/90 text-white font-black uppercase tracking-[0.18em] text-xs flex items-center justify-center gap-2 disabled:opacity-40 shadow-lg shadow-moss/20 transition-all active:scale-[0.99]"
+                >
+                  {loadingReport ? (
+                    'Issuing clinical placement deed…'
+                  ) : (
+                    <>
+                      <FileText size={15} /> Issue Clinical Survivability Deed <ArrowRight size={14} />
+                    </>
+                  )}
                 </button>
-                {left <= 0 && <p className="mt-3 text-center text-xs font-bold text-terracotta">Quota exhausted. Two reports per UTC day.</p>}
+                {left <= 0 && (
+                  <p className="mt-3 text-center text-xs font-bold text-terracotta">
+                    Daily deed quota exhausted ({ASSESSMENTS_PER_DAY} reports per UTC day).
+                  </p>
+                )}
               </div>
             )}
           </motion.div>
@@ -337,156 +466,210 @@ export default function VaultPage() {
         {step === 'report' && report && dossier && site && (
           <motion.article initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="print:shadow-none">
             <div className="flex justify-end gap-2 mb-4 print:hidden">
-              <button onClick={() => window.print()} className="px-4 py-2 rounded-xl border border-border-medium bg-bg-secondary text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-                <Printer size={13} /> Print / PDF
+              <button
+                onClick={() => window.print()}
+                className="px-4 py-2 rounded-xl border border-border-medium bg-bg-secondary text-xs font-black uppercase tracking-wider flex items-center gap-1.5 hover:border-moss transition-colors"
+              >
+                <Printer size={13} /> Print / Archive PDF
               </button>
-              <button onClick={reset} className="px-4 py-2 rounded-xl border border-border-medium text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-                <RotateCcw size={13} /> New case
+              <button
+                onClick={reset}
+                className="px-4 py-2 rounded-xl border border-border-medium bg-bg-secondary text-xs font-black uppercase tracking-wider flex items-center gap-1.5 hover:bg-moss/10 transition-colors"
+              >
+                <RotateCcw size={13} /> New Case Intake
               </button>
             </div>
 
-            <div
-              className="relative mx-auto"
-              style={{ background: '#f6f1e6', color: '#1f1a14', boxShadow: '0 25px 60px rgba(44,36,25,0.18)' }}
-            >
-              <div className="absolute left-0 top-0 bottom-0 w-2" style={{ background: stamp.rule }} />
-              <div className="px-8 sm:px-12 py-10 sm:py-14">
-                <div className="flex justify-between items-start gap-6 border-b-2 pb-6" style={{ borderColor: '#1f1a14' }}>
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.35em]" style={{ color: stamp.rule }}>PhytoDoctor AI</p>
-                    <h1 className="font-serif text-3xl sm:text-4xl mt-1 leading-tight">Clinical Placement Assessment</h1>
-                    <p className="text-[11px] mt-2 tracking-wide uppercase text-[#6b6358]">Horticultural survivability · Confidential</p>
-                  </div>
-                  <div className="text-right text-[11px] font-mono leading-5 shrink-0">
-                    <p>CASE {caseId}</p>
-                    <p>{(issuedAt || new Date()).toLocaleString()}</p>
-                    <p>QUOTA {ASSESSMENTS_PER_DAY - left}/{ASSESSMENTS_PER_DAY}</p>
-                  </div>
+            {/* Royal Survivability Deed */}
+            <div className="royal-parchment-deed deckled-border rounded-3xl p-6 sm:p-12 relative overflow-hidden">
+              {/* Left vermilion/moss marginal rule */}
+              <div className="absolute left-0 top-0 bottom-0 w-2.5" style={{ background: stamp.rule }} />
+
+              {/* Header block with official title and sepia accession mark */}
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4 border-b-2 border-[#2c2419]/25 pb-6">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-[0.32em]" style={{ color: stamp.rule }}>
+                    The Royal Specimen Herbarium & Conservatory
+                  </span>
+                  <h1 className="font-serif text-3xl sm:text-4xl mt-1 leading-tight text-[#241c14] dark:text-[#ede3cc] font-bold">
+                    Survivability Placement Deed
+                  </h1>
+                  <p className="text-[11px] mt-1.5 tracking-widest uppercase text-[#7a6f60] dark:text-[#a89b88]">
+                    Horticultural Assessment of Competence · Archive Registry
+                  </p>
                 </div>
 
-                <div
-                  className="mt-8 float-right ml-6 mb-4 w-36 h-36 rounded-full border-[6px] flex flex-col items-center justify-center text-center rotate-[-8deg]"
-                  style={{ borderColor: stamp.rule, background: stamp.bg, color: stamp.fg }}
-                >
-                  <span className="text-[9px] font-black uppercase tracking-widest">Index</span>
-                  <span className="font-serif text-4xl font-bold leading-none">{Math.round(report.survivalChance)}</span>
-                  <span className="text-[10px] font-black tracking-widest mt-1">GRADE {gradeOf(report.survivalChance)}</span>
+                {/* Sepia Rubber Accession Mark */}
+                <div className="sepia-accession-mark p-3 text-[11px] leading-5 shrink-0 rotate-[-2deg] max-w-[260px]">
+                  <p className="font-black">ACCESSION: {caseId}</p>
+                  <p className="text-[10px]">ISSUED: {(issuedAt || new Date()).toLocaleDateString()}</p>
+                  <p className="text-[10px]">QUOTA STAMP: {ASSESSMENTS_PER_DAY - left}/{ASSESSMENTS_PER_DAY}</p>
                 </div>
+              </div>
 
-                <h2 className="font-serif text-xl border-b border-black/20 pb-1 mb-4">I. Identification</h2>
-                <table className="w-full text-[13px] mb-8">
-                  <tbody>
-                    {[
-                      ['Common name', dossier.commonName],
-                      ['Scientific name', dossier.scientificName],
-                      ['Native climate', dossier.nativeClimate],
-                      ['Hardiness', dossier.hardinessZones],
-                      ['Placement mode', site.mode === 'simulate' ? `Simulated — ${site.label}${site.indoor ? ' (indoor)' : ''}` : `Observed — ${site.label}`],
-                      ['Epoch', new Date(site.datetime).toLocaleString()],
-                      ['Meteorology', site.weather],
-                    ].map(([k, v]) => (
-                      <tr key={k} className="border-b border-black/10">
-                        <th className="py-2 pr-4 text-left font-bold uppercase tracking-wider text-[10px] text-[#6b6358] w-40 align-top">{k}</th>
-                        <td className="py-2 leading-relaxed">{v}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {/* 3D Debossed Vermilion Wax Seal */}
+              <div className="my-6 sm:float-right sm:ml-8 sm:mb-6 flex justify-center">
+                <div className="tactile-wax-seal w-36 h-36 sm:w-40 sm:h-40 rotate-[-6deg]">
+                  <span className="text-[8px] font-black uppercase tracking-[0.25em] opacity-90">ROYAL HERBARIUM</span>
+                  <div className="flex items-center gap-0.5 my-0.5">
+                    <span className="font-serif text-4xl sm:text-5xl font-black leading-none tracking-tight">
+                      {Math.round(report.survivalChance)}
+                    </span>
+                    <span className="text-xl font-serif font-black">%</span>
+                  </div>
+                  <span className="text-[10px] font-black tracking-widest uppercase py-0.5 px-2 rounded border border-white/20 bg-black/10">
+                    GRADE {gradeOf(report.survivalChance)}
+                  </span>
+                  <span className="text-[8px] uppercase tracking-[0.16em] opacity-80 mt-1">SURVIVABILITY</span>
+                </div>
+              </div>
 
-                <h2 className="font-serif text-xl border-b border-black/20 pb-1 mb-3 clear-both">II. Abiotic ledger at site</h2>
-                <table className="w-full text-[12px] mb-8 border border-black/15">
-                  <thead style={{ background: '#eae3d4' }}>
+              {/* Section I: Identification */}
+              <h2 className="font-serif text-xl border-b border-black/20 dark:border-white/20 pb-1 mb-4 text-[#241c14] dark:text-[#ede3cc] font-semibold">
+                I. Specimen & Site Identification
+              </h2>
+              <table className="w-full text-[13px] mb-8">
+                <tbody>
+                  {[
+                    ['Common name', dossier.commonName],
+                    ['Scientific taxon', dossier.scientificName],
+                    ['Native climate', dossier.nativeClimate],
+                    ['Hardiness rating', `USDA Zones ${dossier.hardinessZones}`],
+                    ['Placement mode', site.mode === 'simulate' ? `Hermetic Simulation — ${site.label}${site.indoor ? ' (indoor buffer)' : ''}` : `Observed Ambient — ${site.label}`],
+                    ['Inspection epoch', new Date(site.datetime).toLocaleString()],
+                    ['Meteorological state', site.weather],
+                  ].map(([k, v]) => (
+                    <tr key={k} className="border-b border-black/10 dark:border-white/10">
+                      <th className="py-2.5 pr-4 text-left font-bold uppercase tracking-wider text-[10px] text-[#7a6f60] dark:text-[#a89b88] w-40 align-top">{k}</th>
+                      <td className="py-2.5 leading-relaxed text-[#241c14] dark:text-[#ede3cc]">{v}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Section II: Abiotic Field Ledger */}
+              <h2 className="font-serif text-xl border-b border-black/20 dark:border-white/20 pb-1 mb-3 clear-both text-[#241c14] dark:text-[#ede3cc] font-semibold">
+                II. Abiotic Ledger at Site
+              </h2>
+              <div className="overflow-x-auto mb-4 border border-[#8c7355]/30 rounded-lg">
+                <table className="w-full text-[12px]">
+                  <thead className="bg-[#eae3d4] dark:bg-[#2b241c] text-[#241c14] dark:text-[#ede3cc]">
                     <tr>
-                      {['Temp', 'RH', 'Wind', 'Precip', 'UV', 'Daylength', 'Soil', 'pH'].map(h => (
-                        <th key={h} className="py-2 px-2 text-left font-black uppercase tracking-wider text-[9px]">{h}</th>
+                      {['Temp', 'RH', 'Wind', 'Precip', 'UV Index', 'Photoperiod', 'Substrate', 'pH'].map(h => (
+                        <th key={h} className="py-2 px-2.5 text-left font-black uppercase tracking-wider text-[9px]">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
-                    <tr className="font-mono">
-                      <td className="p-2">{site.temp}°C</td>
-                      <td className="p-2">{site.humidity}%</td>
-                      <td className="p-2">{site.windSpeed} km/h</td>
-                      <td className="p-2">{site.rainfallMm} mm</td>
-                      <td className="p-2">{site.uvIndex}</td>
-                      <td className="p-2">{site.photoperiodHours} h</td>
-                      <td className="p-2">{site.soilType}</td>
-                      <td className="p-2">{site.soilPh}</td>
+                  <tbody className="bg-transparent font-mono text-[#241c14] dark:text-[#ede3cc]">
+                    <tr>
+                      <td className="p-2.5">{site.temp}°C</td>
+                      <td className="p-2.5">{site.humidity}%</td>
+                      <td className="p-2.5">{site.windSpeed} km/h</td>
+                      <td className="p-2.5">{site.rainfallMm} mm</td>
+                      <td className="p-2.5">{site.uvIndex}</td>
+                      <td className="p-2.5">{site.photoperiodHours} h</td>
+                      <td className="p-2.5">{site.soilType}</td>
+                      <td className="p-2.5">{site.soilPh}</td>
                     </tr>
                   </tbody>
                 </table>
-                <p className="text-[12px] leading-6 text-[#4a433c] mb-8 -mt-4">
-                  Ideal for this taxon: {dossier.idealTempMin}–{dossier.idealTempMax}°C · {dossier.idealHumidityMin}–{dossier.idealHumidityMax}% RH · {dossier.light} · {dossier.soil}.
-                </p>
+              </div>
+              <p className="text-[12px] leading-6 text-[#5a4e41] dark:text-[#b8a994] mb-8">
+                Species physiological baseline: {dossier.idealTempMin}–{dossier.idealTempMax}°C · {dossier.idealHumidityMin}–{dossier.idealHumidityMax}% RH · {dossier.light} · {dossier.soil}.
+              </p>
 
-                <h2 className="font-serif text-xl border-b border-black/20 pb-1 mb-3">III. Findings</h2>
-                <p className="font-serif text-2xl italic mb-3" style={{ color: stamp.fg }}>{report.verdict}</p>
-                <p className="text-[14px] leading-7 mb-8 text-[#2c2419]">{report.summary}</p>
+              {/* Section III: Findings */}
+              <h2 className="font-serif text-xl border-b border-black/20 dark:border-white/20 pb-1 mb-3 text-[#241c14] dark:text-[#ede3cc] font-semibold">
+                III. Clinical Findings & Verdict
+              </h2>
+              <p className="font-serif text-2xl sm:text-3xl italic mb-3 font-semibold" style={{ color: stamp.fg }}>
+                {report.verdict}
+              </p>
+              <p className="text-[14px] leading-7 mb-8 text-[#2c2419] dark:text-[#e4dac7]">
+                {report.summary}
+              </p>
 
-                <h2 className="font-serif text-xl border-b border-black/20 pb-1 mb-3">IV. Scored matrix</h2>
-                <table className="w-full text-[13px] mb-8 border border-black/15">
-                  <thead style={{ background: '#eae3d4' }}>
+              {/* Section IV: Scored Matrix */}
+              <h2 className="font-serif text-xl border-b border-black/20 dark:border-white/20 pb-1 mb-3 text-[#241c14] dark:text-[#ede3cc] font-semibold">
+                IV. Scored Survivability Matrix
+              </h2>
+              <div className="overflow-x-auto mb-8 border border-[#8c7355]/30 rounded-lg">
+                <table className="w-full text-[13px]">
+                  <thead className="bg-[#eae3d4] dark:bg-[#2b241c] text-[#241c14] dark:text-[#ede3cc]">
                     <tr>
                       <th className="text-left p-2.5 uppercase text-[10px] tracking-wider">Domain</th>
                       <th className="text-left p-2.5 uppercase text-[10px] tracking-wider w-16">Score</th>
-                      <th className="text-left p-2.5 uppercase text-[10px] tracking-wider w-12">Grade</th>
-                      <th className="text-left p-2.5 uppercase text-[10px] tracking-wider">Band</th>
+                      <th className="text-left p-2.5 uppercase text-[10px] tracking-wider w-14">Grade</th>
+                      <th className="text-left p-2.5 uppercase text-[10px] tracking-wider">Index Bar</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="text-[#241c14] dark:text-[#ede3cc]">
                     {metrics.map(([label, value], i) => {
                       const v = Math.round(value);
                       return (
-                        <tr key={label} className={i % 2 ? 'bg-black/[0.03]' : ''}>
-                          <td className="p-2.5">{label}</td>
+                        <tr key={label} className={i % 2 ? 'bg-black/[0.03] dark:bg-white/[0.02]' : ''}>
+                          <td className="p-2.5 font-medium">{label}</td>
                           <td className="p-2.5 font-mono font-bold">{v}</td>
                           <td className="p-2.5 font-bold">{gradeOf(v)}</td>
                           <td className="p-2.5">
-                            <div className="h-1.5 bg-black/10 rounded-full overflow-hidden max-w-[180px]">
-                              <div className="h-full" style={{ width: `${v}%`, background: tone(v).rule }} />
+                            <div className="h-2 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden max-w-[180px]">
+                              <div className="h-full rounded-full transition-all" style={{ width: `${v}%`, background: tone(v).rule }} />
                             </div>
                           </td>
                         </tr>
                       );
                     })}
                     <tr style={{ background: stamp.bg }}>
-                      <td className="p-2.5 font-bold">Overall survivability (12 mo.)</td>
-                      <td className="p-2.5 font-mono font-bold">{Math.round(report.survivalChance)}</td>
-                      <td className="p-2.5 font-bold">{gradeOf(report.survivalChance)}</td>
-                      <td className="p-2.5 text-[11px] uppercase tracking-wider font-bold" style={{ color: stamp.fg }}>Index</td>
+                      <td className="p-2.5 font-black text-[#1f1a14]">Overall Survivability (12-Month Index)</td>
+                      <td className="p-2.5 font-mono font-black text-[#1f1a14]">{Math.round(report.survivalChance)}</td>
+                      <td className="p-2.5 font-black text-[#1f1a14]">{gradeOf(report.survivalChance)}</td>
+                      <td className="p-2.5 text-[11px] uppercase tracking-wider font-black" style={{ color: stamp.fg }}>
+                        COMPOSITE RATING
+                      </td>
                     </tr>
                   </tbody>
                 </table>
-
-                <div className="grid sm:grid-cols-2 gap-8 mb-8">
-                  <div>
-                    <h2 className="font-serif text-xl border-b border-black/20 pb-1 mb-3">V. Recommendations</h2>
-                    <ol className="list-decimal pl-5 space-y-2.5 text-[13px] leading-6">
-                      {report.tips.map((t, i) => <li key={i}>{t}</li>)}
-                    </ol>
-                  </div>
-                  <div>
-                    <h2 className="font-serif text-xl border-b border-black/20 pb-1 mb-3">VI. Risk register</h2>
-                    <ol className="list-decimal pl-5 space-y-2.5 text-[13px] leading-6">
-                      {report.risks.map((t, i) => <li key={i}>{t}</li>)}
-                    </ol>
-                  </div>
-                </div>
-
-                <h2 className="font-serif text-xl border-b border-black/20 pb-1 mb-3">VII. Care protocol</h2>
-                <p className="text-[14px] leading-7 whitespace-pre-wrap mb-12">{report.protocol}</p>
-
-                <footer className="border-t-2 pt-5 flex flex-col sm:flex-row justify-between gap-4 text-[10px] uppercase tracking-[0.16em] text-[#6b6358]" style={{ borderColor: '#1f1a14' }}>
-                  <div>
-                    <p>Prepared by PhytoDoctor Clinical Engine</p>
-                    <p>Not a substitute for local extension service or licensed agronomy</p>
-                  </div>
-                  <div className="sm:text-right">
-                    <p>Document {caseId}</p>
-                    <p>Page 1 of 1</p>
-                  </div>
-                </footer>
               </div>
+
+              {/* Section V & VI: Recommendations & Risks */}
+              <div className="grid sm:grid-cols-2 gap-8 mb-8">
+                <div>
+                  <h2 className="font-serif text-xl border-b border-black/20 dark:border-white/20 pb-1 mb-3 text-[#241c14] dark:text-[#ede3cc] font-semibold">
+                    V. Horticultural Directives
+                  </h2>
+                  <ol className="list-decimal pl-5 space-y-2.5 text-[13px] leading-6 text-[#2c2419] dark:text-[#e4dac7]">
+                    {report.tips.map((t, i) => <li key={i}>{t}</li>)}
+                  </ol>
+                </div>
+                <div>
+                  <h2 className="font-serif text-xl border-b border-black/20 dark:border-white/20 pb-1 mb-3 text-[#241c14] dark:text-[#ede3cc] font-semibold">
+                    VI. Ecological Risk Register
+                  </h2>
+                  <ol className="list-decimal pl-5 space-y-2.5 text-[13px] leading-6 text-[#2c2419] dark:text-[#e4dac7]">
+                    {report.risks.map((t, i) => <li key={i}>{t}</li>)}
+                  </ol>
+                </div>
+              </div>
+
+              {/* Section VII: Care Protocol */}
+              <h2 className="font-serif text-xl border-b border-black/20 dark:border-white/20 pb-1 mb-3 text-[#241c14] dark:text-[#ede3cc] font-semibold">
+                VII. Acclimatization & Care Protocol
+              </h2>
+              <p className="text-[14px] leading-7 whitespace-pre-wrap mb-12 text-[#2c2419] dark:text-[#e4dac7]">
+                {report.protocol}
+              </p>
+
+              {/* Archival Deed Footer */}
+              <footer className="border-t-2 pt-5 flex flex-col sm:flex-row justify-between gap-4 text-[10px] uppercase tracking-[0.16em] text-[#7a6f60] dark:text-[#a89b88] border-[#2c2419]/25">
+                <div>
+                  <p className="font-bold">Issued by Royal Specimen Herbarium & Clinical Engine</p>
+                  <p>Archival survivability certification · Non-transferable botanical deed</p>
+                </div>
+                <div className="sm:text-right font-mono">
+                  <p>DEED RECORD: {caseId}</p>
+                  <p>FOLIO: 01 / 01</p>
+                </div>
+              </footer>
             </div>
           </motion.article>
         )}

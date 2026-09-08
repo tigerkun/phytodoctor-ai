@@ -1,19 +1,130 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Camera, Info, Leaf, MessageCircle, Sprout, X } from 'lucide-react';
+import { 
+  Camera, 
+  Info, 
+  Leaf, 
+  MessageCircle, 
+  Sprout, 
+  X, 
+  AlertTriangle, 
+  ShieldCheck, 
+  Microscope, 
+  Database, 
+  Check, 
+  ExternalLink, 
+  RefreshCw 
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { identifyPlant, type PlantCare, type DiagnosticPossibility } from '../services/geminiService';
 import { NotificationContainer, type RewardToast } from '../components/game/RewardNotification';
 import { COMMON_REWARDS } from '../game/rewardUtils';
 import PageWrapper from '../components/home/PageWrapper';
 import { useToast } from '../components/Toast';
-
+import { GameService } from '../services/gameService';
+import { CaseStudy } from '../components/CaseStudy';
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
+/**
+ * Antique Brass Balance Scale Gauge
+ * Stylizes diagnostic certainty as an authentic mechanical balance scale.
+ */
+function AntiqueBrassScale({ confidencePct }: { confidencePct: number }) {
+  const pct = clamp(confidencePct, 10, 100);
+  // Pointer angle: 50% is center (0 deg), 10% is -24 deg, 100% is +24 deg
+  const needleAngle = ((pct - 50) / 50) * 24;
+  // Beam tilt: physical equilibrium balancing towards certainty
+  const beamTilt = clamp(((pct - 50) / 50) * 5, -5, 5);
+
+  return (
+    <div 
+      className="brass-scale-gauge rounded-2xl p-3 flex flex-col items-center justify-between shadow-md min-w-[210px] w-full sm:w-auto"
+      role="meter"
+      aria-valuenow={pct}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={`Diagnostic Certainty Balance Scale: ${pct}%`}
+    >
+      <div className="flex items-center justify-between w-full text-[9px] font-black uppercase tracking-wider text-[#785a1a] dark:text-[#caa651] px-1">
+        <span>Certainty Scale</span>
+        <span className="font-mono text-[11px] font-bold text-[#2d2214] dark:text-[#f4edd9]">{pct}%</span>
+      </div>
+
+      {/* Antique Brass Balance SVG */}
+      <div className="relative w-full h-[58px] my-1 flex items-center justify-center">
+        <svg viewBox="0 0 160 56" className="w-full h-full" aria-hidden="true">
+          {/* Calibrated dial arc positioned above fulcrum */}
+          <path
+            d="M 38 18 Q 80 8 122 18"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            className="text-[#b89542]/50"
+          />
+          {/* Calibration ticks aligned with needle sweep */}
+          <line x1="42" y1="16" x2="45" y2="20" stroke="currentColor" strokeWidth="1" className="text-[#b89542]/70" />
+          <line x1="60" y1="13" x2="62" y2="17" stroke="currentColor" strokeWidth="1" className="text-[#b89542]/60" />
+          <line x1="80" y1="8" x2="80" y2="13" stroke="currentColor" strokeWidth="1.5" className="text-[#b89542]" />
+          <line x1="100" y1="13" x2="98" y2="17" stroke="currentColor" strokeWidth="1" className="text-[#b89542]/60" />
+          <line x1="118" y1="16" x2="115" y2="20" stroke="currentColor" strokeWidth="1" className="text-[#b89542]/70" />
+
+          {/* Central Pillar / Stand */}
+          <rect x="78" y="24" width="4" height="24" rx="1" fill="url(#brassBeamGrad)" />
+          <ellipse cx="80" cy="48" rx="16" ry="3.5" fill="url(#brassBeamGrad)" stroke="#634b0f" strokeWidth="0.8" />
+          
+          {/* Tilting Crossbeam & Suspended Pans */}
+          <g transform={`rotate(${beamTilt} 80 24)`} style={{ transition: 'transform 0.8s ease-out' }}>
+            <line x1="26" y1="24" x2="134" y2="24" stroke="url(#brassBeamGrad)" strokeWidth="3" strokeLinecap="round" />
+            <circle cx="30" cy="24" r="1.5" fill="#634b0f" />
+            <circle cx="130" cy="24" r="1.5" fill="#634b0f" />
+
+            {/* Left suspension strings & pan */}
+            <line x1="30" y1="24" x2="21" y2="39" stroke="#8a6c33" strokeWidth="0.8" />
+            <line x1="30" y1="24" x2="39" y2="39" stroke="#8a6c33" strokeWidth="0.8" />
+            <path d="M 19 39 Q 30 45 41 39 Z" fill="url(#brassPanGrad)" stroke="#634b0f" strokeWidth="0.8" />
+
+            {/* Right suspension strings & pan */}
+            <line x1="130" y1="24" x2="121" y2="39" stroke="#8a6c33" strokeWidth="0.8" />
+            <line x1="130" y1="24" x2="139" y2="39" stroke="#8a6c33" strokeWidth="0.8" />
+            <path d="M 119 39 Q 130 45 141 39 Z" fill="url(#brassPanGrad)" stroke="#634b0f" strokeWidth="0.8" />
+          </g>
+
+          {/* Central Pivot Hub */}
+          <circle cx="80" cy="24" r="3.5" fill="#634b0f" stroke="#caa651" strokeWidth="1" />
+
+          {/* Pointer needle pivoting from fulcrum upwards to calibrated arc */}
+          <g transform={`rotate(${needleAngle} 80 24)`} style={{ transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+            <line x1="80" y1="24" x2="80" y2="9" stroke="#b91c1c" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="80" cy="8.5" r="1.5" fill="#ef4444" />
+          </g>
+
+          {/* Pure SVG gradients */}
+          <defs>
+            <linearGradient id="brassBeamGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#f7e1a0" />
+              <stop offset="50%" stopColor="#b89542" />
+              <stop offset="100%" stopColor="#634b0f" />
+            </linearGradient>
+            <linearGradient id="brassPanGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#eed794" />
+              <stop offset="100%" stopColor="#9a7726" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+
+      <span className="text-[8px] font-black uppercase tracking-wider text-[#5f7161] dark:text-[#9caf88]">
+        {pct >= 85 ? 'Empirical Equilibrium' : pct >= 65 ? 'Probable Alignment' : 'Inconclusive Balance'}
+      </span>
+    </div>
+  );
+}
+
 export default function Clinic() {
-  const { info } = useToast();
+  const { info, success, error: toastError } = useToast();
   const [images, setImages] = useState<string[]>([]);
   const [identification, setIdentification] = useState<PlantCare | null>(null);
 
@@ -21,19 +132,21 @@ export default function Clinic() {
   const [loadingPhase, setLoadingPhase] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'diagnosis' | 'timeline' | 'differential'>('diagnosis');
-  const [showDisclaimer, setShowDisclaimer] = useState(true);
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savedPlantId, setSavedPlantId] = useState<string | null>(null);
   const [showBotanistChat, setShowBotanistChat] = useState(false);
+  const [showCaseStudyDrawer, setShowCaseStudyDrawer] = useState(false);
   const [notifications, setNotifications] = useState<RewardToast[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const LOADING_PHRASES = useMemo(
     () => [
-      'Listening to leaf whispers...',
-      'Brewing botanical certainty...',
-      'Reading hydration harmony...',
-      'Charting a gentle wellness path...',
+      'Consulting dispensary herbals...',
+      'Calibrating brass certainty scales...',
+      'Reading moisture & cellular signatures...',
+      'Compounding restorative botanical regimen...',
     ],
     []
   );
@@ -50,21 +163,35 @@ export default function Clinic() {
     };
   }, [loading, LOADING_PHRASES.length]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowDisclaimer(false);
+        setShowCaseStudyDrawer(false);
+        setShowBotanistChat(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Reset input value so re-uploading the same file works
+    e.target.value = '';
+
     const reader = new FileReader();
+    reader.onerror = () => {
+      setError('Unable to read selected leaf specimen file. Please select another.');
+    };
     reader.onloadend = () => {
-      const newImages = [...images, reader.result as string].slice(-3);
-      setImages(newImages);
-
-      // Reset previous state so real scan diagnosis displays
+      const base64 = reader.result as string;
+      setImages((prev) => [...prev, base64].slice(-3));
       setIdentification(null);
-
-      if (newImages.length >= 1) {
-        identify(reader.result as string);
-      }
+      setSavedPlantId(null);
+      identify(base64);
     };
     reader.readAsDataURL(file);
   };
@@ -84,20 +211,46 @@ export default function Clinic() {
           id: rewardId,
           xp: rewardResult.xpAwarded,
           seeds: rewardResult.seedsAwarded,
-          actionName: 'Diagnosis Complete',
+          actionName: 'Dispensary Triage Complete',
           capExceeded: rewardResult.capExceeded
         }]);
-        // Auto-remove notification after 4s
         setTimeout(() => {
           setNotifications(prev => prev.filter(n => n.id !== rewardId));
         }, 4000);
-      } catch (rewardError) {
-        console.error('Reward error:', rewardError);
+      } catch (rewardErr) {
+        console.error('Reward error:', rewardErr);
       }
     } catch (err: any) {
-      setError(err?.message || 'Please try again with a clearer photo.');
+      setError(err?.message || 'Please try again with a clearer leaf photo.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveToVault = async () => {
+    if (!identification || savedPlantId || saving) return;
+    setSaving(true);
+    try {
+      const photoUrl = images[0] || '';
+      const species = identification.speciesName || identification.scientificName || identification.commonName || 'Unknown Specimen';
+      const saved = await GameService.indexScannedPlant({
+        photoUrl,
+        species,
+        commonName: identification.commonName || species,
+        healthStatus: identification.healthStatus,
+        severity: identification.severity,
+        diagnosis: identification.diagnosis,
+        watering: identification.watering,
+        light: identification.light,
+        temperature: identification.temperature,
+      });
+      setSavedPlantId(saved.id);
+      success(`Specimen admitted to Herbarium records: ${saved.name}`);
+    } catch (err: any) {
+      console.error('Dexie persistence error:', err);
+      toastError('Could not record specimen in dispensary ledger. Please retry.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -105,195 +258,49 @@ export default function Clinic() {
     setImages([]);
     setIdentification(null);
     setError(null);
+    setSavedPlantId(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setShowBotanistChat(false);
     setActiveTab('diagnosis');
   };
 
-  const AmbientWind = () => {
-    const icons = [Leaf, Sprout];
-    const colors = [
-      'bg-[#5F7161]/20', // Moss
-      'bg-[#9CAF88]/20', // Sage
-      'bg-[#E07A5F]/20', // Terracotta
-      'bg-[#3D405B]/10', // Deep Bark
-    ];
-
-    const items: React.ReactNode[] = [];
-    for (let i = 0; i < 12; i++) {
-      const Icon = icons[Math.floor(Math.random() * icons.length)];
-      const color = colors[Math.floor(Math.random() * colors.length)];
-      const left = Math.random() * 100;
-      const duration = 22 + Math.random() * 34; // 22-56s
-      const delay = Math.random() * 30;
-      const scale = 0.5 + Math.random() * 1.4;
-      const rotate = Math.random() * 360;
-
-      items.push(
-        <motion.div
-          key={i}
-          className="fixed pointer-events-none z-0"
-          style={{
-            left: `${left}%`,
-            top: '-14%',
-            width: `${scale * 28}px`,
-            height: `${scale * 28}px`,
-            transform: `rotate(${rotate}deg)`,
-            animationDelay: `${delay}s`,
-            willChange: 'transform',
-          }}
-          initial={{ opacity: 0, y: 60 }}
-          animate={{ opacity: 0.45, y: -120, rotate: rotate + 360 }}
-          transition={{ duration, repeat: Infinity, ease: 'linear', delay }}
-        >
-          <div className={`w-full h-full rounded-full flex items-center justify-center ${color}`}>
-            <Icon size={18} className="text-[#3D405B]/40" />
-          </div>
-        </motion.div>
-      );
-    }
-
-    const blobs = [
-      { left: '8%', top: '20%', w: 220, h: 220, c: 'bg-[#9CAF88]/20' },
-      { left: '65%', top: '12%', w: 240, h: 240, c: 'bg-[#5F7161]/20' },
-      { left: '40%', top: '55%', w: 260, h: 260, c: 'bg-[#E07A5F]/12' },
-    ];
-
-    return (
-      <>
-        {items}
-        {blobs.map((b, idx) => (
-          <motion.div
-            key={idx}
-            className={`fixed pointer-events-none ${b.c} blur-3xl rounded-full z-0`}
-            style={{ left: b.left, top: b.top, width: b.w, height: b.h }}
-            initial={{ opacity: 0.55, x: -20, y: 10 }}
-            animate={{ opacity: 0.72, x: 20, y: -10 }}
-            transition={{ duration: 16 + idx * 3, repeat: Infinity, ease: 'easeInOut' }}
-          />
-        ))}
-      </>
-    );
-  };
-
-  const ConfidenceRing = ({ confidencePct }: { confidencePct: number }) => {
-    const size = 78;
-    const strokeWidth = 10;
-    const r = (size - strokeWidth) / 2;
-    const c = 2 * Math.PI * r;
-    const pct = clamp(confidencePct, 10, 100);
-    const dashOffset = c - (pct / 100) * c;
-
-    return (
-      <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="transform -rotate-90">
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#F9F7F2" strokeWidth={strokeWidth} />
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            fill="none"
-            stroke="#9CAF88"
-            strokeWidth={strokeWidth}
-            strokeDasharray={`${c} ${c}`}
-            strokeDashoffset={dashOffset}
-            strokeLinecap="round"
-          >
-            <animate attributeName="stroke-dashoffset" values={`${c};${dashOffset}`} dur="2.4s" repeatCount="1" />
-          </circle>
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div className="text-3xl font-black text-[#3D405B] leading-none">{pct}</div>
-          <div className="text-[9px] font-black uppercase tracking-[0.2em] text-[#3D405B]/60 mt-1">Clarity</div>
-        </div>
-      </div>
-    );
-  };
-
-  const FloatingBotanist = () => {
-    const prompts = [
-      'How often should I water this?',
-      'What light level is safest?',
-      'Why are leaf edges changing?',
-    ];
-
-    const onPrompt = (p: string) => {
-      info(`Botanist: "${p}" — This is a mock response designed for UI preview.`);
-    };
-
-    return (
-      <>
-        <motion.div
-          className="fixed bottom-6 right-4 z-[60]"
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.96 }}
-        >
-          <button
-            type="button"
-            aria-label="Ask the Botanist"
-            onClick={() => setShowBotanistChat((v) => !v)}
-            className="w-14 h-14 rounded-full flex items-center justify-center bg-[#9CAF88] text-white shadow-xl shadow-[#5F7161]/10 transition-all"
-          >
-            <MessageCircle size={18} />
-          </button>
-        </motion.div>
-
-        <AnimatePresence>
-          {showBotanistChat && (
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 16 }}
-              className="fixed bottom-20 right-4 z-[55] w-[320px] max-w-[92vw] rounded-3xl border border-[#F9F7F2]/20 shadow-xl shadow-[#5F7161]/10 bg-white/95 p-4"
-            >
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <div>
-                  <h3 className="font-serif text-xl text-[#3D405B]">Ask the Botanist</h3>
-                  <p className="text-[11px] w-full block whitespace-normal break-words text-[#3D405B]/60 font-sans mt-0.5">
-                    Quick care nudges, crafted for thriving.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowBotanistChat(false)}
-                  className="p-2 rounded-2xl hover:bg-[#F9F7F2]/70 transition-colors text-[#3D405B]"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 gap-2">
-                {prompts.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => onPrompt(p)}
-                    className="w-full text-left px-3 py-2 rounded-2xl border border-[#F9F7F2]/30 bg-[#F9F7F2]/50 hover:bg-[#F9F7F2]/80 transition-colors text-[#3D405B] font-sans text-sm"
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </>
-    );
-  };
-
   const ConfidencePct = useMemo(() => {
     if (!identification) return 0;
     const anyId = identification as any;
-    const c = typeof anyId.confidence === 'number' ? anyId.confidence : 86;
-    return clamp(c, 0, 100);
+    if (typeof anyId.confidence === 'number') return clamp(anyId.confidence, 0, 100);
+    const topDiff = identification.differentialDiagnosis?.[0];
+    if (topDiff && typeof topDiff.confidence === 'number') {
+      return clamp(topDiff.confidence, 0, 100);
+    }
+    return 88;
   }, [identification]);
+
+  const severityLevel = useMemo(() => {
+    if (!identification) return 1;
+    const s = (identification as any).severity;
+    if (typeof s === 'number') return s;
+    const hs = ((identification as any).healthStatus || '').toLowerCase();
+    if (hs.includes('infest') || hs.includes('diseas')) return 4;
+    if (hs.includes('stress')) return 3;
+    return 1;
+  }, [identification]);
+
+  const isQuarantineRequired = severityLevel >= 3;
 
   const HealthPill = () => {
     const healthStatus = (identification as any)?.healthStatus as string | undefined;
-    const label = healthStatus || 'Well-Groomed';
-    const tone = label.toLowerCase().includes('healthy') ? 'bg-[#9CAF88]/90' : 'bg-[#E07A5F]/90';
+    const label = healthStatus || 'Vigorous';
+    const isHealthy = label.toLowerCase().includes('healthy');
+    const isSevere = label.toLowerCase().includes('infest') || label.toLowerCase().includes('diseas');
+    
+    const tone = isSevere 
+      ? 'bg-[#dc2626] text-white' 
+      : isHealthy 
+        ? 'bg-[#5f7161] text-white' 
+        : 'bg-[#e07a5f] text-white';
+
     return (
-      <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider text-white shadow-xs ${tone}`}>
+      <span className={`px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-xs ${tone}`}>
         {label}
       </span>
     );
@@ -312,10 +319,10 @@ export default function Clinic() {
         type="button"
         onClick={() => setActiveTab(id)}
         className={
-          'flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ' +
+          'flex-1 py-2.5 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all min-h-[44px] ' +
           (active
-            ? 'bg-white text-[#3D405B] shadow-[0_10px_30px_rgba(95,113,97,0.12)] border border-[#F9F7F2]/40'
-            : 'text-[#3D405B]/50 hover:text-[#3D405B]')
+            ? 'bg-white dark:bg-[#2b2118] text-[var(--text-bark)] shadow-sm border border-[#b89542]/35'
+            : 'text-[var(--text-stone)]/70 hover:text-[var(--text-bark)]')
         }
       >
         {label}
@@ -326,14 +333,68 @@ export default function Clinic() {
   const differentialItems = (identification as any)?.differentialDiagnosis as DiagnosticPossibility[] | undefined;
 
   return (
-    <PageWrapper>
-      <AmbientWind />
+    <PageWrapper className="skin-clinic">
       <NotificationContainer 
         notifications={notifications} 
         onDismiss={(id) => setNotifications(prev => prev.filter(n => n.id !== id))} 
       />
 
-      <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-bark)] relative z-[10]">
+      <div className="min-h-screen text-[var(--text-bark)] relative z-[10] px-3 sm:px-6 py-6 max-w-7xl mx-auto">
+        {/* Dispensary Masthead */}
+        <header className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-[var(--border-light)] pb-4">
+          <div>
+            <div className="flex items-center gap-2 mb-2 text-xs font-mono text-[var(--text-stone)]">
+              <Link to="/" className="hover:text-[var(--text-bark)] transition-colors">Command Center</Link>
+              <span>/</span>
+              <Link to="/lab" className="hover:text-[var(--text-bark)] transition-colors">Botanical Lab</Link>
+              <span>/</span>
+              <span className="text-[#5f7161] dark:text-[#9caf88] font-bold">Dispensary</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#5f7161]/15 text-[#5f7161] dark:text-[#9caf88] border border-[#5f7161]/25 text-[9px] font-black uppercase tracking-widest font-mono">
+                <Leaf size={11} /> Botanical Sanatorium & Herbal Dispensary
+              </span>
+              <span className="text-[10px] font-mono uppercase text-[var(--text-stone)]">
+                Form Rx-Triage
+              </span>
+            </div>
+            <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[var(--text-bark)] mt-1 tracking-tight">
+              Clinical Plant Dispensary
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0 flex-wrap">
+            {/* Historical Case Drawer Link */}
+            <button
+              type="button"
+              onClick={() => setShowCaseStudyDrawer(true)}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-[#785a1a] dark:text-[#caa651] text-[10px] font-black uppercase tracking-wider border border-[#b89542]/30 transition-all min-h-[44px]"
+            >
+              <Microscope size={14} className="text-[#b89542]" />
+              <span>Case Drawer #001</span>
+            </button>
+
+            <Link
+              to="/clinic/case-study"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--bg-glass)] hover:bg-white text-[var(--text-stone)] hover:text-[var(--text-bark)] text-[10px] font-black uppercase tracking-wider border border-[var(--border-light)] transition-all min-h-[44px]"
+              title="Open full-page case study archive"
+            >
+              <ExternalLink size={13} />
+              <span className="hidden sm:inline">Archive</span>
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => setShowDisclaimer(true)}
+              className="p-2.5 rounded-xl border border-[var(--border-light)] bg-[var(--bg-glass)] hover:bg-white text-[var(--text-stone)] hover:text-[var(--text-bark)] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+              aria-label="Clinical Notice"
+              title="Dispensary Protocol Notice"
+            >
+              <Info size={16} />
+            </button>
+          </div>
+        </header>
+
         {/* Clinical Notice Modal */}
         <AnimatePresence>
           {showDisclaimer && (
@@ -346,388 +407,509 @@ export default function Clinic() {
               <motion.div
                 initial={{ scale: 0.98, y: 8 }}
                 animate={{ scale: 1, y: 0 }}
-                className="w-11/12 max-w-[500px] block mx-auto my-auto bg-[var(--bg-glass)] rounded-[2.5rem] border border-[var(--border-light)] shadow-xl p-8 relative"
+                className="w-full max-w-[480px] bg-[var(--bg-glass)] rounded-3xl border border-[var(--border-light)] shadow-2xl p-6 relative"
               >
-                <div className="absolute -right-6 -top-6 text-[var(--terracotta)]/5 pointer-events-none -rotate-12">
-                  <Info size={120} />
+                <div className="flex items-center justify-between border-b border-[var(--border-light)] pb-3 mb-4">
+                  <div className="flex items-center gap-2 text-[#785a1a] dark:text-[#caa651]">
+                    <ShieldCheck size={20} />
+                    <h3 className="font-serif text-xl font-bold">Dispensary Care Notice</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowDisclaimer(false)}
+                    className="p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
-
-                <h3 className="font-serif text-3xl font-bold mb-4 text-[var(--text-bark)]">Garden Clinic Welcome</h3>
-                <p className="w-full block whitespace-normal break-words text-[var(--text-stone)] text-sm leading-relaxed font-sans font-medium">
-                  This Plant Clinic offers living wellness wisdom. Guidance complements—never replaces—professional horticultural advice.
-                  Please handle treatments with care and observe plant safety first.
+                <p className="text-sm text-[var(--text-stone)] leading-relaxed font-sans">
+                  The Botanical Sanatorium provides physiological triage, hydration balances, and dispensary regimens. Guidance complements professional arboricultural practice. Always isolate quarantined specimens promptly.
                 </p>
-
                 <button
                   type="button"
                   onClick={() => setShowDisclaimer(false)}
-                  className="mt-6 w-full py-4 bg-[var(--text-bark)] hover:bg-[var(--moss)] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2 min-h-[44px]"
+                  className="mt-6 w-full py-3 bg-[var(--text-bark)] hover:bg-[var(--moss)] text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all min-h-[44px]"
                 >
-                  Enter the Clinic
+                  Acknowledge & Enter Dispensary
                 </button>
-
-                {error && (
-                  <p className="mt-3 text-[11px] text-[var(--terracotta)] w-full block whitespace-normal break-words font-sans">{error}</p>
-                )}
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <main className="pb-28">
-          {/* Upload Station */}
+        <main className="pb-20">
+          {/* INTAKE / UPLOAD STATE: Mounted on the Masonite Triage Clipboard */}
           {images.length === 0 && (
-            <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-10">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 w-full">
-                {/* LEFT WING */}
-                <section className="lg:col-span-5 rounded-3xl border border-[var(--border-light)] shadow-xl bg-[var(--bg-glass)] p-8 min-h-[560px] relative overflow-hidden">
-                  {/* laser line */}
-                  <div className="absolute left-[-10%] right-[-10%] top-10 h-[2px] bg-gradient-to-r from-transparent via-[var(--moss)] to-transparent animate-[pulse_2.8s_ease-in-out_infinite]" />
+            <div className="w-full max-w-5xl mx-auto my-4">
+              {/* Tactile Riveted Steel Binder Clip */}
+              <div className="tactile-clipboard-clip" aria-hidden="true">
+                <div className="w-16 h-1.5 bg-slate-300/50 rounded-full mx-auto" />
+              </div>
 
-                  <div className="relative z-10 h-full flex flex-col justify-center items-center text-center">
-                    <div className="w-24 h-24 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-light)] shadow-md flex items-center justify-center text-[var(--text-stone)]/45">
-                      <Camera size={36} />
-                    </div>
-
-                    <span className="mt-6 inline-flex items-center gap-2 px-3 py-1 bg-[var(--moss)]/10 border border-[var(--border-light)] rounded-full text-[9px] font-black uppercase tracking-[0.25em] text-[var(--text-stone)]">
-                      <span className="w-2 h-2 rounded-full bg-[var(--sage)]" /> Living Lens
+              {/* Masonite Clipboard backing */}
+              <section 
+                className="masonite-clipboard rounded-3xl p-4 sm:p-8 pt-9 transition-all"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files?.[0];
+                  if (file && file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      const base64 = reader.result as string;
+                      setImages([base64]);
+                      setIdentification(null);
+                      setSavedPlantId(null);
+                      identify(base64);
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              >
+                <div className="bg-[#fdfbf7] dark:bg-[#1f1b16] rounded-2xl border border-[#b89542]/30 shadow-inner p-6 sm:p-10">
+                  <div className="max-w-2xl mx-auto text-center flex flex-col items-center">
+                    <span className="inline-flex items-center gap-2 px-3 py-1 bg-[#5f7161]/10 border border-[#5f7161]/25 rounded-full text-[9px] font-black uppercase tracking-[0.2em] text-[#5f7161] dark:text-[#9caf88] font-mono">
+                      Form RX-INTAKE • Living Specimen Registry
                     </span>
 
-                    <h1 className="font-serif text-5xl md:text-5xl font-bold text-[var(--text-bark)] mt-5 leading-tight w-full whitespace-normal">
-                      Plant Clinic
-                    </h1>
+                    <h2 className="font-serif text-3xl sm:text-4xl font-bold text-[var(--text-bark)] mt-4">
+                      Botanical Clinical Triage
+                    </h2>
 
-                    <p className="mt-4 text-sm text-[var(--text-stone)] block w-full whitespace-normal break-words leading-relaxed font-sans font-medium">
-                      Place your leaf before the lens. Botanical Intelligence reads color, texture, and rhythm to guide care toward thriving.
+                    <p className="mt-3 text-sm text-[var(--text-stone)] leading-relaxed font-sans max-w-xl">
+                      Mount your leaf specimen upon the triage clipboard. Computer vision telemetry examines pigment variations, stomatal turgor, and cellular stress markers to prescribe targeted herbal regimens.
                     </p>
 
-                    <div className="mt-7 w-full pt-6 border-t border-[var(--border-light)]">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="w-full px-8 py-4.5 bg-[var(--text-bark)] hover:bg-[var(--moss)] text-white font-black uppercase tracking-widest text-xs rounded-2xl shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2 min-h-[44px]"
-                        >
-                          <span className="inline-block">
-                            <Camera size={14} />
-                          </span>
-                          Diagnose My Plant
-                        </button>
-
-                        <div className="relative rounded-2xl border border-[var(--moss)]/25 bg-[var(--moss)]/10 shadow-inner p-4 overflow-hidden">
-                          <div className="absolute inset-0 opacity-70 bg-[radial-gradient(circle_at_20%_20%,rgba(156,175,136,0.35),transparent_45%),radial-gradient(circle_at_80%_40%,rgba(95,113,97,0.25),transparent_50%)]" />
-                          <div className="relative flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-light)] flex items-center justify-center text-[var(--terracotta)]">
-                              🌻
-                            </div>
-                            <div className="text-left">
-                              <span className="text-[10px] font-black uppercase tracking-wider block text-[var(--terracotta)]">
-                                Growth Protocol
-                              </span>
-                              <p className="w-full block whitespace-normal break-words text-[12px] font-black text-[var(--text-bark)] mt-0.5">
-                                +150 Growth Points
-                              </p>
-                              <p className="w-full block whitespace-normal break-words text-[11px] text-[var(--text-stone)] mt-0.5 font-sans">
-                                Earn care steps that feel natural.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-5 flex items-center justify-center gap-2">
-                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-light)]">
-                          <Sprout size={14} className="text-[var(--moss)]" />
-                          <p className="w-full block whitespace-normal break-words text-[11px] text-[var(--text-stone)] font-sans">Capture a leaf close-up for best results.</p>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="absolute bottom-[-120px] left-[-60px] w-[220px] h-[220px] rounded-full bg-[var(--sage)]/10 blur-2xl" />
-                </section>
-
-                {/* RIGHT WING */}
-                <section className="lg:col-span-7 rounded-3xl border border-[var(--border-light)] shadow-xl bg-[var(--bg-glass)] p-8 min-h-[560px]">
-                  <div className="h-full flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <span className="inline-flex items-center gap-2 px-3 py-1 bg-[var(--moss)]/10 border border-[var(--moss)]/20 rounded-full text-[9px] font-black uppercase tracking-[0.25em] text-[var(--moss)]">
-                          <Leaf size={13} /> Botanical Intelligence
-                        </span>
-
-                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--sage)]/15 border border-[var(--sage)]/25 text-[10px] font-black uppercase tracking-wider text-[var(--moss)]">
-                          🌿 Late Spring Care Protocol
-                        </span>
-                      </div>
-
-                      <h2 className="font-serif text-5xl md:text-5xl font-bold text-[var(--text-bark)] mt-6 leading-tight w-full whitespace-normal">
-                        Clinic Intelligence
-                      </h2>
-
-                      <p className="mt-4 text-sm text-[var(--text-stone)] block w-full whitespace-normal break-words leading-relaxed font-sans font-medium">
-                        A warm, living wellness blueprint: hydration rhythm, light harmony, and soil breathing—so your plant can settle into thriving.
-                      </p>
-
-                      <div className="mt-6 rounded-2xl border border-[var(--border-light)] bg-[var(--bg-secondary)] p-5">
-                        <h3 className="font-serif text-xl font-bold text-[var(--text-bark)]">What the Clinic checks</h3>
-                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {[
-                            { title: 'Leaf tone', desc: 'Color balance and seasonal cues' },
-                            { title: 'Edge behavior', desc: 'Dryness, stress, and recovery signs' },
-                            { title: 'Water rhythm', desc: 'Moisture comfort without over-saturation' },
-                            { title: 'Light comfort', desc: 'Gentle intensity and daily consistency' },
-                          ].map((it) => (
-                            <div key={it.title} className="rounded-2xl border border-[var(--border-light)] bg-[var(--bg-glass)] p-4">
-                              <p className="w-full block whitespace-normal break-words text-[12px] font-black uppercase tracking-wider text-[var(--moss)]">
-                                {it.title}
-                              </p>
-                              <p className="mt-1 w-full block whitespace-normal break-words text-sm text-[var(--text-stone)] font-sans">{it.desc}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-8">
+                    <div className="mt-8 w-full max-w-md">
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="w-full px-8 py-4.5 bg-[var(--text-bark)] hover:bg-[var(--moss)] text-white font-black uppercase tracking-widest text-xs rounded-2xl shadow-xl transition-all active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2 min-h-[44px]"
+                        className="w-full py-4 px-6 bg-[var(--text-bark)] hover:bg-[#5f7161] text-white font-black uppercase tracking-widest text-xs rounded-2xl shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2.5 min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5f7161]"
                       >
-                        Diagnose My Plant
+                        <Camera size={16} />
+                        Mount & Diagnose Specimen
                       </button>
-                      <p className="mt-3 w-full block whitespace-normal break-words text-[11px] text-[var(--text-stone)] font-sans">
-                        Tip: if your leaf is dusty, gently wipe the surface before uploading.
-                      </p>
+
+                      <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-[var(--text-stone)] font-mono">
+                        <Sprout size={13} className="text-[#5f7161]" />
+                        <span>Awarded: +150 Botanical Growth Points</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-3 w-full border-t border-[#b89542]/20 pt-6 text-left">
+                      <div className="p-3.5 rounded-xl bg-black/5 dark:bg-white/5 border border-[var(--border-light)]">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-[#785a1a] dark:text-[#caa651] block font-mono">
+                          I. Chlorosis Scan
+                        </span>
+                        <p className="text-xs text-[var(--text-stone)] mt-1">Leaf tone & photosynthetic vigor</p>
+                      </div>
+                      <div className="p-3.5 rounded-xl bg-black/5 dark:bg-white/5 border border-[var(--border-light)]">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-[#785a1a] dark:text-[#caa651] block font-mono">
+                          II. Turgor Pressure
+                        </span>
+                        <p className="text-xs text-[var(--text-stone)] mt-1">Cellular hydration & transpiration</p>
+                      </div>
+                      <div className="p-3.5 rounded-xl bg-black/5 dark:bg-white/5 border border-[var(--border-light)]">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-[#785a1a] dark:text-[#caa651] block font-mono">
+                          III. Hazard Triage
+                        </span>
+                        <p className="text-xs text-[var(--text-stone)] mt-1">Automatic quarantine routing</p>
+                      </div>
                     </div>
                   </div>
-                </section>
+                </div>
+              </section>
 
-                <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
-              </div>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleImageUpload} 
+                accept="image/*" 
+                className="hidden" 
+              />
             </div>
           )}
 
-          {/* Diagnosis Report */}
+          {/* DIAGNOSIS STATE */}
           <AnimatePresence mode="wait">
-            {images.length > 0 && identification && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-8">
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 w-full">
-                    {/* Left: uploaded image */}
-                    <section className="lg:col-span-5 w-full text-left block">
-                      <div className="relative rounded-[2.5rem] overflow-hidden shadow-xl border border-[var(--border-light)] w-full bg-white">
-                        <img src={images[images.length - 1]} alt="Plant leaf preview" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-[var(--text-bark)]/25 via-transparent to-transparent" />
-                        <div className="absolute top-0 left-0 h-[2px] w-full bg-gradient-to-r from-transparent via-[var(--moss)] to-transparent" />
+            {images.length > 0 && (
+              <motion.div 
+                initial={{ opacity: 0 }} 
+                animate={{ opacity: 1 }} 
+                exit={{ opacity: 0 }}
+                className="w-full"
+              >
+                {/* Masonite Clipboard Mount for Diagnosis */}
+                <div className="tactile-clipboard-clip" aria-hidden="true">
+                  <div className="w-16 h-1.5 bg-slate-300/50 rounded-full mx-auto" />
+                </div>
 
-                        {/* Optical Telemetry (badge, warm wording allowed) */}
-                        <span className="absolute top-4 left-4 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-[var(--moss)]/90 text-[var(--bg-primary)] shadow-sm">
-                          Living Lens • Telemetry Active
-                        </span>
+                <div className="masonite-clipboard rounded-3xl p-3 sm:p-6 pt-8">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full">
+                    {/* LEFT COLUMN: Specimen Mount on Clipboard */}
+                    <div className="lg:col-span-5 flex flex-col space-y-4">
+                      <div className={`relative rounded-2xl overflow-hidden shadow-xl border-2 transition-all ${
+                        identification && isQuarantineRequired 
+                          ? 'border-red-600/80 shadow-red-950/30 ring-2 ring-red-500/20' 
+                          : 'border-[#b89542]/40'
+                      } bg-white dark:bg-zinc-900`}>
+                        <img 
+                          src={images[images.length - 1]} 
+                          alt="Patient leaf specimen" 
+                          className="w-full aspect-4/3 object-cover" 
+                        />
+
+                        {/* Top Telemetry badge */}
+                        <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-black/75 text-white backdrop-blur-xs font-mono">
+                          Specimen Lens • In Focus
+                        </div>
+
+                        {/* Reset button */}
+                        <button
+                          type="button"
+                          onClick={reset}
+                          className="absolute top-3 right-3 p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl transition-all shadow-sm active:scale-95 min-h-[40px] min-w-[40px] flex items-center justify-center z-10"
+                          title="Clear specimen & reset"
+                          aria-label="Clear specimen"
+                        >
+                          <X size={16} />
+                        </button>
+
+                        {/* Diagonal Hazard Quarantine Ribbon overlaid on specimen card */}
+                        {identification && isQuarantineRequired && (
+                          <div 
+                            className="quarantine-ribbon absolute bottom-4 -left-6 -right-6 py-2 px-6 shadow-2xl flex items-center justify-center gap-2 z-20 pointer-events-none"
+                            role="alert"
+                          >
+                            <AlertTriangle size={14} className="text-white shrink-0 animate-pulse" />
+                            <span className="text-[10px] sm:text-xs font-mono font-black tracking-widest text-white drop-shadow-md">
+                              BIO-HAZARD QUARANTINE • SEVERITY {severityLevel}
+                            </span>
+                          </div>
+                        )}
 
                         {/* Loading overlay */}
                         {loading && (
-                          <div className="absolute inset-0 bg-[var(--text-bark)]/80 backdrop-blur-md z-50 flex flex-col items-center justify-center p-8 text-center">
-                            <div className="w-12 h-12 rounded-full bg-[var(--moss)]/20 border border-[var(--moss)]/40 flex items-center justify-center mb-3">
-                              <motion.div animate={{ rotate: 360 }} transition={{ duration: 0.9, repeat: Infinity, ease: 'linear' }}>
-                                <Camera size={22} className="text-[var(--moss)]" />
-                              </motion.div>
-                            </div>
-                            <p className="w-full block whitespace-normal break-words font-serif text-lg font-medium text-[var(--bg-primary)]">
+                          <div className="absolute inset-0 bg-black/80 backdrop-blur-xs z-50 flex flex-col items-center justify-center p-6 text-center text-white">
+                            <motion.div 
+                              animate={{ rotate: 360 }} 
+                              transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
+                              className="w-10 h-10 rounded-full border-2 border-amber-400 border-t-transparent mb-3"
+                            />
+                            <p className="font-serif text-base font-medium text-amber-100">
                               {LOADING_PHRASES[loadingPhase]}
                             </p>
                           </div>
                         )}
-
-                        <button
-                          type="button"
-                          onClick={reset}
-                          className="absolute top-4 right-4 p-3 bg-white/90 backdrop-blur-md text-[var(--text-bark)] rounded-2xl hover:bg-white transition-all shadow-sm active:scale-95 min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2"
-                        >
-                          <X size={18} />
-                        </button>
                       </div>
 
-                      <div className="mt-5">
-                        <div className="flex gap-3 items-center w-full justify-start overflow-x-auto pb-2">
-                          {images.map((img, i) => (
-                            <div
-                              key={i}
-                              className="w-16 h-16 rounded-2xl border border-[var(--border-light)] overflow-hidden shadow-sm bg-white shrink-0"
-                            >
-                              <img src={img} alt={`Plant angle ${i + 1}`} className="w-full h-full object-cover" />
-                            </div>
-                          ))}
+                      {/* Quarantine Directive Alert Box */}
+                      {identification && isQuarantineRequired && (
+                        <div 
+                          className="p-3.5 rounded-xl bg-red-950/40 border border-red-500/40 text-red-200 text-xs font-sans space-y-1"
+                          role="alert"
+                        >
+                          <div className="flex items-center gap-2 font-mono font-bold text-red-400 uppercase text-[11px]">
+                            <AlertTriangle size={14} className="text-red-400 shrink-0" />
+                            <span>Isolation Protocol Active (Severity {severityLevel}/5)</span>
+                          </div>
+                          <p className="text-[11px] leading-relaxed text-red-300/90 font-mono">
+                            Mandatory bio-containment: isolate specimen from adjacent plants, sterilize dispensary implements, and withhold foliar spraying.
+                          </p>
+                        </div>
+                      )}
 
-                          {images.length < 3 && (
-                            <button
-                              type="button"
-                              onClick={() => fileInputRef.current?.click()}
-                              className="w-16 h-16 rounded-2xl border border-dashed border-[var(--border-light)] hover:bg-white transition-all flex flex-col items-center justify-center text-[var(--text-stone)]/55 hover:text-[var(--moss)] gap-1 shrink-0 min-h-[44px] min-w-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)]"
-                            >
-                              <Camera size={16} />
-                              <span className="text-[8px] font-black uppercase tracking-tighter">Add Angle</span>
-                            </button>
+                      {/* Healthy Clearance Badge when severity < 3 */}
+                      {identification && !isQuarantineRequired && (
+                        <div className="p-2.5 rounded-xl bg-[#5f7161]/15 border border-[#5f7161]/30 flex items-center justify-center gap-2 text-[#5f7161] dark:text-[#9caf88]">
+                          <ShieldCheck size={16} />
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider">
+                            Clearance Granted • No Bio-Quarantine Required
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Angle thumbnails */}
+                      <div className="flex gap-2 items-center overflow-x-auto pb-1">
+                        {images.map((img, i) => (
+                          <div
+                            key={i}
+                            className="w-14 h-14 rounded-xl border-2 border-[#b89542]/40 overflow-hidden shadow-xs bg-white shrink-0"
+                          >
+                            <img src={img} alt={`Specimen angle ${i + 1}`} className="w-full h-full object-cover" />
+                          </div>
+                        ))}
+
+                        {images.length < 3 && (
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-14 h-14 rounded-xl border border-dashed border-[#b89542]/50 hover:bg-white/20 transition-all flex flex-col items-center justify-center text-[var(--text-stone)] hover:text-[#5f7161] gap-1 shrink-0 min-h-[44px] min-w-[44px]"
+                            title="Add additional leaf angle"
+                          >
+                            <Camera size={14} />
+                            <span className="text-[8px] font-mono font-bold uppercase">+Angle</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Actions on specimen card: Admit to Vault / Persist to Dexie */}
+                      {identification && (
+                        <div className="pt-2 border-t border-[#b89542]/20 flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={handleSaveToVault}
+                            disabled={saving || !!savedPlantId}
+                            className={`w-full py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider font-mono flex items-center justify-center gap-2 transition-all min-h-[44px] ${
+                              savedPlantId 
+                                ? 'bg-[#5f7161] text-white cursor-default' 
+                                : 'bg-[var(--text-bark)] hover:bg-[#5f7161] text-white shadow-md active:scale-[0.98]'
+                            }`}
+                          >
+                            {saving ? (
+                              <>
+                                <RefreshCw size={14} className="animate-spin" />
+                                <span>Admitting Specimen to Dexie...</span>
+                              </>
+                            ) : savedPlantId ? (
+                              <>
+                                <Check size={14} />
+                                <span>Admitted to Herbarium Register</span>
+                              </>
+                            ) : (
+                              <>
+                                <Database size={14} />
+                                <span>Save Specimen to Vault Register</span>
+                              </>
+                            )}
+                          </button>
+
+                          {savedPlantId && (
+                            <div className="flex items-center justify-between text-[11px] font-mono text-[var(--text-stone)] px-1">
+                              <span>Accession ID: #{savedPlantId.slice(0, 8)}</span>
+                              <Link to={`/plant/${savedPlantId}`} className="text-[#785a1a] dark:text-[#caa651] hover:underline flex items-center gap-1 font-bold">
+                                <span>View Specimen</span>
+                                <ExternalLink size={12} />
+                              </Link>
+                            </div>
                           )}
                         </div>
-                      </div>
+                      )}
 
-                      <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
-                    </section>
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleImageUpload} 
+                        accept="image/*" 
+                        className="hidden" 
+                      />
+                    </div>
 
-                    {/* Right report */}
-                    <section className="lg:col-span-7 w-full text-left block">
-                      <div className="w-full block rounded-[2.5rem] border border-[var(--border-light)] shadow-xl bg-[var(--bg-glass)] p-8">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 w-full border-b border-[var(--border-light)] pb-4">
-                          <div className="text-left space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="px-2.5 py-0.5 bg-[var(--text-bark)]/5 border border-[var(--text-bark)]/10 rounded-full text-[9px] font-black uppercase tracking-wider text-[var(--text-bark)]">
-                                Vital Blueprint
+                    {/* RIGHT COLUMN: Clinical Dispensary Chart */}
+                    <div className="lg:col-span-7 flex flex-col">
+                      <div className="bg-[#fdfbf7] dark:bg-[#1e1a15] rounded-2xl border border-[#b89542]/30 p-5 sm:p-7 shadow-sm">
+                        {/* Specimen Header & Brass Balance Scale */}
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-[#b89542]/20 pb-4">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="px-2.5 py-0.5 bg-[#b89542]/10 border border-[#b89542]/25 rounded-full text-[9px] font-black uppercase tracking-wider text-[#785a1a] dark:text-[#caa651] font-mono">
+                                Patient Record • Rx-{severityLevel}
                               </span>
-                              <span className="px-2.5 py-0.5 bg-[var(--moss)]/15 text-[var(--terracotta)] border border-[var(--moss)]/25 rounded-full text-[9px] font-black uppercase tracking-wider">
-                                🌻 +150 Growth Granted
-                              </span>
+                              <HealthPill />
                             </div>
-                            <h2 className="font-serif text-4xl md:text-5xl font-bold text-[var(--text-bark)] tracking-tight w-full whitespace-normal break-words">
-                              {(identification as any).commonName || 'Your Plant'}
+
+                            <h2 className="font-serif text-3xl sm:text-4xl font-bold text-[var(--text-bark)] mt-1.5 tracking-tight">
+                              {(identification as any)?.commonName || 'Plant Under Triage'}
                             </h2>
-                            <p className="w-full block whitespace-normal break-words text-sm italic font-serif text-[var(--moss)]">
-                              {(identification as any).scientificName || (identification as any).scientific || 'Botanical Name Unfolding...'}
+                            <p className="text-xs italic font-serif text-[#5f7161] dark:text-[#9caf88] mt-0.5">
+                              {(identification as any)?.scientificName || (identification as any)?.scientific || 'Botanical classification pending...'}
                             </p>
                           </div>
 
-                          <div className="flex items-center gap-4 shrink-0 mt-2 md:mt-0">
-                            <ConfidenceRing confidencePct={ConfidencePct} />
-                            <HealthPill />
+                          {/* Antique Brass Balance Scale */}
+                          <div className="shrink-0">
+                            <AntiqueBrassScale confidencePct={ConfidencePct} />
                           </div>
                         </div>
 
-                        {/* Tabs */}
-                        <div className="mt-6 bg-[var(--text-bark)]/5 rounded-2xl border border-[var(--border-light)] p-1 w-full">
-                          <div className="grid grid-cols-3 gap-1 w-full">
-                            <TabButton id="diagnosis" label="Diagnosis" />
-                            <TabButton id="timeline" label="Care Timeline" />
+                        {/* Triage Tabs */}
+                        <div className="mt-5 bg-black/5 dark:bg-white/5 rounded-xl border border-[var(--border-light)] p-1">
+                          <div className="grid grid-cols-3 gap-1">
+                            <TabButton id="diagnosis" label="Prescription" />
+                            <TabButton id="timeline" label="Timeline (℞)" />
                             <TabButton id="differential" label="Differential" />
                           </div>
                         </div>
 
-                        {/* Panels */}
-                        <div className="mt-6 w-full block">
+                        {/* TAB PANELS */}
+                        <div className="mt-5">
+                          {/* TAB 1: Prescription & Diagnostic Summary */}
                           {activeTab === 'diagnosis' && (
-                            <div className="grid grid-cols-1 gap-4">
-                              <div className="rounded-[2rem] border border-[var(--border-light)] bg-[var(--bg-glass)] p-6 shadow-sm">
-                                <h4 className="text-[10px] font-black uppercase tracking-wider text-[var(--moss)] mb-2 flex items-center gap-2">
-                                  <Info size={12} /> Plant Diagnosis
-                                </h4>
-                                <p className="w-full block whitespace-normal break-words text-[18px] font-semibold italic text-[var(--text-bark)] leading-relaxed">
-                                  “{(identification as any).diagnosis || 'A gentle wellness story is emerging.'}”
+                            <div className="space-y-4">
+                              {/* Apothecary Rx Slip */}
+                              <div className="apothecary-rx-slip rounded-2xl p-5 sm:p-6">
+                                <div className="flex items-center justify-between border-b border-[#b89542]/20 pb-2 mb-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-serif font-bold text-xl text-[#785a1a] dark:text-[#caa651]">℞</span>
+                                    <span className="text-[10px] font-mono uppercase tracking-wider font-bold text-[#785a1a] dark:text-[#caa651]">
+                                      Diagnostic Finding
+                                    </span>
+                                  </div>
+                                  <span className="text-[9px] font-mono text-[var(--text-stone)]">
+                                    Dispensed at Triage Desk
+                                  </span>
+                                </div>
+
+                                <p className="font-serif text-lg sm:text-xl font-semibold italic text-[var(--text-bark)] leading-relaxed">
+                                  “{(identification as any)?.diagnosis || 'A gentle botanical wellness story is unfolding.'}”
                                 </p>
 
-                                <div className="mt-4 rounded-[1.5rem] border border-[var(--border-light)] bg-[var(--bg-secondary)] p-4">
-                                  <span className="block text-[9px] font-black uppercase tracking-wider text-[var(--text-stone)]/40 mb-1">
-                                    Wellness Notes
+                                <div className="mt-4 pt-3 border-t border-dashed border-[#b89542]/20 text-xs text-[var(--text-stone)] font-sans leading-relaxed">
+                                  <span className="font-bold text-[#785a1a] dark:text-[#caa651] font-mono uppercase text-[10px] block mb-1">
+                                    Vulnerability & Environmental Notes:
                                   </span>
-                                  <p className="w-full block whitespace-normal break-words text-sm text-[var(--text-stone)] font-sans">
-                                    {(identification as any).vulnerabilityNotes || 'Watch hydration balance and keep light consistent.'}
-                                  </p>
-
-                                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    {[
-                                      { k: 'Watering', v: (identification as any).watering || 'Moist' },
-                                      { k: 'Light', v: (identification as any).light || 'Indirect' },
-                                      { k: 'Soil', v: (identification as any).soil || 'Loamy' },
-                                      { k: 'Comfort Temp', v: (identification as any).temperature || '22°C' },
-                                    ].map((row) => (
-                                      <div key={row.k} className="rounded-2xl bg-[var(--bg-glass)] border border-[var(--border-light)] p-4">
-                                        <p className="text-[10px] font-black uppercase tracking-wider text-[var(--moss)] w-full block whitespace-normal break-words">
-                                          {row.k}
-                                        </p>
-                                        <p className="text-sm text-[var(--text-stone)] font-sans w-full block whitespace-normal break-words mt-1">
-                                          {row.v}
-                                        </p>
-                                      </div>
-                                    ))}
-                                  </div>
+                                  {(identification as any)?.vulnerabilityNotes || 'Observe leaf margin transpiration and maintain steady ambient illumination.'}
                                 </div>
                               </div>
 
+                              {/* Dispensary Viticultural Measurements */}
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                {[
+                                  { label: 'Hydration ʒ', val: (identification as any)?.watering || 'Moist' },
+                                  { label: 'Light Lux', val: (identification as any)?.light || 'Indirect' },
+                                  { label: 'Substrate', val: (identification as any)?.soil || 'Loamy' },
+                                  { label: 'Temp °C', val: (identification as any)?.temperature || '21°C' },
+                                ].map((item) => (
+                                  <div key={item.label} className="p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-[#b89542]/20">
+                                    <span className="text-[9px] font-mono uppercase tracking-wider text-[#785a1a] dark:text-[#caa651] block font-bold">
+                                      {item.label}
+                                    </span>
+                                    <span className="text-xs font-semibold text-[var(--text-bark)] block mt-0.5 truncate">
+                                      {item.val}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Dispensary Compounding Instructions Slip */}
+                              {(((identification as any)?.treatmentInstructions && (identification as any).treatmentInstructions.length > 0) || 
+                                ((identification as any)?.careTips && (identification as any).careTips.length > 0)) && (
+                                <div className="apothecary-rx-slip rounded-2xl p-5 sm:p-6 space-y-3">
+                                  <div className="flex items-center justify-between border-b border-[#b89542]/20 pb-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-serif font-bold text-lg text-[#785a1a] dark:text-[#caa651]">℞</span>
+                                      <span className="text-[10px] font-mono uppercase tracking-wider font-bold text-[#785a1a] dark:text-[#caa651]">
+                                        Dispensary Compounding Instructions
+                                      </span>
+                                    </div>
+                                    <span className="text-[9px] font-mono text-[var(--text-stone)]">
+                                      Signa: Usus Botanicus
+                                    </span>
+                                  </div>
+
+                                  <ul className="space-y-2 text-xs text-[var(--text-stone)] font-sans">
+                                    {(((identification as any)?.treatmentInstructions && (identification as any).treatmentInstructions.length > 0)
+                                      ? (identification as any).treatmentInstructions
+                                      : (identification as any).careTips
+                                    ).map((instr: string, i: number) => (
+                                      <li key={i} className="flex items-start gap-2">
+                                        <span className="font-mono text-[10px] font-bold text-[#785a1a] dark:text-[#caa651] mt-0.5 shrink-0">
+                                          {i + 1}.
+                                        </span>
+                                        <span className="leading-relaxed">{instr}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
                               {error && (
-                                <div className="rounded-[2rem] border border-[var(--terracotta)]/20 bg-[var(--terracotta)]/10 p-5">
-                                  <p className="w-full block whitespace-normal break-words text-[var(--terracotta)] font-sans font-medium">{error}</p>
+                                <div className="p-4 rounded-xl border border-red-300 bg-red-500/10 text-red-600 text-xs font-sans">
+                                  {error}
                                 </div>
                               )}
                             </div>
                           )}
 
+                          {/* TAB 2: Treatment Timeline styled as Perforated Tear-off Rx Slips */}
                           {activeTab === 'timeline' && (
-                            <div className="grid grid-cols-1 gap-4 relative">
-                              <div className="absolute left-[18px] top-6 bottom-6 w-[2px] bg-[var(--border-medium)] rounded-full hidden sm:block" />
-
-                              {((identification as any).treatmentTimeline || []).map((step: any, idx: number) => (
-                                <div key={idx} className="relative pl-8 sm:pl-10">
-                                  <div className="absolute left-2 top-2 w-4 h-4 rounded-full bg-[var(--moss)] border border-[var(--border-light)] shadow-sm" />
-                                  <div className="rounded-[2rem] border border-[var(--border-light)] bg-[var(--bg-glass)] p-6 shadow-sm">
-                                    <div className="flex items-center justify-between gap-3 mb-2">
-                                      <span className="px-3 py-1 rounded-full bg-[var(--text-bark)] text-white text-[10px] font-black uppercase tracking-wider">
-                                        Day {step.day}
+                            <div className="space-y-3">
+                              {((identification as any)?.treatmentTimeline || []).map((step: any, idx: number) => (
+                                <div key={idx} className="apothecary-rx-slip rounded-xl p-4 sm:p-5">
+                                  <div className="flex items-center justify-between border-b border-[#b89542]/20 pb-2 mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-serif font-bold text-base text-[#785a1a] dark:text-[#caa651]">℞</span>
+                                      <span className="px-2.5 py-0.5 rounded-full bg-[var(--text-bark)] text-white text-[9px] font-mono font-bold uppercase tracking-wider">
+                                        Day {step.day} Dispensary Order
                                       </span>
-                                      <span className="text-[10px] font-black uppercase tracking-wider text-[var(--moss)]">Sequence {idx + 1}</span>
                                     </div>
-                                    <h4 className="font-serif text-[18px] font-bold text-[var(--text-bark)] w-full whitespace-normal break-words">
-                                      {step.action}
-                                    </h4>
-                                    <p className="w-full block whitespace-normal break-words text-sm text-[var(--text-stone)] font-sans mt-2">
-                                      Outcome: <span className="italic">{step.expectedOutcome}</span>
-                                    </p>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {activeTab === 'differential' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {(differentialItems || []).map((item, idx) => (
-                                <div
-                                  key={idx}
-                                  className="rounded-[2rem] border border-[var(--border-light)] bg-[var(--bg-glass)] p-6 shadow-sm hover:border-[var(--moss)]/30 transition-colors"
-                                >
-                                  <div className="flex items-center justify-between gap-3">
-                                    <h4 className="font-serif text-[18px] font-bold text-[var(--text-bark)] w-full whitespace-normal break-words">
-                                      {item.name}
-                                    </h4>
-                                    <span className="px-3 py-1 rounded-full bg-[var(--moss)]/10 border border-[var(--border-light)] text-[var(--moss)] text-[10px] font-black uppercase tracking-wider shrink-0">
-                                      Match {String(item.confidence)}%
+                                    <span className="text-[9px] font-mono uppercase tracking-wider text-[#785a1a] dark:text-[#caa651]">
+                                      Phase #{idx + 1}
                                     </span>
                                   </div>
 
-                                  <p className="w-full block whitespace-normal break-words text-sm text-[var(--text-stone)] font-sans mt-2 leading-relaxed">
-                                    {item.description}
+                                  <h4 className="font-serif text-base font-bold text-[var(--text-bark)]">
+                                    {step.action}
+                                  </h4>
+                                  <p className="text-xs text-[var(--text-stone)] font-sans mt-1">
+                                    <span className="font-semibold text-[#5f7161] dark:text-[#9caf88]">Expected Prognosis:</span> {step.expectedOutcome}
                                   </p>
 
-                                  {/* animated horizontal progress bar */}
-                                  <div className="mt-4">
-                                    <div className="h-2 rounded-full bg-[var(--moss)]/10 overflow-hidden">
-                                      <motion.div
-                                        initial={{ width: 0 }}
-                                        animate={{ width: `${clamp(item.confidence, 0, 100)}%` }}
-                                        transition={{ duration: 1.1, ease: 'easeOut' }}
-                                        className="h-2 rounded-full bg-gradient-to-r from-[var(--sage)] via-[var(--moss)] to-[var(--terracotta)]"
-                                      />
-                                    </div>
+                                  <div className="mt-3 pt-2 border-t border-dashed border-[#b89542]/20 flex items-center justify-between text-[9px] font-mono text-[#785a1a] dark:text-[#caa651]">
+                                    <span>Prescribed Dosage: q.s. ℈ iv</span>
+                                    <span>Sanatorium Register</span>
                                   </div>
                                 </div>
                               ))}
 
-                              {/* Masonry-style feel: staggered cards visually */}
-                              <div className="md:col-span-2" />
+                              {(!((identification as any)?.treatmentTimeline) || (identification as any).treatmentTimeline.length === 0) && (
+                                <div className="p-6 text-center text-xs text-[var(--text-stone)] font-mono">
+                                  No timeline required. Specimen displays vital equilibrium.
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* TAB 3: Differential Diagnoses styled as Perforated Tear-off Rx Slips */}
+                          {activeTab === 'differential' && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {(differentialItems || []).map((item, idx) => (
+                                <div key={idx} className="apothecary-rx-slip rounded-xl p-4 sm:p-5 flex flex-col justify-between">
+                                  <div>
+                                    <div className="flex items-center justify-between border-b border-[#b89542]/20 pb-2 mb-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-serif font-bold text-base text-[#785a1a] dark:text-[#caa651]">℞</span>
+                                        <h4 className="font-serif text-sm font-bold text-[var(--text-bark)] truncate">
+                                          {item.name}
+                                        </h4>
+                                      </div>
+                                      <span className="px-2 py-0.5 rounded-full bg-[#5f7161]/15 text-[#5f7161] dark:text-[#9caf88] text-[9px] font-mono font-bold uppercase shrink-0">
+                                        Match {item.confidence}%
+                                      </span>
+                                    </div>
+
+                                    <p className="text-xs text-[var(--text-stone)] font-sans leading-relaxed">
+                                      {item.description}
+                                    </p>
+                                  </div>
+
+                                  <div className="mt-3 pt-2 border-t border-dashed border-[#b89542]/20 flex items-center justify-between text-[9px] font-mono text-[#785a1a] dark:text-[#caa651]">
+                                    <span>Formula: ʒ ii Sol. Herbaria</span>
+                                    <span>Score: {item.confidence}/100</span>
+                                  </div>
+                                </div>
+                              ))}
+
+                              {(!differentialItems || differentialItems.length === 0) && (
+                                <div className="col-span-2 p-6 text-center text-xs text-[var(--text-stone)] font-mono">
+                                  No differential conflicts noted. Specimen matches primary signature.
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
                       </div>
-                    </section>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -735,9 +917,84 @@ export default function Clinic() {
           </AnimatePresence>
         </main>
 
-        <FloatingBotanist />
+        {/* HISTORICAL CASE STUDY DRAWER */}
+        <AnimatePresence>
+          {showCaseStudyDrawer && (
+            <div 
+              className="fixed inset-0 z-[100] flex justify-end bg-black/60 backdrop-blur-xs"
+              onClick={() => setShowCaseStudyDrawer(false)}
+            >
+              <motion.div
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+                className="w-full max-w-2xl h-full bg-[#181512] shadow-2xl overflow-y-auto p-4 sm:p-6 border-l border-amber-900/40"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <CaseStudy isDrawer={true} onClose={() => setShowCaseStudyDrawer(false)} />
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Floating Botanist consultation assistant */}
+        <div className="fixed bottom-6 right-4 z-[50]">
+          <button
+            type="button"
+            aria-label="Ask the Botanist"
+            onClick={() => setShowBotanistChat((v) => !v)}
+            className="w-13 h-13 rounded-full flex items-center justify-center bg-[#5f7161] hover:bg-[#4d5c4e] text-white shadow-xl transition-all active:scale-95"
+            title="Ask the Sanatorium Botanist"
+          >
+            <MessageCircle size={20} />
+          </button>
+        </div>
+
+        <AnimatePresence>
+          {showBotanistChat && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
+              className="fixed bottom-22 right-4 z-[55] w-[320px] max-w-[92vw] rounded-2xl border border-[#b89542]/30 shadow-2xl bg-[#fdfbf7] dark:bg-[#1e1a15] p-4 text-[var(--text-bark)]"
+            >
+              <div className="flex items-start justify-between gap-3 mb-3 border-b border-[var(--border-light)] pb-2">
+                <div>
+                  <h3 className="font-serif text-lg font-bold">Dispensary Botanist</h3>
+                  <p className="text-[11px] text-[var(--text-stone)] font-sans">
+                    Herbal remedies & immediate care guidance
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowBotanistChat(false)}
+                  className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {[
+                  'What is the optimal watering frequency for this species?',
+                  'How to treat early leaf chlorosis naturally?',
+                  'What light exposure produces best vigor?',
+                ].map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => info(`Botanist: "${prompt}" — Recommended dispensary action: adjust moisture and place in bright filtered light.`)}
+                    className="w-full text-left px-3 py-2 rounded-xl border border-[var(--border-light)] bg-black/5 dark:bg-white/5 hover:bg-black/10 transition-colors text-xs font-sans"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </PageWrapper>
   );
 }
-

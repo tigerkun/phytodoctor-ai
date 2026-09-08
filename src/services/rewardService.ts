@@ -237,7 +237,8 @@ export class RewardService {
 
   static async updateLevel(userId: string, newXP: number): Promise<void> {
     let progress = await this.ensureLevelProgress(userId);
-    const levelData = LEVEL_TIERS.find(t => t.xpRequired <= newXP);
+    // Find highest tier where xpRequired <= newXP (LEVEL_TIERS is sorted ascending)
+    const levelData = [...LEVEL_TIERS].reverse().find(t => t.xpRequired <= newXP);
 
     if (!levelData) return;
 
@@ -258,18 +259,19 @@ export class RewardService {
     }
 
     // Update XP progress
-    const nextLevelData = LEVEL_TIERS[newLevel] || LEVEL_TIERS[LEVEL_TIERS.length - 1];
-    const nextNextLevelData = LEVEL_TIERS[newLevel + 1];
-    const xpForCurrentLevel = nextLevelData.xpRequired;
-    const xpForNextLevel = nextNextLevelData?.xpRequired || nextLevelData.xpRequired;
-    const xpProgress = Math.floor(
-      ((newXP - xpForCurrentLevel) / (xpForNextLevel - xpForCurrentLevel)) * 100
-    );
+    const currentTier = LEVEL_TIERS[newLevel - 1] || LEVEL_TIERS[0];
+    const nextTier = LEVEL_TIERS[newLevel] || currentTier;
+    const xpForCurrentLevel = currentTier.xpRequired;
+    const xpForNextLevel = nextTier.xpRequired;
+    const xpSpan = Math.max(1, xpForNextLevel - xpForCurrentLevel);
+    const xpProgress = newLevel >= LEVEL_TIERS.length
+      ? 100
+      : Math.floor(((newXP - xpForCurrentLevel) / xpSpan) * 100);
 
     await db.levelProgress.update(userId, {
       totalXP: newXP,
       xpToNextLevel: Math.max(0, xpForNextLevel - newXP),
-      xpProgress: Math.min(100, xpProgress)
+      xpProgress: Math.min(100, Math.max(0, xpProgress))
     });
   }
 

@@ -50,7 +50,7 @@ async function generateWithRetry(params: any, retries = 1) {
 
         if (i === retries && modelName === models[models.length - 1]) throw err;
         console.warn(`Gemini API (${modelName}) attempt ${i + 1} failed, retrying...`, err?.message || err);
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 400 * (i + 1)));
       }
     }
   }
@@ -333,10 +333,21 @@ RESPONSE FORMAT & PACING (SHORT STANZAS):
 - Use clear bullet points and bold key parameters (e.g., **Lighting**, **Watering Schedule**, **Treatment**).
 - Avoid long rambling essays; keep it crisp, insightful, and immediately actionable so the user can easily digest and apply the advice.`;
 
-    const formattedContents = messages.map(m => ({
-      role: m.role === 'user' ? 'user' : 'model',
-      parts: [{ text: m.content }]
-    }));
+    let formattedContents = messages
+      .filter(m => m && typeof m.content === 'string' && m.content.trim().length > 0)
+      .map(m => ({
+        role: m.role === 'user' ? 'user' : 'model',
+        parts: [{ text: m.content }]
+      }));
+
+    // Gemini multi-turn conversation requires the first turn to be from 'user'
+    while (formattedContents.length > 0 && formattedContents[0].role === 'model') {
+      formattedContents.shift();
+    }
+
+    if (formattedContents.length === 0) {
+      return res.status(400).json({ error: "At least one user message is required" });
+    }
     
     const response = await generateWithRetry({
       contents: formattedContents,

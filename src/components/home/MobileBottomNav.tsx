@@ -30,17 +30,10 @@ export default function MobileBottomNav() {
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ type: 'spring', damping: 25, stiffness: 200, delay: 0.5 }}
-      className="fixed bottom-4 left-4 right-4 z-50 md:hidden flex justify-around items-center py-3 px-4 rounded-[2rem] border backdrop-blur-lg shadow-2xl transition-all"
+      className="fixed bottom-4 left-4 right-4 z-50 md:hidden flex justify-around items-center py-3 px-4 rounded-[2rem] border backdrop-blur-lg shadow-2xl"
       style={{
-        background: theme === 'day'
-          ? 'rgba(255, 248, 240, 0.85)'
-          : 'rgba(15, 20, 25, 0.85)',
-        borderColor: theme === 'day'
-          ? 'rgba(90, 122, 90, 0.15)'
-          : 'rgba(255, 255, 255, 0.08)',
-        boxShadow: theme === 'day'
-          ? '0 12px 40px -10px rgba(90, 122, 90, 0.15)'
-          : '0 12px 40px -10px rgba(0, 0, 0, 0.5)'
+        background: theme === 'day' ? 'rgba(255, 248, 240, 0.88)' : 'rgba(15, 20, 25, 0.88)',
+        borderColor: theme === 'day' ? 'rgba(90, 122, 90, 0.15)' : 'rgba(255, 255, 255, 0.08)'
       }}
     >
       {navItems.map((item) => {

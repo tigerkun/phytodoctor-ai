@@ -1,8 +1,15 @@
 import React from 'react';
-import { motion } from 'motion/react';
-import { ShieldCheck, History, CornerRightDown, AlertTriangle, CheckCircle2, Microscope } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { ShieldCheck, History, CornerRightDown, AlertTriangle, CheckCircle2, Microscope, X } from 'lucide-react';
 
-export const CaseStudy = () => {
+export interface CaseStudyProps {
+  onClose?: () => void;
+  isDrawer?: boolean;
+}
+
+export const CaseStudy: React.FC<CaseStudyProps> = ({ onClose, isDrawer = false }) => {
+  const navigate = useNavigate();
   const study = {
     id: 'alocasia-mite-prevention',
     plant: 'Alocasia amazonica',
@@ -36,14 +43,39 @@ export const CaseStudy = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-8 bg-black text-emerald-50 min-h-screen font-sans">
-      <header className="space-y-2 border-b border-emerald-900 pb-6">
-        <div className="flex items-center gap-2 text-emerald-400 mb-2">
-          <Microscope className="w-5 h-5" />
-          <span className="text-xs font-mono uppercase tracking-widest">Clinical Case Study #001</span>
+    <div className={`mx-auto space-y-8 text-emerald-50 font-sans ${isDrawer ? 'bg-[#181512] text-amber-50 rounded-2xl p-2 sm:p-4' : 'max-w-4xl bg-black min-h-screen p-6 md:p-8'}`}>
+      <header className="space-y-3 border-b border-emerald-900/60 pb-6 relative">
+        {!isDrawer && (
+          <div className="flex items-center gap-2 text-xs font-mono text-emerald-400/80 mb-3">
+            <button
+              type="button"
+              onClick={() => navigate('/clinic')}
+              className="hover:text-emerald-300 transition-colors"
+            >
+              ← Dispensary Triage
+            </button>
+            <span>/</span>
+            <span className="text-white/60">Historical Archive</span>
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-emerald-400">
+            <Microscope className="w-5 h-5 text-emerald-400" />
+            <span className="text-xs font-mono uppercase tracking-widest">Sanatorium Case Study #001</span>
+          </div>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+              aria-label="Close Case Study Drawer"
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
-        <h1 className="text-4xl font-medium tracking-tight">Phenotype Drift Mitigation</h1>
-        <p className="text-emerald-400/60 max-w-2xl">{study.summary}</p>
+        <h1 className="text-3xl md:text-4xl font-serif font-bold tracking-tight text-white">Phenotype Drift Mitigation</h1>
+        <p className="text-emerald-300/80 max-w-2xl text-sm leading-relaxed">{study.summary}</p>
       </header>
 
       <div className="grid md:grid-cols-3 gap-6">
@@ -121,13 +153,33 @@ export const CaseStudy = () => {
         </p>
       </section>
 
-      <footer className="pt-8 text-center">
-        <button 
-          onClick={() => window.history.back()}
-          className="text-zinc-500 hover:text-emerald-400 transition-colors text-sm font-mono uppercase tracking-widest"
-        >
-          ← Return to Command Center
-        </button>
+      <footer className="pt-8 flex flex-wrap items-center justify-center gap-4">
+        {onClose ? (
+          <button 
+            type="button"
+            onClick={onClose}
+            className="px-6 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/30 transition-colors text-xs font-mono uppercase tracking-widest min-h-[44px]"
+          >
+            Close Case Study Drawer
+          </button>
+        ) : (
+          <>
+            <button 
+              type="button"
+              onClick={() => navigate('/clinic')}
+              className="px-5 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 transition-colors text-xs font-mono uppercase tracking-widest min-h-[44px]"
+            >
+              ← Return to Clinical Triage
+            </button>
+            <button 
+              type="button"
+              onClick={() => navigate('/')}
+              className="px-5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors text-xs font-mono uppercase tracking-widest min-h-[44px]"
+            >
+              Command Center
+            </button>
+          </>
+        )}
       </footer>
     </div>
   );
