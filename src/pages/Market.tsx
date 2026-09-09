@@ -577,13 +577,7 @@ export default function GardenMarket() {
   };
 
   return (
-    <PageWrapper className="min-h-screen text-text-bark overflow-x-hidden relative">
-      <div
-        className="fixed inset-0 pointer-events-none z-0 opacity-40"
-        style={{
-          backgroundImage: 'radial-gradient(ellipse at top, rgba(193,127,89,0.18), transparent 50%), linear-gradient(180deg, #f6efe4 0%, var(--bg-primary) 40%)',
-        }}
-      />
+    <PageWrapper className="min-h-screen skin-bazaar text-text-bark overflow-x-hidden relative">
 
       <div className="relative z-10">
         <div className="sticky top-0 z-40 bazaar-mast px-4 md:px-8 py-3 flex items-center justify-between gap-3">

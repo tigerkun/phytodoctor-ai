@@ -30,11 +30,7 @@ export function generateLocalUserId(email: string): string {
   return Buffer.from(clean).toString('base64').replace(/=/g, '');
 }
 
-export function decodeJwtPayload(credential: string): { sub: string; email: string; name?: string } {
-  const b64 = credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-  const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4));
-  return JSON.parse(atob(b64 + pad)) as { sub: string; email: string; name?: string };
-}
+
 
 /**
  * Hash password using Web Crypto SHA-256 with a per-user salt (the userId).

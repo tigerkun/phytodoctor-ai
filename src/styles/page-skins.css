@@ -2334,9 +2334,56 @@
     0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
+/* ── Inscribe (signup) — gold, distinct from the green "seal" (login) button ── */
+.ledger-inscribe-button {
+  background: linear-gradient(135deg, #c5a059 0%, #a47f3b 100%);
+  border: 1px solid #2e4a34;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 8px 20px rgba(165, 128, 45, 0.3);
+  color: #1e2b1e;
+}
+
+.ledger-inscribe-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #d4af37 0%, #b08a3e 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 10px 24px rgba(165, 128, 45, 0.4);
+}
+
+:root[data-theme="night"] .ledger-inscribe-button {
+  background: linear-gradient(135deg, #b08a3e 0%, #8c6e2f 100%);
+  border-color: #2e4a34;
+  color: #16120e;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Bazaar: The Garden Market Stall — warm terracotta/spice bazaar ── */
+.skin-bazaar {
+  background-color: #f5ead6;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(193, 127, 89, 0.18) 0%, transparent 55%),
+    repeating-linear-gradient(0deg, transparent 0 52px, rgba(193, 127, 89, 0.04) 52px 53px),
+    repeating-linear-gradient(90deg, transparent 0 104px, rgba(193, 127, 89, 0.03) 104px 105px),
+    linear-gradient(180deg, #f0dfc4 0%, #f5ead6 40%, #e8d5b0 100%);
+  min-height: 100vh;
+}
+
+:root[data-theme="night"] .skin-bazaar {
+  background-color: #181210;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(193, 127, 89, 0.1) 0%, transparent 55%),
+    repeating-linear-gradient(0deg, transparent 0 52px, rgba(255, 255, 255, 0.02) 52px 53px),
+    repeating-linear-gradient(90deg, transparent 0 104px, rgba(255, 255, 255, 0.015) 104px 105px),
+    linear-gradient(180deg, #14100c 0%, #181210 40%, #120e0a 100%);
+}
+
 /* ── Lost ── */
 .skin-lost {
   background:
     radial-gradient(ellipse at 50% 70%, rgba(90, 125, 90, 0.28), transparent 52%),
     linear-gradient(180deg, #121812, #1c2418);
 }
+

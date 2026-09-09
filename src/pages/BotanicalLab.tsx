@@ -293,7 +293,11 @@ export default function BotanicalLab() {
         triggerCoinBurst();
         
         const today = new Date();
-        const cloudUrl = (await StorageService.uploadPlantPhoto(file, userId)) || base64;
+        const cloudUrl = await StorageService.uploadPlantPhoto(file, userId);
+        if (!cloudUrl) {
+          throw new Error("Failed to upload photo to secure vault.");
+        }
+
         await PlantService.updatePlant(targetPlantId, {
           checkInTime: 'just now',
           updatedAt: today,
@@ -310,7 +314,7 @@ export default function BotanicalLab() {
           lightLevel: 'Indirect',
           changes: ['Photo updated via Wet Lab'],
           photoBlob: null,
-          photoUrl: base64,
+          photoUrl: cloudUrl,
           signature: null,
           guardianScore: 95,
           driftScore: 0.1,

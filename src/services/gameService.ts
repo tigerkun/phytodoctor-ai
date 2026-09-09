@@ -507,13 +507,12 @@ export class GameService {
 
     let finalPhotoUrl = input.photoUrl;
     if (finalPhotoUrl && finalPhotoUrl.startsWith('data:')) {
-      try {
-        const { StorageService } = await import('./storageService');
-        const cloudUrl = await StorageService.uploadPlantPhotoFromDataUrl(finalPhotoUrl, userId);
-        if (cloudUrl) finalPhotoUrl = cloudUrl;
-      } catch (err) {
-        console.warn('Storage upload fallback:', err);
+      const { StorageService } = await import('./storageService');
+      const cloudUrl = await StorageService.uploadPlantPhotoFromDataUrl(finalPhotoUrl, userId);
+      if (!cloudUrl) {
+        throw new Error("Failed to upload photo to secure vault.");
       }
+      finalPhotoUrl = cloudUrl;
     }
 
     if (plant) {
@@ -563,7 +562,7 @@ export class GameService {
       lightLevel: light,
       changes: input.diagnosis ? [input.diagnosis] : ['Indexed from scan'],
       photoBlob: null,
-      photoUrl: input.photoUrl,
+      photoUrl: finalPhotoUrl,
       signature: null,
       guardianScore: score,
       driftScore: null,

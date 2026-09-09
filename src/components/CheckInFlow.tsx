@@ -5,6 +5,7 @@ import { db } from '../db/database';
 import { extractSignature, analyzePlantHealth, type DriftResult } from '../services/driftDetector';
 import { runGuardianDossier } from '../notifications/alertEngine';
 import { GameService } from '../services/gameService';
+import { StorageService } from '../services/storageService';
 import { createSensorProvider } from '../sensors/SensorProvider';
 import { MoistureLevel, LightLevel } from '../types';
 
@@ -103,6 +104,16 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
         return Math.min(95, baseScore);
       })();
       
+      let finalPhotoUrl: string | null = null;
+      if (data.photoBlob) {
+        const userId = GameService.getUserId();
+        const cloudUrl = await StorageService.uploadPlantPhoto(data.photoBlob, userId);
+        if (!cloudUrl) {
+          throw new Error("Failed to upload check-in photo to secure vault.");
+        }
+        finalPhotoUrl = cloudUrl;
+      }
+
       const checkInId = crypto.randomUUID();
       await db.checkins.add({
         id: checkInId,
@@ -111,8 +122,8 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
         soilMoisture: data.soilMoisture as MoistureLevel,
         lightLevel: data.lightLevel as LightLevel,
         changes: data.changes,
-        photoBlob: data.photoBlob,
-        photoUrl: null, // Don't store volatile Blob URLs
+        photoBlob: null,
+        photoUrl: finalPhotoUrl,
         signature: driftResult?.signature || null,
         guardianScore: Math.max(0, Math.min(100, gScore)),
         driftScore: driftResult?.driftScore || null,
