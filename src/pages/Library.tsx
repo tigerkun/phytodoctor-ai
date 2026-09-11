@@ -16,7 +16,10 @@ import {
   HelpCircle,
   CheckCircle2,
   Globe2,
-  ExternalLink
+  ExternalLink,
+  Crown,
+  Lock,
+  Flame
 } from 'lucide-react';
 import { getPlantPhoto } from '../utils/plantImage';
 import { GameService } from '../services/gameService';
@@ -259,6 +262,48 @@ const BOTANICAL_FACTS = [
     fact: "When touched, Mimosa pudica cells drop vacuole water pressure instantly, causing leaves to fold inward. This tricks predators into thinking it has wilted.",
     category: "Defense",
     icon: "🛡️"
+  },
+  {
+    title: "Bananas Are Berries. Strawberries Aren't.",
+    fact: "Botanically, a berry is a fruit from one ovary — making bananas, kiwis, and pumpkins true berries, while strawberries are 'accessory fruits' with seeds on the outside.",
+    category: "Classification",
+    icon: "🍌"
+  },
+  {
+    title: "The Oldest Living Resident",
+    fact: "Pando, a quaking aspen colony in Utah, is a single tree with ~47,000 genetically identical stems sharing one root system — estimated at several thousand years old.",
+    category: "Longevity",
+    icon: "🌳"
+  },
+  {
+    title: "Plants That Eavesdrop",
+    fact: "Tomato plants can 'hear' a caterpillar chewing: the vibration alone triggers them to produce more defensive chemicals, even with no chemical signal present.",
+    category: "Sensing",
+    icon: "👂"
+  },
+  {
+    title: "Coffee's Caffeine Is a Weapon",
+    fact: "Caffeine exists to poison rivals: it leaches from coffee leaf litter into soil and suppresses germination of competing seedlings — allelopathy in your cup.",
+    category: "Chemistry",
+    icon: "☕"
+  },
+  {
+    title: "The Fastest Recorded Growth",
+    fact: "Bamboo can grow up to 90 cm (35 in) in a single day — roughly 1 mm every 90 seconds — thanks to cells that expand in unison along the whole culm.",
+    category: "Growth",
+    icon: "🎍"
+  },
+  {
+    title: "Orchids That impersonate Wasps",
+    fact: "Ophrys orchids mimic the shape, scent, and texture of female wasps. Males attempt to mate with the flower and carry the pollinia to the next impersonation.",
+    category: "Deception",
+    icon: "🪰"
+  },
+  {
+    title: "Rafflesia: The Giant Corpse Flower",
+    fact: "Rafflesia arnoldii produces the largest single flower on Earth — up to 1 m across — and smells of rotting meat to attract the flies that pollinate it.",
+    category: "Odor",
+    icon: "🥀"
   }
 ];
 
@@ -315,6 +360,78 @@ const DAILY_QUIZZES = [
     answer: 0,
     explanation: 'Wet, oxygen-poor soil lets root pathogens outrun the plant.',
   },
+  {
+    question: 'How often should you repot a root-bound plant into a much larger pot?',
+    options: ['Only 1–2 sizes up', 'Five sizes up', 'Never repot'],
+    answer: 0,
+    explanation: 'Jumping too many pot sizes keeps soil wet for too long and invites rot — go up gradually.',
+  },
+  {
+    question: 'Yellowing lower leaves with soggy soil most often means?',
+    options: ['Overwatering', 'Underwatering', 'Too much sun'],
+    answer: 0,
+    explanation: 'Chronically wet soil suffocates roots; the oldest leaves yellow first.',
+  },
+  {
+    question: 'What does "bright, indirect light" actually mean?',
+    options: ['Near a sunny window, not in hot beams', 'A dark corner', 'Direct midday sun'],
+    answer: 0,
+    explanation: 'Most tropicals want high ambient light without scorching direct rays on the leaves.',
+  },
+  {
+    question: 'Which pest leaves fine webbing under leaves?',
+    options: ['Spider mites', 'Fungus gnats', 'Mealybugs'],
+    answer: 0,
+    explanation: 'Spider mites spin fine webbing and cause stippled, dusty-looking leaves.',
+  },
+  {
+    question: 'Brown, crispy leaf edges on a Calathea usually indicate?',
+    options: ['Mineral build-up or dry air', 'Too much fertilizer only', 'Root bound'],
+    answer: 0,
+    explanation: 'Calatheas hate tap-water minerals and dry air; use filtered water and keep humidity up.',
+  },
+  {
+    question: 'When should you water a succulent?',
+    options: ['When soil is fully dry', 'Every day a little', 'Only at night'],
+    answer: 0,
+    explanation: 'Succulents store water in their tissues — deep, infrequent soaks prevent rot.',
+  },
+  {
+    question: 'What is the main benefit of rotating your pots a quarter turn weekly?',
+    options: ['Even, upright growth', 'Faster flowering always', 'Larger fruit'],
+    answer: 0,
+    explanation: 'Plants lean toward light; rotating keeps growth symmetrical instead of lopsided.',
+  },
+  {
+    question: 'Which is a sign of a mealybug infestation?',
+    options: ['Cottony white clusters at leaf joints', 'Shiny honeydew on floor', 'Tiny black flies at soil'],
+    answer: 0,
+    explanation: 'Mealybugs look like small cotton cushions where leaves meet stems.',
+  },
+  {
+    question: 'Why does tap water sometimes leave white crust on soil?',
+    options: ['Dissolved minerals', 'Soap traces', 'Pollen'],
+    answer: 0,
+    explanation: 'Calcium and lime from hard water accumulate as a pale crust; flush or filter occasionally.',
+  },
+  {
+    question: 'Best time of day to water most houseplants?',
+    options: ['Morning', 'Midday sun', 'Never water'],
+    answer: 0,
+    explanation: 'Morning watering lets foliage dry and roots drink ahead of the day\u2019s light.',
+  },
+  {
+    question: 'What does leggy, stretched growth with wide gaps between leaves mean?',
+    options: ['Not enough light', 'Too much light', 'Perfect care'],
+    answer: 0,
+    explanation: 'Plants stretch internodes hunting for light — move it gradually brighter.',
+  },
+  {
+    question: 'Which amendment makes heavy clay soil drain better?',
+    options: ['Coarse perlite or grit', 'More clay', 'Sugar'],
+    answer: 0,
+    explanation: 'Inorganic, chunky material creates air pockets; fine particles make drainage worse.',
+  },
 ];
 
 const getTodayKey = () => {
@@ -323,23 +440,89 @@ const getTodayKey = () => {
 };
 
 const getDayNumber = () => Math.floor(new Date(getTodayKey()).getTime() / 86400000);
+
+// ── Daily puzzle ladder (chess.com-style, plant edition) ────────────────────
+// Free explorers get QUIZZES_PER_DAY puzzles a day. Every correct answer
+// climbs the moss pole 3 paces and extends the streak; a wrong answer snaps
+// the streak and the sprout slides back to the compost. Pro = unlimited.
+const QUIZZES_PER_DAY = 3;
+const PACES_PER_SOLVE = 3;
+
+function quizDayKey() {
+  return getTodayKey();
+}
+
+function attemptsUsedToday(): number {
+  return Number(localStorage.getItem(`botanical_quiz_attempts_${quizDayKey()}`) || 0);
+}
+
+function consumeQuizAttempt(): number {
+  const used = attemptsUsedToday() + 1;
+  localStorage.setItem(`botanical_quiz_attempts_${quizDayKey()}`, String(used));
+  return used;
+}
+
+function quizServedKey() {
+  return `botanical_quiz_served_${getTodayKey()}`;
+}
+
+function getServedQuizIndices(): number[] {
+  try {
+    return JSON.parse(localStorage.getItem(quizServedKey()) || '[]') as number[];
+  } catch {
+    return [];
+  }
+}
+
+function pickRandomQuizIndex(): number {
+  const served = getServedQuizIndices();
+  const fresh = DAILY_QUIZZES.map((_, i) => i).filter(i => !served.includes(i));
+  const pool = fresh.length > 0 ? fresh : []; // all seen today → reset below
+  if (pool.length === 0) {
+    localStorage.setItem(quizServedKey(), JSON.stringify([]));
+    return Math.floor(Math.random() * DAILY_QUIZZES.length);
+  }
+  const chosen = pool[Math.floor(Math.random() * pool.length)];
+  localStorage.setItem(quizServedKey(), JSON.stringify([...served, chosen]));
+  return chosen;
+}
+
 export default function Library() {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<'All' | 'Species Profile' | 'Pathology' | 'Pest'>('All');
-  const [factIndex, setFactIndex] = useState(0);
+  // Random facts on every visit: card 1 is a per-visit pick, card 2 starts
+  // random and re-rolls to a different fact on "New Leaf".
+  const [codexFactIndex] = useState(() => Math.floor(Math.random() * BOTANICAL_FACTS.length));
+  const [factIndex, setFactIndex] = useState(() => Math.floor(Math.random() * BOTANICAL_FACTS.length));
   const [earthEvents, setEarthEvents] = useState<EarthEvent[]>(FALLBACK_EARTH_EVENTS);
   const [earthIndex, setEarthIndex] = useState(0);
   const [earthLive, setEarthLive] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [quizMessage, setQuizMessage] = useState('');
-  const todayKey = getTodayKey();
-  const dayNumber = getDayNumber();
-  const quizKey = `botanical_library_quiz_${todayKey}`;
-  const dailyQuiz = DAILY_QUIZZES[dayNumber % DAILY_QUIZZES.length];
-  const dailyFact = BOTANICAL_FACTS[dayNumber % BOTANICAL_FACTS.length];
+  const [quizIndex, setQuizIndex] = useState(() => pickRandomQuizIndex());
+  const [answered, setAnswered] = useState(false);
+  // Ladder state: streak of consecutive correct answers; the sprout sits
+  // `streak * PACES_PER_SOLVE` paces up the pole. Persisted like chess.com's
+  // puzzle streak so it survives reloads.
+  const [streak, setStreak] = useState(() => Number(localStorage.getItem('botanical_quiz_streak') || 0));
+  const [bestStreak, setBestStreak] = useState(() => Number(localStorage.getItem('botanical_quiz_best_streak') || 0));
+  const [attemptsLeft, setAttemptsLeft] = useState(() => Math.max(0, QUIZZES_PER_DAY - attemptsUsedToday()));
+  const [isProUser, setIsProUser] = useState(false);
+  const [justFell, setJustFell] = useState(false);
+  const [featuredSpecimenIndex] = useState(() => Math.floor(Math.random() * PHYTO_NOTES.length));
+  const userId = GameService.getUserId();
+  const dailyQuiz = DAILY_QUIZZES[quizIndex];
+  const codexFact = BOTANICAL_FACTS[codexFactIndex];
   const currentEvent = earthEvents[earthIndex % earthEvents.length];
   const profile = useLiveQuery(() => GameService.getProfile());
-  const [quizClaimed, setQuizClaimed] = useState(() => localStorage.getItem(quizKey) === 'claimed');
+
+  useEffect(() => {
+    GameService.isPro(userId).then(setIsProUser).catch(() => setIsProUser(false));
+  }, [userId]);
+
+  const puzzlesLocked = !isProUser && attemptsLeft <= 0;
+  // Visible paces clamp to the pole; the streak number keeps counting.
+  const visiblePaces = Math.min(streak * PACES_PER_SOLVE, 8 * PACES_PER_SOLVE);
 
   const filtered = PHYTO_NOTES.filter(
     (d) =>
@@ -349,7 +532,8 @@ export default function Library() {
         d.type.toLowerCase().includes(search.toLowerCase())),
   );
 
-  const dailyFeaturedSpecimen = PHYTO_NOTES[dayNumber % PHYTO_NOTES.length];
+  // Random featured specimen per visit
+  const dailyFeaturedSpecimen = PHYTO_NOTES[featuredSpecimenIndex];
 
   // Fetch live NASA EONET events, fall back to static cards on failure
   useEffect(() => {
@@ -378,27 +562,57 @@ export default function Library() {
   }, []);
 
   const answerQuiz = async (index: number) => {
-    if (quizClaimed || selectedAnswer !== null) return;
+    if (answered || selectedAnswer !== null || puzzlesLocked) return;
     setSelectedAnswer(index);
+    setAnswered(true);
     const isCorrect = index === dailyQuiz.answer;
     triggerHaptic(isCorrect ? 'medium' : 'light');
     playAudio(isCorrect ? 'success' : 'chime');
+
+    // One attempt consumed whether right or wrong — like chess.com's daily
+    // puzzles, accuracy is what preserves the streak.
+    const used = consumeQuizAttempt();
+    setAttemptsLeft(Math.max(0, QUIZZES_PER_DAY - used));
+
     if (isCorrect) {
-      setQuizMessage(`✅ Correct! ${dailyQuiz.explanation}`);
-      await GameService.addSeeds(25, 'bonus', 'Daily Library Quiz');
-      localStorage.setItem(quizKey, 'claimed');
-      setQuizClaimed(true);
+      const newStreak = streak + 1;
+      setStreak(newStreak);
+      localStorage.setItem('botanical_quiz_streak', String(newStreak));
+      if (newStreak > bestStreak) {
+        setBestStreak(newStreak);
+        localStorage.setItem('botanical_quiz_best_streak', String(newStreak));
+      }
+      await GameService.addSeeds(25, 'bonus', 'Library Puzzle Solved');
+      setQuizMessage(`✅ Correct! +25 seeds · the sprout climbed ${PACES_PER_SOLVE} paces. ${dailyQuiz.explanation}`);
     } else {
-      setQuizMessage(`❌ Not quite. ${dailyQuiz.explanation}`);
-      localStorage.setItem(quizKey, 'claimed');
-      setQuizClaimed(true);
+      // Streak snapped: sprout tumbles back to the compost.
+      setStreak(0);
+      localStorage.setItem('botanical_quiz_streak', '0');
+      setJustFell(true);
+      setTimeout(() => setJustFell(false), 900);
+      setQuizMessage(`❌ Streak snapped at ${streak}. ${dailyQuiz.explanation}`);
     }
+  };
+
+  const nextQuiz = () => {
+    if (puzzlesLocked) return;
+    triggerHaptic('light');
+    playAudio('leaf-rustle');
+    setSelectedAnswer(null);
+    setQuizMessage('');
+    setAnswered(false);
+    setQuizIndex(pickRandomQuizIndex());
   };
 
   const drawNextFact = () => {
     triggerHaptic('light');
     playAudio('leaf-rustle');
-    setFactIndex((prev) => (prev + 1) % BOTANICAL_FACTS.length);
+    setFactIndex((prev) => {
+      if (BOTANICAL_FACTS.length < 2) return prev;
+      let next = Math.floor(Math.random() * BOTANICAL_FACTS.length);
+      if (next === prev) next = (next + 1) % BOTANICAL_FACTS.length;
+      return next;
+    });
   };
 
   const nextEarthEvent = () => {
@@ -498,12 +712,12 @@ export default function Library() {
                   Illuminated Codex · Fact
                 </span>
                 <h3 className="font-serif font-bold text-text-bark text-sm sm:text-base leading-tight truncate">
-                  {dailyFact.title}
+                  {codexFact.title}
                 </h3>
               </div>
             </div>
             <p className="text-xs text-text-stone leading-relaxed font-sans font-medium">
-              {dailyFact.fact}
+              {codexFact.fact}
             </p>
           </motion.div>
 
@@ -557,7 +771,7 @@ export default function Library() {
             </div>
           </motion.div>
 
-          {/* Socratic Study Carrel Examination Slip */}
+          {/* Socratic Study Carrel · Daily Puzzle Ladder */}
           <motion.div
             initial={{ opacity: 0, scale: 0.99 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -569,51 +783,157 @@ export default function Library() {
             <div className="flex items-start justify-between gap-3 pt-1">
               <div className="min-w-0">
                 <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[#8c6d46] dark:text-[#caa651] block">
-                  Socratic Study Carrel // Exam Slip
+                  Socratic Study Carrel // Daily Puzzles
                 </span>
                 <h4 className="font-serif font-bold text-text-bark text-sm sm:text-base leading-tight mt-0.5">
-                  {dailyQuiz.question}
+                  {puzzlesLocked ? 'The carrel is closed for today' : dailyQuiz.question}
                 </h4>
               </div>
               <span className="px-2 py-0.5 rounded bg-[#b89542]/15 text-[#b89542] text-[9px] font-mono font-bold border border-[#b89542]/30 shrink-0">
-                +25 Seeds
+                {isProUser ? '∞ Pro' : `${attemptsLeft} of ${QUIZZES_PER_DAY} left today`}
               </span>
             </div>
 
-            <div className="space-y-2">
-              {dailyQuiz.options.map((option, index) => {
-                const isCorrect = (selectedAnswer !== null && index === dailyQuiz.answer) || (quizClaimed && index === dailyQuiz.answer);
-                const isWrong = selectedAnswer === index && index !== dailyQuiz.answer;
-                return (
-                  <button
-                    key={option}
-                    disabled={quizClaimed || selectedAnswer !== null}
-                    onClick={() => answerQuiz(index)}
-                    className={`w-full min-h-[40px] rounded-lg px-3 py-1.5 text-left text-xs font-sans transition-colors border flex items-center justify-between gap-2 disabled:cursor-default ${
-                      isCorrect
-                        ? 'bg-moss text-white border-moss font-bold'
-                        : isWrong
-                          ? 'bg-terracotta/15 text-terracotta border-terracotta/30 font-bold'
-                          : 'bg-black/5 dark:bg-white/5 text-text-bark border-[#8c7355]/25 hover:border-[#8c7355]/60 disabled:hover:border-[#8c7355]/25'
-                    }`}
+            {/* ── Moss-pole ladder: the sprout climbs 3 paces per solve ── */}
+            <div className="flex items-stretch gap-4 rounded-lg border border-[#8c7355]/25 bg-black/5 dark:bg-white/5 p-3">
+              {/* The pole with rungs */}
+              <div className="relative w-14 shrink-0 h-[132px] rounded-md bg-[#5f7161]/15 border border-[#5f7161]/30 overflow-hidden">
+                {[...Array(9)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="absolute left-1 right-1 h-[2px] bg-[#8c7355]/40"
+                    style={{ bottom: `${(i + 1) * 13}px` }}
+                  />
+                ))}
+                {/* Soil floor */}
+                <div className="absolute bottom-0 left-0 right-0 h-2 bg-[#6b4f2e]/60" />
+                {/* The climbing sprout */}
+                <motion.div
+                  className="absolute left-1/2 text-2xl"
+                  style={{ marginLeft: '-12px', bottom: 6 }}
+                  animate={
+                    justFell
+                      ? { y: 0, rotate: [0, -14, 10, -6, 0], transition: { duration: 0.7, ease: 'easeIn' } }
+                      : { y: -visiblePaces * 13, rotate: 0, transition: { type: 'spring', stiffness: 160, damping: 14 } }
+                  }
+                  key={justFell ? 'fell' : `climb-${streak}`}
+                >
+                  {streak >= 10 ? '🌳' : streak >= 5 ? '🪴' : '🌱'}
+                </motion.div>
+                {/* Leaf-burst on a fresh solve */}
+                {answered && !justFell && selectedAnswer === dailyQuiz.answer && (
+                  <motion.div
+                    className="absolute inset-0 pointer-events-none"
+                    initial={{ opacity: 1 }}
+                    animate={{ opacity: 0 }}
+                    transition={{ duration: 1 }}
                   >
-                    <span className="flex items-center gap-2">
-                      <span className={`font-serif font-bold text-xs w-5 shrink-0 ${
-                        isCorrect ? 'text-white' : isWrong ? 'text-terracotta' : 'text-[#8c6d46] dark:text-[#caa651]'
-                      }`}>
-                        {ROMAN_NUMERALS[index] || `${index + 1}.`}
-                      </span>
-                      <span>{option}</span>
-                    </span>
-                    {isCorrect && <CheckCircle2 size={14} className="shrink-0 text-white" />}
-                  </button>
-                );
-              })}
+                    {['🍃', '✨', '🍃'].map((p, i) => (
+                      <motion.span
+                        key={i}
+                        className="absolute text-xs"
+                        style={{ left: `${18 + i * 22}%`, bottom: `${visiblePaces * 13 + 14}px` }}
+                        initial={{ y: 0, opacity: 1 }}
+                        animate={{ y: -26, x: (i - 1) * 18, opacity: 0 }}
+                        transition={{ duration: 0.9, delay: i * 0.08 }}
+                      >
+                        {p}
+                      </motion.span>
+                    ))}
+                  </motion.div>
+                )}
+              </div>
+
+              {/* Streak ledger */}
+              <div className="flex flex-col justify-center gap-1 min-w-0">
+                <div className={`flex items-center gap-1.5 font-serif font-bold text-lg ${justFell ? 'text-terracotta' : 'text-text-bark'}`}>
+                  <Flame size={15} className={streak > 0 ? 'text-[#d97b29]' : 'text-text-stone/40'} />
+                  <motion.span
+                    key={streak}
+                    initial={justFell ? { x: 0 } : { scale: 1.5 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 12 }}
+                    className="inline-block"
+                  >
+                    {streak}
+                  </motion.span>
+                  <span className="text-[10px] font-sans font-bold uppercase tracking-widest text-text-stone">
+                    {streak === 1 ? 'pace streak' : 'pace streak'}
+                  </span>
+                </div>
+                <p className="text-[9px] font-mono uppercase tracking-wider text-text-stone">
+                  {streak * PACES_PER_SOLVE} paces up the pole · best {bestStreak}
+                </p>
+                {streak >= 5 && !justFell && (
+                  <p className="text-[9px] font-mono text-moss font-bold uppercase tracking-wider">
+                    {streak >= 10 ? 'Canopy legend!' : 'Thriving canopy!'}
+                  </p>
+                )}
+              </div>
             </div>
 
-            <p className="min-h-[28px] text-[10px] text-text-stone font-mono leading-relaxed">
-              {quizMessage || (quizClaimed ? 'Daily examination completed. Seed bonus claimed.' : `Wallet: ${(profile?.seeds ?? 0).toLocaleString()} seeds`)}
-            </p>
+            {puzzlesLocked ? (
+              <div className="rounded-lg border border-[#8c7355]/30 bg-black/5 dark:bg-white/5 p-4 text-center space-y-2">
+                <Lock size={16} className="mx-auto text-[#8c6d46]" />
+                <p className="text-[10px] font-mono text-text-stone leading-relaxed">
+                  Free explorers get {QUIZZES_PER_DAY} puzzles a day. The sprout rests until tomorrow — or go unlimited now.
+                </p>
+                <Link
+                  to="/profile"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#b89542] hover:bg-[#d4af5a] text-[#241a12] rounded-md text-[9px] font-mono font-black uppercase tracking-widest transition-colors"
+                >
+                  <Crown size={11} /> Go unlimited with Pro
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  {dailyQuiz.options.map((option, index) => {
+                    const isCorrect = selectedAnswer !== null && index === dailyQuiz.answer;
+                    const isWrong = selectedAnswer === index && index !== dailyQuiz.answer;
+                    return (
+                      <button
+                        key={option}
+                        disabled={answered}
+                        onClick={() => answerQuiz(index)}
+                        className={`w-full min-h-[40px] rounded-lg px-3 py-1.5 text-left text-xs font-sans transition-colors border flex items-center justify-between gap-2 disabled:cursor-default ${
+                          isCorrect
+                            ? 'bg-moss text-white border-moss font-bold'
+                            : isWrong
+                              ? 'bg-terracotta/15 text-terracotta border-terracotta/30 font-bold'
+                              : 'bg-black/5 dark:bg-white/5 text-text-bark border-[#8c7355]/25 hover:border-[#8c7355]/60 disabled:hover:border-[#8c7355]/25'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className={`font-serif font-bold text-xs w-5 shrink-0 ${
+                            isCorrect ? 'text-white' : isWrong ? 'text-terracotta' : 'text-[#8c6d46] dark:text-[#caa651]'
+                          }`}>
+                            {ROMAN_NUMERALS[index] || `${index + 1}.`}
+                          </span>
+                          <span>{option}</span>
+                        </span>
+                        {isCorrect && <CheckCircle2 size={14} className="shrink-0 text-white" />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="min-h-[28px] flex items-center justify-between gap-2">
+                  <p className="text-[10px] text-text-stone font-mono leading-relaxed flex-1">
+                    {quizMessage || `Wallet: ${(profile?.seeds ?? 0).toLocaleString()} seeds`}
+                  </p>
+                  {answered && (
+                    <button
+                      onClick={nextQuiz}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-moss hover:bg-moss-dark text-white rounded-md text-[9px] font-mono font-bold uppercase tracking-widest transition-colors shadow-xs"
+                    >
+                      <RotateCw size={11} />
+                      {attemptsLeft > 0 ? 'New Question' : 'Done for today'}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </motion.div>
 
           {/* Expeditionary Botanical Telegraph Wire */}
