@@ -888,15 +888,15 @@ export default function Library() {
                 <Sparkles size={18} className="animate-pulse text-[#b89542]" />
               </div>
               <div className="min-w-0">
-                <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[#8c6d46] dark:text-[#caa651] block">
-                  Illuminated Codex · Fact of the Day
+                <span className="text-[10px] font-sans font-semibold uppercase tracking-[0.08em] text-[#8c6d46] dark:text-[#caa651] block leading-none mb-1">
+                  Illuminated Codex
                 </span>
-                <h3 className="font-serif font-bold text-text-bark text-sm sm:text-base leading-tight">
+                <h3 className="font-serif font-bold text-text-bark text-[15px] leading-snug">
                   {codexFact.title}
                 </h3>
               </div>
             </div>
-            <p className="text-xs text-text-stone leading-relaxed font-sans font-medium relative pl-3 border-l-2 border-[#b89542]/30 italic">
+            <p className="text-[13px] text-text-stone leading-[1.65] font-sans relative pl-3 border-l-2 border-[#b89542]/30 italic">
               {codexFact.fact}
             </p>
           </motion.div>
@@ -919,16 +919,16 @@ export default function Library() {
                   {currentFact.icon}
                 </motion.span>
                 <div className="min-w-0">
-                  <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-terracotta block">
-                    Botanical Oracle · Free to read
+                  <span className="text-[10px] font-sans font-semibold uppercase tracking-[0.08em] text-terracotta block leading-none mb-1">
+                    Botanical Oracle
                   </span>
-                  <h4 className="font-serif font-bold text-text-bark text-sm sm:text-base leading-tight mt-0.5 truncate">
+                  <h4 className="font-serif font-bold text-text-bark text-[15px] leading-snug mt-0.5">
                     {currentFact.title}
                   </h4>
                 </div>
               </div>
-              <span className="px-2 py-0.5 bg-terracotta/10 text-terracotta text-[8px] font-mono font-bold uppercase tracking-wider rounded border border-terracotta/20 shrink-0">
-                {currentFact.category}
+              <span className="px-2 py-1 bg-terracotta/10 text-terracotta text-[9px] font-sans font-semibold tracking-normal rounded border border-terracotta/20 shrink-0 text-center leading-none">
+                Free to read
               </span>
             </div>
 
@@ -940,19 +940,22 @@ export default function Library() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -5 }}
                   transition={{ duration: 0.2 }}
-                  className="text-xs text-text-stone leading-relaxed font-sans font-medium"
+                  className="text-[13px] text-text-stone leading-[1.65] font-sans"
                 >
                   {currentFact.fact}
                 </motion.p>
               </AnimatePresence>
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-[#8c7355]/20">
+            <div className="flex items-center justify-between pt-2 border-t border-[#8c7355]/20">
+              <span className="text-[10px] font-sans font-semibold text-text-stone/70 tracking-normal">
+                {currentFact.category}
+              </span>
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={drawNextFact}
-                className="flex items-center gap-2 px-3 py-1.5 bg-moss hover:bg-moss-dark text-white rounded-md text-[10px] font-mono font-bold uppercase tracking-widest transition-colors shadow-xs"
+                className="flex items-center gap-2 px-3 py-1.5 bg-moss hover:bg-moss-dark text-white rounded-md text-[10px] font-sans font-bold uppercase tracking-[0.06em] transition-colors shadow-xs"
               >
                 <RotateCw size={11} />
                 New Leaf
@@ -971,18 +974,18 @@ export default function Library() {
 
             <div className="flex items-start justify-between gap-3 pt-1">
               <div className="min-w-0">
-                <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[#8c6d46] dark:text-[#caa651] block">
-                  Socratic Study Carrel // Daily Examination
+                <span className="text-[10px] font-sans font-semibold uppercase tracking-[0.08em] text-[#8c6d46] dark:text-[#caa651] block leading-none mb-1.5">
+                  Daily Examination
                 </span>
-                <h4 className="font-serif font-bold text-text-bark text-sm sm:text-base leading-tight mt-0.5">
+                <h4 className="font-serif font-bold text-text-bark text-[15px] leading-snug">
                   {puzzlesLocked ? 'The carrel is closed for today' : dailyQuiz.question}
                 </h4>
-                <p className="text-[9px] font-mono text-text-stone mt-1 uppercase tracking-wider">
-                  One attempt per puzzle · 3 a day · facts upstairs are always free
+                <p className="text-[11px] font-sans text-text-stone mt-1.5 tracking-normal leading-snug">
+                  One attempt per puzzle · 3 a day — the facts are always free.
                 </p>
               </div>
-              <span className="px-2 py-0.5 rounded bg-[#b89542]/15 text-[#b89542] text-[9px] font-mono font-bold border border-[#b89542]/30 shrink-0">
-                {isProUser ? '∞ Pro' : `${attemptsLeft} of ${QUIZZES_PER_DAY} left today`}
+              <span className="px-2.5 py-1 rounded bg-[#b89542]/15 text-[#b89542] text-[10px] font-sans font-bold border border-[#b89542]/30 shrink-0 text-center leading-tight">
+                {isProUser ? '∞ Pro' : `${attemptsLeft} of ${QUIZZES_PER_DAY} left`}
               </span>
             </div>
 
@@ -1079,12 +1082,12 @@ export default function Library() {
             {puzzlesLocked ? (
               <div className="rounded-lg border border-[#8c7355]/30 bg-black/5 dark:bg-white/5 p-4 text-center space-y-2">
                 <Lock size={16} className="mx-auto text-[#8c6d46]" />
-                <p className="text-[10px] font-mono text-text-stone leading-relaxed">
+                <p className="text-[12px] font-sans text-text-stone leading-relaxed">
                   Free explorers get {QUIZZES_PER_DAY} puzzles a day. The sprout rests until tomorrow — or go unlimited now.
                 </p>
                 <Link
                   to="/profile"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#b89542] hover:bg-[#d4af5a] text-[#241a12] rounded-md text-[9px] font-mono font-black uppercase tracking-widest transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#b89542] hover:bg-[#d4af5a] text-[#241a12] rounded-md text-[10px] font-sans font-bold uppercase tracking-[0.06em] transition-colors"
                 >
                   <Crown size={11} /> Go unlimited with Pro
                 </Link>
@@ -1100,7 +1103,7 @@ export default function Library() {
                         key={option}
                         disabled={answered}
                         onClick={() => answerQuiz(index)}
-                        className={`w-full min-h-[40px] rounded-lg px-3 py-1.5 text-left text-xs font-sans transition-colors border flex items-center justify-between gap-2 disabled:cursor-default ${
+                        className={`w-full min-h-[44px] rounded-lg px-3.5 py-2 text-left text-[13px] font-sans leading-snug transition-colors border flex items-center justify-between gap-2 disabled:cursor-default ${
                           isCorrect
                             ? 'bg-moss text-white border-moss font-bold'
                             : isWrong
@@ -1129,7 +1132,7 @@ export default function Library() {
                   {answered && (
                     <button
                       onClick={nextQuiz}
-                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-moss hover:bg-moss-dark text-white rounded-md text-[9px] font-mono font-bold uppercase tracking-widest transition-colors shadow-xs"
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-moss hover:bg-moss-dark text-white rounded-md text-[10px] font-sans font-bold uppercase tracking-[0.06em] transition-colors shadow-xs"
                     >
                       <RotateCw size={11} />
                       {attemptsLeft > 0 ? 'New Question' : 'Done for today'}
@@ -1154,7 +1157,7 @@ export default function Library() {
                 <Globe2 size={17} className="text-moss shrink-0" />
                 <div className="min-w-0">
                   <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[#8c6d46] dark:text-[#caa651] block">
-                    Telegraph Wire // Dispatch
+                    Telegraph Wire
                   </span>
                   <h4 className="font-serif font-bold text-text-bark text-sm sm:text-base leading-tight mt-0.5 line-clamp-2">
                     {currentEvent.title}
