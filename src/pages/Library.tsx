@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -304,6 +304,72 @@ const BOTANICAL_FACTS = [
     fact: "Rafflesia arnoldii produces the largest single flower on Earth — up to 1 m across — and smells of rotting meat to attract the flies that pollinate it.",
     category: "Odor",
     icon: "🥀"
+  },
+  {
+    title: "Roots Know Up From Down",
+    fact: "Roots sense gravity through statoliths — dense starch grains that settle inside root-cap cells — and always grow toward the earth, even in the dark.",
+    category: "Orientation",
+    icon: "🧭"
+  },
+  {
+    title: "Trees Share Sugar Underground",
+    fact: "In 'wood wide web' experiments, shaded seedlings survived because established trees fed them sugars through connected mycorrhizal fungi.",
+    category: "Cooperation",
+    icon: "🕸️"
+  },
+  {
+    title: "A Strawberry Isn't Wearing Its Seeds",
+    fact: "Those 'seeds' on the outside are each a tiny dry fruit called an achene — a single strawberry carries roughly 200 of them.",
+    category: "Botany",
+    icon: "🍓"
+  },
+  {
+    title: "The Dandelion's Parachute Seeds",
+    fact: "Each dandelion seed rides a disk of hollow filaments that creates a vortex ring above it — a detached bubble of air that keeps it aloft for kilometers.",
+    category: "Travel",
+    icon: "🌼"
+  },
+  {
+    title: "Aloe has been 'medicine' for 3,500 years",
+    fact: "Aloe vera appears in Egyptian Ebers Papyrus (c. 1550 BCE) as a treatment for burns and sores — one of the oldest written plant remedies.",
+    category: "History",
+    icon: "📜"
+  },
+  {
+    title: "Lotus Leaves Never Get Wet",
+    fact: "The 'lotus effect': microscopic wax crystals on lotus leaves make water bead and roll off, washing dirt away — the inspiration for self-cleaning paints.",
+    category: "Surface",
+    icon: "🪷"
+  },
+  {
+    title: "Saguaro Cacti Grow Arms at 75",
+    fact: "Saguaros may grow for 50–75 years before growing their first arm, and can live over 150 years — older than most houses they shade.",
+    category: "Patience",
+    icon: "🌵"
+  },
+  {
+    title: "Maple Helicopters Are Single-Seed Wings",
+    fact: "A maple 'helicopter' is a samara: one seed with a wing that spins as it falls, generating lift that lets wind carry it dozens of meters.",
+    category: "Flight",
+    icon: "🍁"
+  },
+  {
+    title: "Plants Sleep, Too",
+    fact: "Many plants perform nyctinasty — legumes fold leaves and poppies close petals at night, likely to reduce heat loss and deter nocturnal herbivores.",
+    category: "Rhythm",
+    icon: "🌙"
+  },
+  {
+    title: "The World's Smallest Flower",
+    fact: "Wolffia, a duckweed, produces flowers so small (0.3 mm) that they float unnoticed on ponds — the entire plant is smaller than a grain of rice.",
+    category: "Miniature",
+    icon: "💧"
+  },
+  {
+    title: "Eucalyptus Forests Smoke Signals",
+    fact: "Some eucalypts rely on fire: seed pods are sealed by resin that only melts in bushfire heat, releasing seeds onto ash-rich, competitor-free soil.",
+    category: "Fire",
+    icon: "🔥"
   }
 ];
 
@@ -432,6 +498,120 @@ const DAILY_QUIZZES = [
     answer: 0,
     explanation: 'Inorganic, chunky material creates air pockets; fine particles make drainage worse.',
   },
+  {
+    question: 'What do roots sense to always grow downward?',
+    options: ['Gravity', 'Magnetism', 'Sound'],
+    answer: 1,
+    explanation: 'Statoliths — dense starch grains in root-cap cells — settle and signal the direction of gravity.',
+  },
+  {
+    question: 'How long can a saguaro cactus take to grow its first arm?',
+    options: ['75 years', '2 weeks', '6 months'],
+    answer: 0,
+    explanation: 'Saguaros are famously patient — arms may not appear until 50–75 years of growth.',
+  },
+  {
+    question: 'Why do coffee plants produce caffeine?',
+    options: ['To deter rivals and pests', 'To attract bees', 'To store water'],
+    answer: 0,
+    explanation: 'Caffeine leaches into soil to suppress competing seedlings and poisons feeding insects.',
+  },
+  {
+    question: 'What makes lotus leaves self-cleaning?',
+    options: ['Microscopic wax crystals', 'Smooth plastic coating', 'Daily rain'],
+    answer: 0,
+    explanation: 'The lotus effect: nano-textured wax makes water bead and roll off, carrying dirt with it.',
+  },
+  {
+    question: 'Which tree can be a single organism with ~47,000 stems?',
+    options: ['Pando the aspen colony', 'General Sherman sequoia', 'Banyan fig'],
+    answer: 0,
+    explanation: 'Pando is one clone connected by shared roots — arguably the heaviest living organism.',
+  },
+  {
+    question: 'What is a strawberry\u2019s outer "seed" actually?',
+    options: ['A tiny dry fruit (achene)', 'A spore', 'A bud'],
+    answer: 0,
+    explanation: 'Each speck is an achene — its own one-seeded fruit — making the red flesh an accessory.',
+  },
+  {
+    question: 'Which plant famously moves its leaflets to "sleep" at night?',
+    options: ['Legumes like Mimosa', 'Cacti', 'Oak trees'],
+    answer: 0,
+    explanation: 'Nyctinasty folds leaves at dusk — likely for heat retention and pest defense.',
+  },
+  {
+    question: 'What do orchids of the genus Ophrys mimic to get pollinated?',
+    options: ['Female wasps', 'Rotten meat', 'Mushrooms'],
+    answer: 0,
+    explanation: 'Male wasps pseudo-mate with the flower and carry its pollinia to the next impersonation.',
+  },
+  {
+    question: 'Which light do plants primarily use for photosynthesis?',
+    options: ['Red and blue', 'Green', 'Ultraviolet'],
+    answer: 0,
+    explanation: 'Chlorophyll absorbs red and blue strongly — green is reflected, which is why leaves look green.',
+  },
+  {
+    question: 'Why should you sterilize pruning shears between plants?',
+    options: ['To avoid spreading disease', 'To keep them shiny', 'For warranty'],
+    answer: 0,
+    explanation: 'Sap-borne pathogens ride blades — a 70% alcohol wipe between plants prevents transmission.',
+  },
+  {
+    question: 'What\u2019s the ideal first step for a plant with soggy soil and drooping leaves?',
+    options: ['Check the roots and let it dry', 'Water more', 'Full sun immediately'],
+    answer: 0,
+    explanation: 'Drooping plus wet soil usually means suffocated roots — withhold water and inspect for rot.',
+  },
+  {
+    question: 'Which is a cold-natured plant that tolerates low light?',
+    options: ['ZZ plant', 'Basil', 'Tomato'],
+    answer: 0,
+    explanation: 'ZZ plants shrug off dim corners and irregular watering; basil and tomatoes demand sun.',
+  },
+  {
+    question: 'What does a porous terracotta pot do that plastic doesn\u2019t?',
+    options: ['Wicks moisture out of soil', 'Adds nutrients', 'Blocks light'],
+    answer: 0,
+    explanation: 'Unglazed clay breathes — great for overwaterers, thirsty for moisture-lovers.',
+  },
+  {
+    question: 'What is "hardening off"?',
+    options: ['Gradually introducing plants outdoors', 'Freezing seeds', 'Drying leaves'],
+    answer: 0,
+    explanation: 'Seedlings acclimate to wind and sun over a week or so before transplanting outside.',
+  },
+  {
+    question: 'Which part of the plant does a leaf cutting need to regrow?',
+    options: ['Living meristem or vein tissue', 'Only the tip', 'The oldest edge'],
+    answer: 0,
+    explanation: 'Regeneration starts from meristem/vein cells — that\u2019s why node cuts root best.',
+  },
+  {
+    question: 'Why group houseplants together?',
+    options: ['They raise each other\u2019s humidity', 'They share seeds', 'It looks small'],
+    answer: 0,
+    explanation: 'Transpiration from clustered plants creates a humid microclimate tropicals love.',
+  },
+  {
+    question: 'What is etiolation?',
+    options: ['Pale, stretched growth in darkness', 'Leaf burn', 'Root rot'],
+    answer: 1,
+    explanation: 'Starved of light, plants lengthen internodes and lose chlorophyll hunting for a source.',
+  },
+  {
+    question: 'Which season suits most repotting?',
+    options: ['Spring, at the growth spurt', 'Deep winter', 'During flowering'],
+    answer: 0,
+    explanation: 'Roots regrow fastest as light returns, letting plants settle into fresh soil quickly.',
+  },
+  {
+    question: 'What\u2019s the purpose of drainage holes?',
+    options: ['Let excess water escape', 'Let roots breathe air', 'Decorative only'],
+    answer: 0,
+    explanation: 'Without an exit, waterlogs accumulate at the base — the classic recipe for root rot.',
+  },
 ];
 
 const getTodayKey = () => {
@@ -462,45 +642,42 @@ function consumeQuizAttempt(): number {
   return used;
 }
 
-function quizServedKey() {
-  return `botanical_quiz_served_${getTodayKey()}`;
-}
-
-function getServedQuizIndices(): number[] {
-  try {
-    return JSON.parse(localStorage.getItem(quizServedKey()) || '[]') as number[];
-  } catch {
-    return [];
+// ── Daily rotation engine ───────────────────────────────────────────────────
+// A date-seeded shuffle reorders each pool deterministically for the day:
+// everyone gets the same fresh set, and tomorrow the entire library —
+// puzzles, facts, featured specimen — is a different draw.
+function seededShuffle(indices: number[], seed: number): number[] {
+  let a = (seed >>> 0) || 1;
+  const rand = () => {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const out = [...indices];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
   }
-}
-
-function pickRandomQuizIndex(): number {
-  const served = getServedQuizIndices();
-  const fresh = DAILY_QUIZZES.map((_, i) => i).filter(i => !served.includes(i));
-  const pool = fresh.length > 0 ? fresh : []; // all seen today → reset below
-  if (pool.length === 0) {
-    localStorage.setItem(quizServedKey(), JSON.stringify([]));
-    return Math.floor(Math.random() * DAILY_QUIZZES.length);
-  }
-  const chosen = pool[Math.floor(Math.random() * pool.length)];
-  localStorage.setItem(quizServedKey(), JSON.stringify([...served, chosen]));
-  return chosen;
+  return out;
 }
 
 export default function Library() {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<'All' | 'Species Profile' | 'Pathology' | 'Pest'>('All');
-  // Random facts on every visit: card 1 is a per-visit pick, card 2 starts
-  // random and re-rolls to a different fact on "New Leaf".
-  const [codexFactIndex] = useState(() => Math.floor(Math.random() * BOTANICAL_FACTS.length));
-  const [factIndex, setFactIndex] = useState(() => Math.floor(Math.random() * BOTANICAL_FACTS.length));
+  const dayNumber = getDayNumber();
+  // Today's draws — stable all day, completely different tomorrow.
+  const todaysQuizOrder = useMemo(() => seededShuffle(DAILY_QUIZZES.map((_, i) => i), dayNumber), [dayNumber]);
+  const todaysFactOrder = useMemo(() => seededShuffle(BOTANICAL_FACTS.map((_, i) => i), dayNumber + 0x9E37), [dayNumber]);
   const [earthEvents, setEarthEvents] = useState<EarthEvent[]>(FALLBACK_EARTH_EVENTS);
   const [earthIndex, setEarthIndex] = useState(0);
   const [earthLive, setEarthLive] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [quizMessage, setQuizMessage] = useState('');
-  const [quizIndex, setQuizIndex] = useState(() => pickRandomQuizIndex());
   const [answered, setAnswered] = useState(false);
+  // Facts are free reading: every refresh opens the codex at a random leaf,
+  // and "New Leaf" walks today's shuffled volume. Unlimited.
+  const [factPtr, setFactPtr] = useState(() => Math.floor(Math.random() * BOTANICAL_FACTS.length));
   // Ladder state: streak of consecutive correct answers; the sprout sits
   // `streak * PACES_PER_SOLVE` paces up the pole. Persisted like chess.com's
   // puzzle streak so it survives reloads.
@@ -509,10 +686,12 @@ export default function Library() {
   const [attemptsLeft, setAttemptsLeft] = useState(() => Math.max(0, QUIZZES_PER_DAY - attemptsUsedToday()));
   const [isProUser, setIsProUser] = useState(false);
   const [justFell, setJustFell] = useState(false);
-  const [featuredSpecimenIndex] = useState(() => Math.floor(Math.random() * PHYTO_NOTES.length));
   const userId = GameService.getUserId();
+  // The current attempt's puzzle: attempt N serves today's Nth draw.
+  const quizIndex = todaysQuizOrder[attemptsUsedToday() % todaysQuizOrder.length];
   const dailyQuiz = DAILY_QUIZZES[quizIndex];
-  const codexFact = BOTANICAL_FACTS[codexFactIndex];
+  // Illuminated Codex leaf: deterministic per day.
+  const codexFact = BOTANICAL_FACTS[todaysFactOrder[(dayNumber * 5 + 7) % todaysFactOrder.length]];
   const currentEvent = earthEvents[earthIndex % earthEvents.length];
   const profile = useLiveQuery(() => GameService.getProfile());
 
@@ -533,7 +712,7 @@ export default function Library() {
   );
 
   // Random featured specimen per visit
-  const dailyFeaturedSpecimen = PHYTO_NOTES[featuredSpecimenIndex];
+  const dailyFeaturedSpecimen = PHYTO_NOTES[dayNumber % PHYTO_NOTES.length];
 
   // Fetch live NASA EONET events, fall back to static cards on failure
   useEffect(() => {
@@ -601,18 +780,12 @@ export default function Library() {
     setSelectedAnswer(null);
     setQuizMessage('');
     setAnswered(false);
-    setQuizIndex(pickRandomQuizIndex());
   };
 
   const drawNextFact = () => {
     triggerHaptic('light');
     playAudio('leaf-rustle');
-    setFactIndex((prev) => {
-      if (BOTANICAL_FACTS.length < 2) return prev;
-      let next = Math.floor(Math.random() * BOTANICAL_FACTS.length);
-      if (next === prev) next = (next + 1) % BOTANICAL_FACTS.length;
-      return next;
-    });
+    setFactPtr((p) => (p + 1) % todaysFactOrder.length);
   };
 
   const nextEarthEvent = () => {
@@ -630,7 +803,8 @@ export default function Library() {
     setSearch('');
   };
 
-  const currentFact = BOTANICAL_FACTS[factIndex];
+  // Botanical Oracle leaf: walks today's shuffled volume, free to read.
+  const currentFact = BOTANICAL_FACTS[todaysFactOrder[factPtr % todaysFactOrder.length]];
 
   return (
     <PageWrapper className="relative skin-library px-4 sm:px-6 py-8 sm:py-12">
@@ -701,22 +875,28 @@ export default function Library() {
           <motion.div
             initial={{ opacity: 0, scale: 0.99 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="p-5 sm:p-6 rounded-xl antique-folio-plate shadow-sm relative overflow-hidden flex flex-col gap-4"
+            whileHover={{ y: -3 }}
+            className="p-5 sm:p-6 rounded-xl antique-folio-plate shadow-md relative overflow-hidden flex flex-col gap-4 hover:shadow-lg transition-shadow duration-300"
           >
+            {/* Gold folio corner ornaments */}
+            <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-[#b89542]/50 rounded-tl-xl pointer-events-none" />
+            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-[#b89542]/50 rounded-br-xl pointer-events-none" />
+            <div className="absolute -right-6 -top-6 w-20 h-20 rounded-full bg-[#b89542]/8 blur-xl pointer-events-none" />
+
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[#5f7161]/15 flex items-center justify-center text-moss flex-shrink-0 border border-[#5f7161]/30">
+              <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-[#5f7161]/25 to-[#b89542]/15 flex items-center justify-center flex-shrink-0 border border-[#b89542]/30 shadow-inner">
                 <Sparkles size={18} className="animate-pulse text-[#b89542]" />
               </div>
               <div className="min-w-0">
                 <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[#8c6d46] dark:text-[#caa651] block">
-                  Illuminated Codex · Fact
+                  Illuminated Codex · Fact of the Day
                 </span>
-                <h3 className="font-serif font-bold text-text-bark text-sm sm:text-base leading-tight truncate">
+                <h3 className="font-serif font-bold text-text-bark text-sm sm:text-base leading-tight">
                   {codexFact.title}
                 </h3>
               </div>
             </div>
-            <p className="text-xs text-text-stone leading-relaxed font-sans font-medium">
+            <p className="text-xs text-text-stone leading-relaxed font-sans font-medium relative pl-3 border-l-2 border-[#b89542]/30 italic">
               {codexFact.fact}
             </p>
           </motion.div>
@@ -724,14 +904,23 @@ export default function Library() {
           <motion.div
             initial={{ opacity: 0, scale: 0.99 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="p-5 sm:p-6 rounded-xl antique-folio-plate shadow-sm relative overflow-hidden flex flex-col justify-between gap-4"
+            whileHover={{ y: -3 }}
+            className="p-5 sm:p-6 rounded-xl antique-folio-plate shadow-md relative overflow-hidden flex flex-col justify-between gap-4 hover:shadow-lg transition-shadow duration-300"
           >
+            {/* Terracotta accent wash */}
+            <div className="absolute -left-8 -bottom-8 w-24 h-24 rounded-full bg-terracotta/8 blur-xl pointer-events-none" />
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-xl shrink-0">{currentFact.icon}</span>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <motion.span
+                  className="text-xl shrink-0"
+                  animate={{ rotate: [0, -8, 8, 0] }}
+                  transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+                >
+                  {currentFact.icon}
+                </motion.span>
                 <div className="min-w-0">
                   <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-terracotta block">
-                    Botanical Oracle
+                    Botanical Oracle · Free to read
                   </span>
                   <h4 className="font-serif font-bold text-text-bark text-sm sm:text-base leading-tight mt-0.5 truncate">
                     {currentFact.title}
@@ -746,7 +935,7 @@ export default function Library() {
             <div className="min-h-[56px] flex items-center">
               <AnimatePresence mode="wait">
                 <motion.p
-                  key={factIndex}
+                  key={factPtr}
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -5 }}
@@ -783,11 +972,14 @@ export default function Library() {
             <div className="flex items-start justify-between gap-3 pt-1">
               <div className="min-w-0">
                 <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[#8c6d46] dark:text-[#caa651] block">
-                  Socratic Study Carrel // Daily Puzzles
+                  Socratic Study Carrel // Daily Examination
                 </span>
                 <h4 className="font-serif font-bold text-text-bark text-sm sm:text-base leading-tight mt-0.5">
                   {puzzlesLocked ? 'The carrel is closed for today' : dailyQuiz.question}
                 </h4>
+                <p className="text-[9px] font-mono text-text-stone mt-1 uppercase tracking-wider">
+                  One attempt per puzzle · 3 a day · facts upstairs are always free
+                </p>
               </div>
               <span className="px-2 py-0.5 rounded bg-[#b89542]/15 text-[#b89542] text-[9px] font-mono font-bold border border-[#b89542]/30 shrink-0">
                 {isProUser ? '∞ Pro' : `${attemptsLeft} of ${QUIZZES_PER_DAY} left today`}
@@ -795,21 +987,24 @@ export default function Library() {
             </div>
 
             {/* ── Moss-pole ladder: the sprout climbs 3 paces per solve ── */}
-            <div className="flex items-stretch gap-4 rounded-lg border border-[#8c7355]/25 bg-black/5 dark:bg-white/5 p-3">
+            <div className="flex items-stretch gap-4 rounded-xl border border-[#8c7355]/30 bg-gradient-to-b from-[#8c7355]/10 to-transparent dark:from-white/5 dark:to-transparent p-3.5 shadow-inner">
               {/* The pole with rungs */}
-              <div className="relative w-14 shrink-0 h-[132px] rounded-md bg-[#5f7161]/15 border border-[#5f7161]/30 overflow-hidden">
+              <div className="relative w-14 shrink-0 h-[132px] rounded-md overflow-hidden border border-[#5f7161]/40 bg-gradient-to-b from-[#6d7d63]/30 via-[#5f7161]/15 to-[#6b4f2e]/30">
                 {[...Array(9)].map((_, i) => (
                   <div
                     key={i}
-                    className="absolute left-1 right-1 h-[2px] bg-[#8c7355]/40"
+                    className="absolute left-1 right-1 h-[2px] bg-[#8c7355]/50 rounded-full"
                     style={{ bottom: `${(i + 1) * 13}px` }}
                   />
                 ))}
+                {/* Moss tufts on the pole */}
+                <span className="absolute left-0.5 bottom-[52px] text-[9px] opacity-70 select-none">🌿</span>
+                <span className="absolute right-0.5 bottom-[91px] text-[9px] opacity-70 select-none">🌿</span>
                 {/* Soil floor */}
-                <div className="absolute bottom-0 left-0 right-0 h-2 bg-[#6b4f2e]/60" />
+                <div className="absolute bottom-0 left-0 right-0 h-2 bg-[#6b4f2e]/70 rounded-b-md" />
                 {/* The climbing sprout */}
                 <motion.div
-                  className="absolute left-1/2 text-2xl"
+                  className="absolute left-1/2 text-2xl drop-shadow-[0_0_6px_rgba(134,239,172,0.7)]"
                   style={{ marginLeft: '-12px', bottom: 6 }}
                   animate={
                     justFell
@@ -845,9 +1040,9 @@ export default function Library() {
               </div>
 
               {/* Streak ledger */}
-              <div className="flex flex-col justify-center gap-1 min-w-0">
-                <div className={`flex items-center gap-1.5 font-serif font-bold text-lg ${justFell ? 'text-terracotta' : 'text-text-bark'}`}>
-                  <Flame size={15} className={streak > 0 ? 'text-[#d97b29]' : 'text-text-stone/40'} />
+              <div className="flex flex-col justify-center gap-1.5 min-w-0">
+                <div className={`flex items-center gap-1.5 font-serif font-bold text-xl ${justFell ? 'text-terracotta' : 'text-text-bark'}`}>
+                  <Flame size={16} className={streak > 0 ? 'text-[#d97b29] drop-shadow-[0_0_4px_rgba(217,123,41,0.5)]' : 'text-text-stone/40'} />
                   <motion.span
                     key={streak}
                     initial={justFell ? { x: 0 } : { scale: 1.5 }}
@@ -855,19 +1050,28 @@ export default function Library() {
                     transition={{ type: 'spring', stiffness: 300, damping: 12 }}
                     className="inline-block"
                   >
-                    {streak}
+                    {streak * PACES_PER_SOLVE}
                   </motion.span>
                   <span className="text-[10px] font-sans font-bold uppercase tracking-widest text-text-stone">
-                    {streak === 1 ? 'pace streak' : 'pace streak'}
+                    paces up
                   </span>
                 </div>
-                <p className="text-[9px] font-mono uppercase tracking-wider text-text-stone">
-                  {streak * PACES_PER_SOLVE} paces up the pole · best {bestStreak}
-                </p>
+                <div className="flex items-center gap-2 text-[9px] font-mono uppercase tracking-wider text-text-stone">
+                  <span className="flex items-center gap-1">
+                    <Flame size={9} className="text-[#d97b29]/70" />
+                    streak {streak}
+                  </span>
+                  <span className="text-[#8c7355]/50">·</span>
+                  <span>best {bestStreak}</span>
+                </div>
                 {streak >= 5 && !justFell && (
-                  <p className="text-[9px] font-mono text-moss font-bold uppercase tracking-wider">
-                    {streak >= 10 ? 'Canopy legend!' : 'Thriving canopy!'}
-                  </p>
+                  <motion.p
+                    initial={{ opacity: 0, y: 3 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-[9px] font-mono text-moss font-bold uppercase tracking-wider"
+                  >
+                    {streak >= 10 ? '🌳 Canopy legend!' : '🪴 Thriving canopy!'}
+                  </motion.p>
                 )}
               </div>
             </div>
