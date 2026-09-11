@@ -1,4 +1,4 @@
-const CACHE_NAME = 'phyto-guard-v1.5';
+const CACHE_NAME = 'phyto-guard-v1.6';
 const ASSETS = [
   '/',
   '/index.html',
@@ -28,9 +28,22 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Database operations are handled by IndexedDB directly (Dexie), 
+  // Database operations are handled by IndexedDB directly (Dexie),
   // so we skip caching API or DB calls here.
   if (event.request.method !== 'GET') return;
+
+  // Navigation requests (the app shell) go network-first so deploys reach
+  // users immediately; the cache is only the offline fallback.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).then((networkResponse) => {
+        const copy = networkResponse.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put('/', copy));
+        return networkResponse;
+      }).catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
