@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
 import { NavigationBar } from './home/NavigationBar';
 import MobileBottomNav from './home/MobileBottomNav';
-import CursorGlow from './home/CursorGlow';
 import AmbientGarden from './AmbientGarden';
 import Leafify from './Leafify';
 import { PageTransitionProvider } from './home/PageTransitionContext';
@@ -66,7 +65,6 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen flex flex-col font-sans relative overflow-x-hidden" id="app-shell" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       <AmbientGarden />
-      <CursorGlow />
       <Leafify />
       <PageTransitionProvider>
         {/* Only show nav when authenticated */}
@@ -97,8 +95,8 @@ function Footer() {
       </div>
       <div className="flex gap-6">
         <Link to="/lab">Lab Notes</Link>
-        <span>Privacy</span>
-        <span>Terms</span>
+        <Link to="/privacy">Privacy</Link>
+        <Link to="/terms">Terms</Link>
       </div>
     </footer>
   );

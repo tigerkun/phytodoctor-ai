@@ -77,6 +77,11 @@ export default function VaultPage() {
   const [loadingReport, setLoadingReport] = useState(false);
   const [issuedAt, setIssuedAt] = useState<Date | null>(null);
   const [left, setLeft] = useState(assessmentsLeftToday);
+  const [isPro, setIsPro] = useState(false);
+
+  React.useEffect(() => {
+    GameService.isPro(userId).then(setIsPro).catch(() => setIsPro(false));
+  }, [userId]);
 
   React.useEffect(() => {
     if (!cityQuery && city && city !== 'Your Location') {
@@ -139,12 +144,14 @@ export default function VaultPage() {
 
   const runAssessment = async () => {
     if (!dossier || !site) return error('Process a species and lock a site first.');
-    if (left <= 0) return error(`Daily cap reached (${ASSESSMENTS_PER_DAY} assessments). Come back tomorrow.`);
+    if (!isPro && left <= 0) return error(`Daily cap reached (${ASSESSMENTS_PER_DAY} assessments). Come back tomorrow — or upgrade to Pro for unlimited reports.`);
     setLoadingReport(true);
     try {
       const result = await assessPlacement(dossier.scientificName || speciesInput, site);
-      if (!consumeAssessment()) return error('Daily cap reached.');
-      setLeft(assessmentsLeftToday());
+      if (!isPro) {
+        if (!consumeAssessment()) return error('Daily cap reached.');
+        setLeft(assessmentsLeftToday());
+      }
       setIssuedAt(new Date());
       setReport(result);
       setStep('report');
@@ -187,7 +194,7 @@ export default function VaultPage() {
               <Leaf size={11} /> PhytoDoctor · Clinical Lab
             </span>
             <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.16em] border border-gold/40 text-gold bg-gold/10">
-              {left} of {ASSESSMENTS_PER_DAY} reports remaining today
+              {isPro ? '∞ Pro · unlimited reports' : `${left} of ${ASSESSMENTS_PER_DAY} reports remaining today`}
             </span>
           </div>
           <h1 className="font-serif text-4xl sm:text-5xl font-semibold tracking-tight text-text-bark">

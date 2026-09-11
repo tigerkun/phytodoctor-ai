@@ -6,7 +6,7 @@ import PageWrapper from '../components/home/PageWrapper';
 import AmbientParticles from '../components/AmbientParticles';
 import { useDayNightTheme } from '../hooks/useDayNightTheme';
 import { GameService } from '../services/gameService';
-import { isValidEmail, evaluatePasswordStrength, generateLocalUserId, hashPassword, verifyPassword } from '../services/authUtils';
+import { isValidEmail, evaluatePasswordStrength, generateLocalUserId, hashPassword, verifyPassword, generateSalt, getAuthLockout, recordAuthFailure, clearAuthFailures } from '../services/authUtils';
 import { supabase, supabaseConfigured } from '../lib/supabase';
 import '../styles/ambient.css';
 import '../styles/animations.css';
@@ -177,6 +177,13 @@ export default function Auth() {
     if (!isLogin && (!name || !experienceLevel || !environment)) return;
     if (!validateForm()) return;
 
+    // Local-path brute-force lockout (Supabase enforces its own server-side).
+    const lockMs = getAuthLockout(email);
+    if (lockMs > 0) {
+      setAuthError(`Too many attempts. Please wait ${Math.ceil(lockMs / 60_000)} minute(s) and try again.`);
+      return;
+    }
+
     setLoading(true);
     setAuthError('');
 
@@ -229,9 +236,9 @@ export default function Auth() {
           }
         }
       } else {
-        // ── Local fallback path (SHA-256 client-side hash) ─────────────────
-        // ponytail: local-only auth, no server. Safe for single-user devices.
-        // Upgrade path: configure Supabase (see .env.example).
+        // ── Local fallback path (salted SHA-256 client-side hash) ──────────
+        // Local-only auth for single-device use. Configure Supabase
+        // (see .env.example) for real server-side authentication.
         const userId = generateLocalUserId(email);
         const { db } = await import('../db/database');
         const existing = await db.userProfile.get(userId);
@@ -242,12 +249,27 @@ export default function Auth() {
             setLoading(false);
             return;
           }
-          const ok = await verifyPassword(userId, password, existing.passwordHash as string);
+          const salt = (existing as any).passwordSalt as string | undefined;
+          let ok = await verifyPassword(userId, password, existing.passwordHash as string, salt);
+          if (!ok && salt === undefined) {
+            // Legacy unsalted account that still passed with the old scheme
+            // cannot reach this branch (verify already fell back); this only
+            // guards against a stored legacy hash + missing salt mismatch.
+            ok = false;
+          }
           if (!ok) {
+            recordAuthFailure(email);
             setAuthError('Incorrect password.');
             setLoading(false);
             return;
           }
+          // Upgrade legacy unsalted accounts to the salted scheme in-place.
+          if (!salt) {
+            const newSalt = generateSalt();
+            const newHash = await hashPassword(userId, password, newSalt);
+            await db.userProfile.update(userId, { passwordSalt: newSalt, passwordHash: newHash } as any);
+          }
+          clearAuthFailures(email);
           await persistSession(userId, email.toLowerCase().trim(), existing.username || email.split('@')[0]);
         } else {
           if (existing?.passwordHash) {
@@ -255,13 +277,15 @@ export default function Auth() {
             setLoading(false);
             return;
           }
-          const hash = await hashPassword(userId, password);
+          const salt = generateSalt();
+          const hash = await hashPassword(userId, password, salt);
           await persistSession(userId, email.toLowerCase().trim(), name);
           await db.userProfile.update(userId, {
             username: name,
             experienceLevel: experienceLevel as any,
             environment: environment as any,
             passwordHash: hash,
+            passwordSalt: salt,
           } as any);
         }
         navigate('/');

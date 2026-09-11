@@ -21,7 +21,6 @@ export function NavigationBar() {
     { label: 'Lab', href: '/lab' },
     { label: 'Market', href: '/market' },
     { label: 'Library', href: '/library' },
-    { label: 'Arena', href: '/arena' },
   ];
 
   const isActive = (href: string) => {
@@ -67,7 +66,7 @@ export function NavigationBar() {
             />
           </motion.div>
           <span className="font-serif text-xl font-bold relative">
-            BotanicalGuardian
+            PhytoDoctor
           </span>
         </motion.button>
 

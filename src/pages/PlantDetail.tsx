@@ -753,12 +753,6 @@ export default function PlantDetail() {
                     >
                       <span>💬 Consult Chief Botanist</span>
                     </button>
-                    <button 
-                      onClick={() => transitionTo(`/pedigree/${plant.id}`, 'Specimen Lineage')}
-                      className="px-6 py-3 bg-white/10 text-[#f7f0e4] font-mono font-bold uppercase tracking-widest text-[10px] rounded-xl hover:bg-white/20 transition-colors border border-white/10"
-                    >
-                      <span>View Family Pedigree</span>
-                    </button>
                   </div>
                 </div>
 

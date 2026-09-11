@@ -36,6 +36,7 @@ import { RewardService } from '../services/rewardService';
 import { MigrationService } from '../services/migrationService';
 import PageWrapper from '../components/home/PageWrapper';
 import { usePageTransition } from '../components/home/PageTransitionContext';
+import { useToast } from '../components/Toast';
 import { triggerHaptic, playAudio } from '../utils/hapticAudio';
 import {
   evaluateProfileBadges,
@@ -48,6 +49,7 @@ import {
 export default function Profile() {
   const navigate = useNavigate();
   const { transitionTo } = usePageTransition();
+  const { success, error } = useToast();
   const userId = GameService.getUserId();
 
   // Ensure user profile, level progress, and streak records exist
@@ -149,9 +151,14 @@ export default function Profile() {
     if (profile?.tier === 'pro') return;
     setIsUpgrading(true);
     try {
-      await GameService.upgradeToPro(userId);
+      // Costs 1,000 seeds (validated + deducted inside), grants unlimited
+      // Vault assessments + 1.5x seed multiplier for one month.
+      await GameService.purchaseProUpgrade(userId);
+      success(`Pro Commission active! ${GameService.PRO_UPGRADE_COST.toLocaleString()} seeds deducted.`);
       if (hapticEnabled) triggerHaptic('heavy');
       if (audioEnabled) playAudio('success');
+    } catch (err: any) {
+      error(err?.message || 'Upgrade failed.');
     } finally {
       setIsUpgrading(false);
     }
@@ -493,7 +500,7 @@ export default function Profile() {
                         </>
                       ) : (
                         <>
-                          <Crown size={12} /> Upgrade Commission (+1,000 Seeds)
+                          <Crown size={12} /> Upgrade Commission · 1,000 Seeds
                         </>
                       )}
                     </button>

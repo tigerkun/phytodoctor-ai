@@ -151,6 +151,41 @@ const MOCK_VOUCHERS = [
 const CART_KEY = 'phyto_stall_cart';
 const WISH_KEY = 'phyto_stall_wish';
 const TICKET_KEY = 'phyto_stall_tickets';
+const REFUNDS_KEY = 'phyto_stall_refunds';
+
+const AFFILIATE_TAG = 'botanicalguard-21';
+
+// Append the affiliate tag correctly: stall URLs already contain a query
+// string (`/s?k=...`), so the tag must join with `&`, never a second `?`.
+function amazonStallUrl(amazonUrl: string): string {
+  try {
+    const url = new URL(amazonUrl);
+    url.searchParams.set('tag', AFFILIATE_TAG);
+    return url.toString();
+  } catch {
+    return amazonUrl + (amazonUrl.includes('?') ? '&' : '?') + 'tag=' + AFFILIATE_TAG;
+  }
+}
+
+// A claimed seed-refund: seeds were spent, this code is the user's proof of
+// the tracked ₹ discount on that stall item.
+interface ClaimedRefund {
+  id: string;
+  code: string;
+  refundValue: number;
+  seedCost: number;
+  productName: string;
+  claimedAt: string;
+}
+
+function makeRefundCode(): string {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let out = '';
+  const buf = new Uint8Array(6);
+  crypto.getRandomValues(buf);
+  for (let i = 0; i < 6; i++) out += chars[buf[i] % chars.length];
+  return `PD-${out.slice(0, 3)}-${out.slice(3)}`;
+}
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -274,7 +309,6 @@ function HeroCarousel({ onClaim }: { onClaim: (id: string, refundValue: number) 
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => {
-                window.open(`${product.amazonUrl}?tag=botanicalguard-21`, '_blank');
                 onClaim(product.id, refundValue);
               }}
               className="flex-1 bg-[#c17f59] hover:bg-[#a85a42] text-white font-black py-4 px-6 rounded-sm transition-all shadow-lg flex items-center justify-center gap-2 uppercase text-xs tracking-[0.16em]"
@@ -310,7 +344,6 @@ function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish }: { 
   const refundValue = Math.floor(product.seedPrice / 200);
 
   const handleAmazonRedirect = () => {
-    window.open(`${product.amazonUrl}?tag=botanicalguard-21`, '_blank');
     onClaim(product.id, refundValue);
   };
 
@@ -435,7 +468,8 @@ export default function GardenMarket() {
   const { toasts, success, error, warning, reward } = useToast();
   const { theme } = useDayNightTheme();
   const [activeTab, setActiveTab] = useState<'drops' | 'home' | 'care' | 'vouchers' | 'saved'>('drops');
-  const [claimedItems, setClaimedItems] = useState<string[]>([]);
+  const [claimedItems, setClaimedItems] = useState<string[]>(() => readJson(REFUNDS_KEY, [] as ClaimedRefund[]).map(r => r.id));
+  const [claimedRefunds, setClaimedRefunds] = useState<ClaimedRefund[]>(() => readJson(REFUNDS_KEY, [] as ClaimedRefund[]));
   const [cartItems, setCartItems] = useState<any[]>(() => readJson(CART_KEY, []));
   const [wishlist, setWishlist] = useState<string[]>(() => readJson(WISH_KEY, []));
   const [redeemedTickets, setRedeemedTickets] = useState<string[]>(() => readJson(TICKET_KEY, []));
@@ -473,6 +507,7 @@ export default function GardenMarket() {
   useEffect(() => { localStorage.setItem(CART_KEY, JSON.stringify(cartItems)); }, [cartItems]);
   useEffect(() => { localStorage.setItem(WISH_KEY, JSON.stringify(wishlist)); }, [wishlist]);
   useEffect(() => { localStorage.setItem(TICKET_KEY, JSON.stringify(redeemedTickets)); }, [redeemedTickets]);
+  useEffect(() => { localStorage.setItem(REFUNDS_KEY, JSON.stringify(claimedRefunds)); }, [claimedRefunds]);
 
   // Filter products
   const getFilteredProducts = () => {
@@ -507,6 +542,10 @@ export default function GardenMarket() {
     const product = MOCK_PRODUCTS.find(p => p.id === id);
     const cost = product ? product.seedPrice : refundValue * 200;
 
+    if (claimedRefunds.some(r => r.id === id)) {
+      error('You already claimed the seed refund for this crate.');
+      return;
+    }
     if (seeds < cost) {
       error(`Need ${cost.toLocaleString()} seeds`);
       return;
@@ -514,14 +553,32 @@ export default function GardenMarket() {
 
     setConfirmDialog({
       isOpen: true,
-      title: "Claim Seed Refund",
-      description: `Spend seeds to unlock a ₹${refundValue} refund on Amazon for "${product?.name || 'this item'}".`,
+      title: "Claim Seed Discount",
+      description: `Spend ${cost.toLocaleString()} seeds to record a ₹${refundValue} seed discount on "${product?.name || 'this item'}". You'll get a discount code as your record — buy via the Amazon stall link and the discount is tracked against your seeds.`,
       cost,
       onConfirm: async () => {
         try {
-          await GameService.addSeeds(-cost, 'spend', `Claimed refund for ${product?.name || 'Product'}`);
-          setClaimedItems([...claimedItems, id]);
-          reward(`Refund Claimed! Deducted ${cost.toLocaleString()} seeds.`);
+          await GameService.addSeeds(-cost, 'spend', `Claimed ₹${refundValue} seed discount for ${product?.name || 'Product'}`);
+          const record: ClaimedRefund = {
+            id,
+            code: makeRefundCode(),
+            refundValue,
+            seedCost: cost,
+            productName: product?.name || 'Stall item',
+            claimedAt: new Date().toISOString(),
+          };
+          setClaimedRefunds(prev => {
+            const next = [...prev, record];
+            localStorage.setItem(REFUNDS_KEY, JSON.stringify(next));
+            return next;
+          });
+          setClaimedItems(prev => prev.includes(id) ? prev : [...prev, id]);
+          reward(`Discount claimed! Code ${record.code} · ₹${refundValue} off (saved to your tickets).`);
+          // Open the affiliate stall only after the claim is recorded, so a
+          // cancelled dialog never sends the user shopping discount-less.
+          if (product?.amazonUrl) {
+            window.open(amazonStallUrl(product.amazonUrl), '_blank', 'noopener');
+          }
         } catch (err) {
           console.error(err);
           error("Transaction failed");
@@ -804,6 +861,24 @@ export default function GardenMarket() {
                 >
                   Torn tickets
                 </motion.h2>
+
+                {/* Claimed seed-discount records */}
+                {claimedRefunds.length > 0 && (
+                  <div className="mb-10">
+                    <h3 className="font-serif text-xl font-semibold text-[#3d2a1c] mb-3">Your claimed seed discounts</h3>
+                    <div className="space-y-3">
+                      {claimedRefunds.map((r) => (
+                        <div key={r.id + r.code} className="bg-[#fff8e8] border border-[#c17f59]/40 px-4 py-3 flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-bold text-[#3d2a1c]">{r.productName}</p>
+                            <p className="text-[11px] text-[#7a6a50]">₹{r.refundValue} seed discount · {new Date(r.claimedAt).toLocaleDateString()}</p>
+                          </div>
+                          <span className="font-mono font-black tracking-widest text-[#3d2a1c] bg-[#f4e4c1] border border-[#c17f59]/50 px-3 py-1.5 select-all">{r.code}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 
                 {MOCK_VOUCHERS.length === 0 ? (
                   <motion.div
@@ -965,7 +1040,7 @@ export default function GardenMarket() {
                         
                         // Open the first cart item's Amazon product details (prevents popup blocker spam for multiple items)
                         if (cartItems.length > 0) {
-                          window.open(`${cartItems[0].amazonUrl}?tag=botanicalguard-21`, '_blank');
+                          window.open(amazonStallUrl(cartItems[0].amazonUrl), '_blank', 'noopener');
                         }
 
                         const seedRefund = Math.floor(totalCash / 200);

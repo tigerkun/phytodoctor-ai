@@ -64,7 +64,10 @@ export const BIOMES = [
 ] as const;
 
 function capKey() {
-  const day = new Date().toISOString().slice(0, 10);
+  // Local calendar day (not UTC) so the daily cap resets at the user's
+  // midnight, matching the "today" phrasing in the UI.
+  const d = new Date();
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   return `sandbox_assessments_${GameService.getUserId()}_${day}`;
 }
 

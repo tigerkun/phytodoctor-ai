@@ -38,6 +38,12 @@ export class GameService {
     return await db.subscriptions.get(userId) || null;
   }
 
+  /**
+   * Low-level tier switch. Prefer purchaseProUpgrade() which enforces the
+   * seed cost. Pro's real benefit: no daily cap on Vault clinical assessments
+   * (free tier: ASSESSMENTS_PER_DAY), the 1.5x seed multiplier, and existing
+   * pro-only cosmetics.
+   */
   static async upgradeToPro(userId: string = this.getUserId()) {
     const startedAt = new Date();
     const expiresAt = new Date();
@@ -53,9 +59,36 @@ export class GameService {
 
     await db.subscriptions.put(sub);
     await db.userProfile.update(userId, { tier: 'pro' });
-    
-    // Welcome bonus seeds
-    await this.addSeeds(1000, 'bonus', 'Pro Welcome Bonus', userId);
+  }
+
+  static readonly PRO_UPGRADE_COST = 1000;
+
+  static async purchaseProUpgrade(userId: string = this.getUserId()) {
+    const profile = await this.ensureProfile(userId);
+    if (profile.tier === 'pro') throw new Error('You are already a Pro member.');
+    if (profile.seeds < GameService.PRO_UPGRADE_COST) {
+      throw new Error(`Insufficient seeds. You need ${(GameService.PRO_UPGRADE_COST - profile.seeds).toLocaleString()} more.`);
+    }
+    await this.addSeeds(-GameService.PRO_UPGRADE_COST, 'spend', 'Upgraded to Pro Commission', userId);
+    try {
+      await this.upgradeToPro(userId);
+    } catch (err) {
+      // Refund if the tier upgrade failed after the deduction.
+      await this.addSeeds(GameService.PRO_UPGRADE_COST, 'bonus', 'Pro upgrade refund', userId);
+      throw err;
+    }
+  }
+
+  /** Pro status with honest expiry handling: lapsed commissions downgrade. */
+  static async isPro(userId: string = this.getUserId()): Promise<boolean> {
+    const profile = await this.ensureProfile(userId);
+    if (profile.tier !== 'pro') return false;
+    const sub = await db.subscriptions.get(userId);
+    if (sub?.expiresAt && sub.expiresAt.getTime() < Date.now()) {
+      await db.userProfile.update(userId, { tier: 'free' });
+      return false;
+    }
+    return true;
   }
 
   static async addSeeds(
