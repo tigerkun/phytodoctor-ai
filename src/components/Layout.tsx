@@ -18,6 +18,10 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const isAuthPage = location.pathname.startsWith('/auth');
+  // Tracks auth so the nav/footer don't flash for logged-out visitors.
+  const [hasAuth, setHasAuth] = React.useState(() =>
+    Boolean(localStorage.getItem('botanical_guardian_auth_token'))
+  );
 
   // Auth guard & Supabase session sync
   React.useEffect(() => {
@@ -25,13 +29,15 @@ export default function Layout({ children }: LayoutProps) {
       // If Supabase isn't configured, fall back to local token check
       if (!supabase) {
         const token = localStorage.getItem('botanical_guardian_auth_token');
+        setHasAuth(Boolean(token));
         if (!token && !isAuthPage) navigate('/auth', { replace: true });
         return;
       }
 
       // Check current session
       const { data: { session } } = await supabase.auth.getSession();
-      
+      setHasAuth(Boolean(session));
+
       if (!session && !isAuthPage) {
         // No session but trying to access protected route
         navigate('/auth', { replace: true });
@@ -51,6 +57,7 @@ export default function Layout({ children }: LayoutProps) {
     // Listen for auth state changes (login, logout, token refresh)
     if (supabase) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        setHasAuth(Boolean(session));
         if (!session && !isAuthPage) {
           localStorage.removeItem('botanical_guardian_auth_token');
           navigate('/auth', { replace: true });
@@ -68,7 +75,7 @@ export default function Layout({ children }: LayoutProps) {
       <Leafify />
       <PageTransitionProvider>
         {/* Only show nav when authenticated */}
-        {!isAuthPage && (
+        {!isAuthPage && hasAuth && (
           <>
             <NavigationBar />
             <MobileBottomNav />

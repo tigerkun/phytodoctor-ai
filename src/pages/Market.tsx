@@ -1,9 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Sparkles, Sprout, ShoppingBag, Clock, Tag, 
-  ChevronRight, Star, AlertCircle, ShieldCheck, 
-  Leaf, Bookmark, TrendingUp, Zap, Gift, ExternalLink
+import {
+  Sparkles,
+  Sprout,
+  ShoppingBag,
+  Clock,
+  Tag,
+  ChevronRight,
+  Star,
+  AlertCircle,
+  ShieldCheck,
+  Leaf,
+  Bookmark,
+  TrendingUp,
+  Zap,
+  Gift,
+  ExternalLink
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/database';
@@ -482,6 +494,11 @@ export default function GardenMarket() {
     description: string;
     cost: number;
     onConfirm: () => void;
+  } | null>(null);
+  const [orderSuccessDialog, setOrderSuccessDialog] = useState<{
+    code: string;
+    refund: number;
+    items: Array<{ name: string; amazonUrl: string }>;
   } | null>(null);
   const [filters, setFilters] = useState({
     search: '',
@@ -1021,9 +1038,11 @@ export default function GardenMarket() {
                 userSeeds={seeds}
                 selectedVoucher={appliedTicket ? { id: appliedTicket.id, discount: appliedTicket.discount } : undefined}
                 onCheckout={() => {
-                  const totalCash = cartItems.reduce((sum, item) => sum + (item.cashPrice * item.qty), 0);
                   const totalSeedsNeeded = cartItems.reduce((sum, item) => sum + (item.seedPrice * item.qty), 0);
-                  
+                  // Per-line refund, same formula as the single-item claim
+                  // (seeds ÷ 200), so both purchase paths pay identically.
+                  const seedRefund = cartItems.reduce((sum, item) => sum + Math.floor((item.seedPrice * item.qty) / 200), 0);
+
                   if (seeds < totalSeedsNeeded) {
                     error(`Need ${totalSeedsNeeded.toLocaleString()} seeds to checkout this cart`);
                     return;
@@ -1032,21 +1051,33 @@ export default function GardenMarket() {
                   setConfirmDialog({
                     isOpen: true,
                     title: "Checkout Cart",
-                    description: `Spend ${totalSeedsNeeded.toLocaleString()} seeds to complete purchase and claim cashback refunds.`,
+                    description: `Spend ${totalSeedsNeeded.toLocaleString()} seeds to record ₹${seedRefund} in seed discounts across ${cartItems.length} item${cartItems.length > 1 ? 's' : ''}. You'll get a discount code as your record.`,
                     cost: totalSeedsNeeded,
                     onConfirm: async () => {
                       try {
-                        await GameService.addSeeds(-totalSeedsNeeded, 'spend', `Checked out ${cartItems.length} items`);
-                        
-                        // Open the first cart item's Amazon product details (prevents popup blocker spam for multiple items)
-                        if (cartItems.length > 0) {
-                          window.open(amazonStallUrl(cartItems[0].amazonUrl), '_blank', 'noopener');
-                        }
+                        await GameService.addSeeds(-totalSeedsNeeded, 'spend', `Cart checkout: ${cartItems.length} items`);
 
-                        const seedRefund = Math.floor(totalCash / 200);
-                        reward(`Order placed! Redirected to checkout & deducted ${totalSeedsNeeded.toLocaleString()} seeds.`);
+                        const record: ClaimedRefund = {
+                          id: `order-${Date.now()}`,
+                          code: makeRefundCode(),
+                          refundValue: seedRefund,
+                          seedCost: totalSeedsNeeded,
+                          productName: `Cart order · ${cartItems.length} item${cartItems.length > 1 ? 's' : ''}`,
+                          claimedAt: new Date().toISOString(),
+                        };
+                        setClaimedRefunds(prev => [...prev, record]);
+                        setClaimedItems(prev => Array.from(new Set([...prev, ...cartItems.map(i => i.id)])));
+
                         setCartItems([]);
                         setShowCheckout(false);
+                        // Popup-blocker-safe: no window.open after await —
+                        // the modal carries one affiliate link per item.
+                        setOrderSuccessDialog({
+                          code: record.code,
+                          refund: seedRefund,
+                          items: cartItems.map(i => ({ name: i.name, amazonUrl: i.amazonUrl })),
+                        });
+                        reward(`Order recorded! Code ${record.code} · ₹${seedRefund} seed discounts saved to your tickets.`);
                       } catch (err) {
                         console.error(err);
                         error("Checkout transaction failed");
@@ -1056,6 +1087,82 @@ export default function GardenMarket() {
                 }}
               />
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── ORDER SUCCESS & DISCOUNT CODE MODAL ── */}
+      <AnimatePresence>
+        {orderSuccessDialog && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-bg-primary/80 z-[100] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-[#faf6ee] dark:bg-[#1a140e] border border-[#c5a059]/40 rounded-3xl p-6 max-w-md w-full text-center shadow-2xl relative overflow-hidden"
+            >
+              <div className="mx-auto w-14 h-14 rounded-2xl bg-moss/15 text-moss flex items-center justify-center mb-3 border border-moss/30">
+                <Tag size={26} />
+              </div>
+
+              <h3 className="font-serif text-2xl font-bold text-[#2c2419] dark:text-[#f4eee1] mb-1">
+                Seed Discounts Recorded
+              </h3>
+              <p className="text-xs text-[#725e4c] dark:text-[#b8a695] mb-4">
+                ₹{orderSuccessDialog.refund} in seed discounts, saved to your Tickets tab. Use the code as your record when you buy.
+              </p>
+
+              <div className="p-3.5 bg-[#f4ebd9] dark:bg-[#251d16] border border-dashed border-[#c4a574] rounded-xl mb-4 flex items-center justify-between gap-2">
+                <span className="font-mono font-bold text-sm tracking-wider text-[#2c2419] dark:text-[#f4eee1] select-all">
+                  {orderSuccessDialog.code}
+                </span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(orderSuccessDialog.code);
+                    success('Discount code copied to clipboard!');
+                  }}
+                  className="px-2.5 py-1 text-[10px] font-black uppercase tracking-widest bg-[#2e4a34] text-[#f4eee1] rounded-lg hover:bg-[#395c41] transition-colors"
+                >
+                  Copy
+                </button>
+              </div>
+
+              <div className="text-left mb-4">
+                <p className="text-[10px] font-sans font-bold uppercase tracking-[0.06em] text-[#725e4c] dark:text-[#b8a695] mb-2">
+                  Stall links ({orderSuccessDialog.items.length})
+                </p>
+                <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                  {orderSuccessDialog.items.map((item, idx) => (
+                    <a
+                      key={idx}
+                      href={amazonStallUrl(item.amazonUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-[#251d16] border border-[#dcd2c0] dark:border-[#3d2e20] text-xs hover:border-[#8c6e38] transition-colors group"
+                    >
+                      <span className="font-medium text-[#2c2419] dark:text-[#f4eee1] truncate max-w-[220px]">
+                        {item.name}
+                      </span>
+                      <span className="text-[10px] text-moss font-bold flex items-center gap-1 group-hover:underline">
+                        Open <ExternalLink size={10} />
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={() => setOrderSuccessDialog(null)}
+                className="w-full py-3 rounded-xl bg-[#2e4a34] text-[#f4eee1] text-xs font-bold uppercase tracking-wider hover:bg-[#395c41] transition-colors"
+              >
+                Done
+              </button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

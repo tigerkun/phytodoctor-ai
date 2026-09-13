@@ -19,6 +19,7 @@ import Terms from './pages/Terms';
 import { CaseStudy } from './components/CaseStudy';
 import SystemAudit from './components/SystemAudit';
 import Leafify from './components/Leafify';
+import RequireAuth from './components/RequireAuth';
 
 
 /**
@@ -47,32 +48,32 @@ export default function App() {
 
             {/* Main Command Center */}
             <Route path="/" element={<Home />} />
-            <Route path="/audit" element={<SystemAudit />} />
+            <Route path="/audit" element={<RequireAuth><SystemAudit /></RequireAuth>} />
 
             {/* Specimen Archives */}
-            <Route path="/collection" element={<Vault />} />
+            <Route path="/collection" element={<RequireAuth><Vault /></RequireAuth>} />
 
             {/* Diagnosis & Treatment */}
-            <Route path="/lab" element={<BotanicalLab />} />
-            <Route path="/clinic" element={<Clinic />} />
-            <Route path="/clinic/case-study" element={<CaseStudy />} />
-            <Route path="/assistant" element={<Assistant />} />
+            <Route path="/lab" element={<RequireAuth><BotanicalLab /></RequireAuth>} />
+            <Route path="/clinic" element={<RequireAuth><Clinic /></RequireAuth>} />
+            <Route path="/clinic/case-study" element={<RequireAuth><CaseStudy /></RequireAuth>} />
+            <Route path="/assistant" element={<RequireAuth><Assistant /></RequireAuth>} />
 
             {/* Market & Resources */}
-            <Route path="/market" element={<Market />} />
+            <Route path="/market" element={<RequireAuth><Market /></RequireAuth>} />
 
             {/* Knowledge Base */}
-            <Route path="/library" element={<Library />} />
+            <Route path="/library" element={<RequireAuth><Library /></RequireAuth>} />
 
             {/* Legal */}
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
 
             {/* Specialist Profile */}
-            <Route path="/profile" element={<Profile />} />
+            <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
 
             {/* Deep-Tissue Specimen Analytics */}
-            <Route path="/plant/:id" element={<PlantDetail />} />
+            <Route path="/plant/:id" element={<RequireAuth><PlantDetail /></RequireAuth>} />
 
             {/* Catch-all 404 */}
             <Route path="*" element={<NotFound />} />
