@@ -125,9 +125,94 @@ function apiGate(req: express.Request, res: express.Response, next: express.Next
   supabaseAuthClient.auth.getUser(token)
     .then(({ data, error }: any) => {
       if (error || !data?.user) return fail(res, 401, 'Your session has expired. Please sign in again.');
+      (req as any).authUserId = data.user.id as string;
+      (req as any).authToken = token;
       next();
     })
     .catch(() => fail(res, 401, 'Your session has expired. Please sign in again.'));
+}
+
+// ── Game economy (server-authoritative when Supabase is configured) ────────
+// Service-role client: the ONLY writer allowed to grant Pro tier. Never
+// expose SUPABASE_SERVICE_KEY to the client bundle.
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
+let supabaseAdmin: any = null;
+if (SUPABASE_URL && SUPABASE_SERVICE_KEY && (globalThis as any).__createSupabaseAdmin !== true) {
+  import('@supabase/supabase-js').then(({ createClient }) => {
+    supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    console.log('Economy admin client ready (service role).');
+  }).catch((err) => console.error('Supabase admin init failed:', err?.message));
+}
+
+// RLS-scoped client per request: reads/writes the caller's own economy rows.
+function userClient(token: string) {
+  return supabaseAdmin
+    ? require('@supabase/supabase-js').createClient(SUPABASE_URL!, token)
+    : null;
+}
+
+const PRO_COST_SEEDS = 1000;
+const PRO_PRICE_PAISE = 9900; // ₹99/month
+const PRO_DURATION_DAYS = 31;
+
+// Daily usage caps per user (in-memory; resets on restart — the rate limiter
+// still bounds abuse, this protects Gemini cost per account).
+const FREE_LIMITS = { identify: 3, assess: 2 } as const;
+const PRO_LIMITS = { identify: 30, assess: Infinity } as const;
+const usageCounts = new Map<string, number>();
+
+function usageKey(userId: string, kind: string) {
+  const day = new Date().toISOString().slice(0, 10);
+  return `${userId}:${day}:${kind}`;
+}
+
+function tierGate(kind: 'identify' | 'assess') {
+  return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const userId = (req as any).authUserId;
+    if (!userId || !supabaseAdmin) return next(); // open mode: rate limiter only
+    try {
+      const { data: profile } = await supabaseAdmin
+        .from('profiles').select('tier, pro_expires_at').eq('user_id', userId).single();
+      let tier: string = profile?.tier || 'free';
+      if (tier === 'pro' && profile?.pro_expires_at && new Date(profile.pro_expires_at) < new Date()) {
+        tier = 'free'; // lapsed commission — honest downgrade, no write needed
+      }
+      (req as any).userTier = tier;
+      const limit = (tier === 'pro' ? PRO_LIMITS : FREE_LIMITS)[kind];
+      if (limit === Infinity) return next();
+      const key = usageKey(userId, kind);
+      const used = usageCounts.get(key) || 0;
+      if (used >= limit) {
+        return res.status(429).json({
+          error: tier === 'free'
+            ? `Daily ${kind} limit reached (${limit}/day on the free tier). Go Pro for more.`
+            : 'Daily limit reached. Please try again tomorrow.'
+        });
+      }
+      usageCounts.set(key, used + 1);
+      next();
+    } catch {
+      next(); // economy lookup failed — don't block the AI call on it
+    }
+  };
+}
+
+async function grantPro(userId: string, paymentRef: { razorpay_payment_id?: string; razorpay_subscription_id?: string } = {}) {
+  const expires = new Date(Date.now() + PRO_DURATION_DAYS * 86400000);
+  const { error } = await supabaseAdmin
+    .from('profiles')
+    .update({ tier: 'pro', pro_expires_at: expires.toISOString() })
+    .eq('user_id', userId);
+  if (error) throw new Error(error.message);
+  await supabaseAdmin.from('subscriptions').upsert({
+    user_id: userId,
+    tier: 'pro',
+    started_at: new Date().toISOString(),
+    expires_at: expires.toISOString(),
+    cancel_at_period_end: false,
+    ...paymentRef
+  });
+  return expires;
 }
 
 // Health check for Render
@@ -176,7 +261,7 @@ async function generateWithRetry(params: any, retries = 1) {
   throw new Error("Gemini API generateContent failed across all models");
 }
 
-app.post("/api/identify", express.json({ limit: '11mb' }), aiLimiter, apiGate, async (req, res) => {
+app.post("/api/identify", express.json({ limit: '11mb' }), aiLimiter, apiGate, tierGate("identify"), async (req, res) => {
   try {
     const { image, location } = req.body;
     if (!image || typeof image !== 'string') {
@@ -353,7 +438,7 @@ LOCATION-AWARE FIELDS (required if location provided):
   }
 });
 
-app.post("/api/sandbox", express.json({ limit: '64kb' }), aiLimiter, apiGate, async (req, res) => {
+app.post("/api/sandbox", express.json({ limit: '64kb' }), aiLimiter, apiGate, tierGate("assess"), async (req, res) => {
   try {
     const { mode, species, environment } = req.body;
     if (!isValidSpecies(species)) {
@@ -560,6 +645,142 @@ app.post("/api/guardian/predict", express.json({ limit: '64kb' }), aiLimiter, ap
   } catch (error: any) {
     console.error("Prediction Error:", error?.response?.status || error?.status || '', error?.message || error);
     fail(res, 500, AI_GENERIC_ERROR);
+  }
+});
+
+// ── Economy & billing endpoints (Supabase-mode only) ───────────────────────
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || '';
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || '';
+const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || '';
+
+// GET own authoritative profile (seeds + tier). Client mirrors this into Dexie.
+app.get("/api/economy/profile", apiGate, async (req, res) => {
+  try {
+    const userId = (req as any).authUserId;
+    const client = userClient((req as any).authToken);
+    const { data, error } = await client
+      .from('profiles').select('seeds, tier, pro_expires_at, current_streak, longest_streak, total_xp, collection_size').eq('user_id', userId).single();
+    if (error || !data) {
+      // First sign-in on a new device: bootstrap the row.
+      if (supabaseAdmin) {
+        const { data: created } = await supabaseAdmin
+          .from('profiles').upsert({ user_id: userId, seeds: 500, tier: 'free' }).select().single();
+        return res.json(created);
+      }
+      return res.json({ seeds: 500, tier: 'free' });
+    }
+    res.json(data);
+  } catch (err: any) {
+    console.error("economy/profile error:", err?.message);
+    fail(res, 500, "Could not load your profile.");
+  }
+});
+
+// POST seed delta from the client (dual-write after local Dexie updates).
+app.post("/api/economy/seed-sync", express.json({ limit: '16kb' }), apiGate, async (req, res) => {
+  try {
+    const userId = (req as any).authUserId;
+    const { delta, source, description } = req.body || {};
+    const d = Math.trunc(Number(delta));
+    if (!Number.isFinite(d) || d === 0 || Math.abs(d) > 10000) return fail(res, 400, "Invalid seed delta.");
+    const client = userClient((req as any).authToken);
+    const { data: profile } = await client
+      .from('profiles').select('seeds').eq('user_id', userId).single();
+    const current = profile?.seeds ?? 500;
+    const next = Math.max(0, current + d);
+    const { error: upErr } = await client
+      .from('profiles').update({ seeds: next }).eq('user_id', userId);
+    if (upErr) return fail(res, 500, "Could not sync seeds.");
+    await client.from('seed_transactions').insert({ user_id: userId, amount: d, source: String(source || 'sync').slice(0, 40), description: String(description || '').slice(0, 200) });
+    res.json({ seeds: next });
+  } catch (err: any) {
+    console.error("seed-sync error:", err?.message);
+    fail(res, 500, "Could not sync seeds.");
+  }
+});
+
+// POST purchase Pro with seeds — server verifies the balance; the client is
+// not trusted. Tier write goes through the service role.
+app.post("/api/billing/purchase-with-seeds", express.json({ limit: '8kb' }), apiGate, async (req, res) => {
+  try {
+    if (!supabaseAdmin) return fail(res, 501, "Billing requires Supabase configuration.");
+    const userId = (req as any).authUserId;
+    const { data: profile } = await supabaseAdmin
+      .from('profiles').select('seeds, tier, pro_expires_at').eq('user_id', userId).single();
+    if (profile?.tier === 'pro' && profile?.pro_expires_at && new Date(profile.pro_expires_at) > new Date()) {
+      return fail(res, 409, "You are already a Pro member.");
+    }
+    const balance = profile?.seeds ?? 0;
+    if (balance < PRO_COST_SEEDS) {
+      return fail(res, 402, `Insufficient seeds. You need ${(PRO_COST_SEEDS - balance).toLocaleString()} more.`);
+    }
+    const next = balance - PRO_COST_SEEDS;
+    const { error: upErr } = await supabaseAdmin.from('profiles').update({ seeds: next }).eq('user_id', userId);
+    if (upErr) return fail(res, 500, "Could not deduct seeds.");
+    await supabaseAdmin.from('seed_transactions').insert({ user_id: userId, amount: -PRO_COST_SEEDS, source: 'spend', description: 'Pro Commission (seeds)' });
+    const expires = await grantPro(userId);
+    res.json({ seeds: next, tier: 'pro', pro_expires_at: expires });
+  } catch (err: any) {
+    console.error("purchase-with-seeds error:", err?.message);
+    fail(res, 500, "Purchase failed. Please try again.");
+  }
+});
+
+// POST create a Razorpay order for the real-money Pro fast-pass.
+app.post("/api/billing/create-order", express.json({ limit: '8kb' }), aiLimiter, apiGate, async (req, res) => {
+  try {
+    if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) return fail(res, 501, "Payments are not configured yet.");
+    const userId = (req as any).authUserId;
+    const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString('base64');
+    const resp = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Basic ${auth}` },
+      body: JSON.stringify({
+        amount: PRO_PRICE_PAISE,
+        currency: 'INR',
+        receipt: `pro_${userId.slice(0, 8)}_${Date.now()}`,
+        notes: { userId, plan: 'pro_monthly' }
+      })
+    });
+    const order = await resp.json();
+    if (!resp.ok) {
+      console.error("Razorpay order failed:", order);
+      return fail(res, 502, "Could not start the payment. Please try again.");
+    }
+    res.json({ orderId: order.id, amount: order.amount, currency: order.currency, keyId: RAZORPAY_KEY_ID });
+  } catch (err: any) {
+    console.error("create-order error:", err?.message);
+    fail(res, 500, "Could not start the payment.");
+  }
+});
+
+// POST Razorpay webhook — raw body + HMAC signature verification. This is the
+// only place real money turns into Pro tier, and it never trusts the client.
+app.post("/api/billing/webhook", express.raw({ type: 'application/json', limit: '256kb' }), async (req, res) => {
+  try {
+    if (!RAZORPAY_WEBHOOK_SECRET) return fail(res, 501, "Webhooks not configured.");
+    if (!supabaseAdmin) return fail(res, 501, "Supabase not configured.");
+    const raw = (req as any).body as Buffer;
+    const signature = req.headers['x-razorpay-signature'] as string | undefined;
+    if (!signature) return fail(res, 400, "Missing signature.");
+    const expected = require('crypto').createHmac('sha256', RAZORPAY_WEBHOOK_SECRET).update(raw).digest('hex');
+    const a = Buffer.from(expected), b = Buffer.from(signature);
+    if (a.length !== b.length || !require('crypto').timingSafeEqual(a, b)) {
+      console.warn("Webhook signature mismatch");
+      return fail(res, 401, "Invalid signature.");
+    }
+    const event = JSON.parse(raw.toString('utf8'));
+    const type = event?.event;
+    const payment = event?.payload?.payment?.entity;
+    const userId: string | undefined = payment?.notes?.userId;
+    if ((type === 'payment.captured' || type === 'order.paid') && userId) {
+      await grantPro(userId, { razorpay_payment_id: payment?.id });
+      console.log(`Pro granted to ${userId} via Razorpay (${payment?.id}).`);
+    }
+    res.json({ ok: true });
+  } catch (err: any) {
+    console.error("webhook error:", err?.message);
+    fail(res, 500, "Webhook processing failed.");
   }
 });
 

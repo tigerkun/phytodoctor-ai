@@ -64,6 +64,12 @@ export class GameService {
   static readonly PRO_UPGRADE_COST = 1000;
 
   static async purchaseProUpgrade(userId: string = this.getUserId()) {
+    // Cloud-synced users buy through the server (verifies balance, grants
+    // tier service-side). Local-only accounts keep the Dexie path.
+    if (userId.startsWith('sb_')) {
+      const viaServer = await this.purchaseProUpgradeWithServer(userId);
+      if (viaServer) return;
+    }
     const profile = await this.ensureProfile(userId);
     if (profile.tier === 'pro') throw new Error('You are already a Pro member.');
     if (profile.seeds < GameService.PRO_UPGRADE_COST) {
@@ -91,6 +97,54 @@ export class GameService {
     return true;
   }
 
+  /**
+   * Server is the source of truth for seeds/tier whenever the user is signed
+   * in through Supabase ('sb_' ids). Pulls the authoritative profile and
+   * mirrors it into the local Dexie cache the UI reads.
+   */
+  static async pullServerProfile(userId: string = this.getUserId()) {
+    if (!userId.startsWith('sb_')) return null;
+    try {
+      const token = localStorage.getItem('botanical_guardian_auth_token');
+      if (!token) return null;
+      const res = await fetch('/api/economy/profile', { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return null;
+      const p = await res.json();
+      const lapsed = p.pro_expires_at && new Date(p.pro_expires_at) <= new Date();
+      await db.userProfile.update(userId, {
+        seeds: p.seeds ?? 500,
+        tier: p.tier === 'pro' && !lapsed ? 'pro' : 'free',
+      } as any);
+      return p;
+    } catch {
+      return null;
+    }
+  }
+
+  private static syncSeedsToServer(userId: string, amount: number, source: string, description: string) {
+    if (!userId.startsWith('sb_')) return;
+    const token = localStorage.getItem('botanical_guardian_auth_token');
+    if (!token) return;
+    fetch('/api/economy/seed-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ delta: amount, source, description })
+    }).catch(() => { /* local balance stays authoritative offline */ });
+  }
+
+  static async purchaseProUpgradeWithServer(userId: string = this.getUserId()) {
+    const token = localStorage.getItem('botanical_guardian_auth_token');
+    if (!userId.startsWith('sb_') || !token) return false; // caller falls back to local path
+    const res = await fetch('/api/billing/purchase-with-seeds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Purchase failed.');
+    await GameService.pullServerProfile(userId);
+    return true;
+  }
+
   static async addSeeds(
     amount: number, 
     source: SeedTransaction['source'], 
@@ -114,6 +168,9 @@ export class GameService {
       createdAt: new Date()
     };
     await db.seedTransactions.add(transaction);
+
+    // Mirror the applied delta to the server ledger when cloud-synced.
+    this.syncSeedsToServer(userId, finalAmount, source, description);
   }
 
   static async purchaseItem(itemId: string, userId: string = this.getUserId()) {

@@ -164,6 +164,63 @@ export default function Profile() {
     }
   };
 
+  // Real-money fast-pass (Razorpay). The webhook grants Pro server-side;
+  // the client only watches for it to land in the profile.
+  const RZP_KEY = (import.meta as any).env?.VITE_RAZORPAY_KEY_ID as string | undefined;
+
+  const goProWithMoney = async () => {
+    if (!RZP_KEY) return;
+    setIsUpgrading(true);
+    try {
+      const token = localStorage.getItem('botanical_guardian_auth_token');
+      const res = await fetch('/api/billing/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      });
+      const order = await res.json();
+      if (!res.ok) throw new Error(order.error || 'Could not start the payment.');
+
+      await new Promise<void>((resolve, reject) => {
+        const w = window as any;
+        const startCheckout = () => {
+          new w.Razorpay({
+            key: order.keyId,
+            amount: order.amount,
+            currency: order.currency,
+            name: 'PhytoDoctor Pro',
+            description: 'Pro Commission · 1 month',
+            order_id: order.orderId,
+            prefill: { email: localStorage.getItem('botanical_guardian_user_email') || '' },
+            theme: { color: '#1b4332' },
+            modal: { ondismiss: () => reject(new Error('Payment cancelled.')) },
+            handler: async () => {
+              for (let i = 0; i < 10; i++) {
+                await new Promise(r2 => setTimeout(r2, 1500));
+                await GameService.pullServerProfile(userId);
+                const p = await GameService.getProfile(userId);
+                if (p?.tier === 'pro') break;
+              }
+              success('Pro Commission active — welcome!');
+              resolve();
+            }
+          }).open();
+        };
+        if (w.Razorpay) startCheckout();
+        else {
+          const sc = document.createElement('script');
+          sc.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          sc.onload = startCheckout;
+          sc.onerror = () => reject(new Error('Could not load the payment module.'));
+          document.head.appendChild(sc);
+        }
+      });
+    } catch (err: any) {
+      error(err?.message || 'Payment failed.');
+    } finally {
+      setIsUpgrading(false);
+    }
+  };
+
   const handleSync = async () => {
     setSyncing(true);
     try {
@@ -501,6 +558,23 @@ export default function Profile() {
                       ) : (
                         <>
                           <Crown size={12} /> Upgrade Commission · 1,000 Seeds
+                        </>
+                      )}
+                    </button>
+                  )}
+                  {RZP_KEY && profile?.tier !== 'pro' && (
+                    <button
+                      onClick={goProWithMoney}
+                      disabled={isUpgrading}
+                      className="mt-2 w-full py-2 bg-[#1b4332] hover:bg-[#24573f] text-[#eaf5ea] text-[10px] font-mono font-black uppercase tracking-widest rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-98 disabled:opacity-50"
+                    >
+                      {isUpgrading ? (
+                        <>
+                          <RefreshCw size={12} className="animate-spin" /> Processing…
+                        </>
+                      ) : (
+                        <>
+                          <Crown size={12} /> Skip the grind — Go Pro · ₹99/month
                         </>
                       )}
                     </button>

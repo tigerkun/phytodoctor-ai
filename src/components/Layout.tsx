@@ -49,6 +49,8 @@ export default function Layout({ children }: LayoutProps) {
         localStorage.setItem('botanical_guardian_userId', userId);
         localStorage.setItem('botanical_guardian_user_email', u.email ?? '');
         localStorage.setItem('botanical_guardian_onboarded', '1');
+        // Pull the authoritative seeds/tier from the server economy.
+        GameService.pullServerProfile(userId);
       }
     };
 
