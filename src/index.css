@@ -60,6 +60,8 @@
     background-attachment: fixed;
     position: relative;
     transition: background-color 1.2s cubic-bezier(0.4, 0, 0.2, 1), color 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 320px;
+    overflow-x: hidden;
   }
   body::before {
     content: "";
@@ -69,6 +71,17 @@
     opacity: 0.03;
     pointer-events: none;
     z-index: -1;
+  }
+
+  @media (max-width: 767px) {
+    #root {
+      min-height: 100dvh;
+      padding-bottom: calc(4.75rem + env(safe-area-inset-bottom));
+    }
+
+    input, select, textarea, button {
+      font-size: 16px;
+    }
   }
 }
 

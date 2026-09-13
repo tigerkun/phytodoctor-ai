@@ -30,7 +30,7 @@ export default function MobileBottomNav() {
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ type: 'spring', damping: 25, stiffness: 200, delay: 0.5 }}
-      className="fixed bottom-4 left-4 right-4 z-50 md:hidden flex justify-around items-center py-3 px-4 rounded-[2rem] border backdrop-blur-lg shadow-2xl"
+      className="fixed bottom-0 left-0 right-0 z-50 md:hidden flex justify-around items-center px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] border-t backdrop-blur-lg shadow-2xl"
       style={{
         background: theme === 'day' ? 'rgba(255, 248, 240, 0.88)' : 'rgba(15, 20, 25, 0.88)',
         borderColor: theme === 'day' ? 'rgba(90, 122, 90, 0.15)' : 'rgba(255, 255, 255, 0.08)'
@@ -44,7 +44,7 @@ export default function MobileBottomNav() {
           <button
             key={item.href}
             onClick={() => transitionTo(item.href, item.label)}
-            className="relative flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all focus:outline-none"
+            className="relative flex min-w-0 flex-1 flex-col items-center justify-center rounded-2xl py-1.5 px-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             style={{
               color: active
                 ? 'var(--accent)'
