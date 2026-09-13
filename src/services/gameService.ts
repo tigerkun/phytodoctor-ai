@@ -128,7 +128,7 @@ export class GameService {
     fetch('/api/economy/seed-sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ delta: amount, source, description })
+      body: JSON.stringify({ delta: amount, source, description, transactionId: crypto.randomUUID() })
     }).catch(() => { /* local balance stays authoritative offline */ });
   }
 

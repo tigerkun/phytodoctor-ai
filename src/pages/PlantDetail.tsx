@@ -13,6 +13,11 @@ import { getPlantPhoto } from '../utils/plantImage';
 import PageWrapper from '../components/home/PageWrapper';
 import { usePageTransition } from '../components/home/PageTransitionContext';
 import { useToast } from '../components/Toast';
+import PlantVoiceBubble from '../components/PlantVoiceBubble';
+import { generatePlantVoice, type PlantVoice } from '../services/plantVoiceService';
+import GrowthForecastCard from '../components/GrowthForecastCard';
+import { forecastGrowth, type GrowthForecast } from '../services/growthForecastService';
+import NotificationOptIn from '../components/NotificationOptIn';
 
 
 const containerVariants = {
@@ -49,6 +54,10 @@ export default function PlantDetail() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<PlantNote['category'] | 'all'>('all');
+  const [voice, setVoice] = useState<PlantVoice | null>(null);
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [forecast, setForecast] = useState<GrowthForecast | null>(null);
+  const [forecastLoading, setForecastLoading] = useState(false);
 
   const [plant, setPlant] = useState<Plant | undefined>();
 
@@ -74,6 +83,48 @@ export default function PlantDetail() {
   }, []);
 
   const card = useLiveQuery(() => id ? db.cards.where('plantId').equals(id).first() : undefined, [id]);
+  const lineage = useLiveQuery(() => PlantService.fetchPlants(), []);
+
+  const latestCheckIn = history?.[history.length - 1];
+  const driftStatus = latestCheckIn?.driftStatus === 'alert' ? 'critical' : latestCheckIn?.driftStatus === 'watching' ? 'declining' : 'stable';
+  const children = lineage?.filter(candidate => candidate.parentPlantId === plant.id) || [];
+  const generateVoice = async () => {
+    if (!latestCheckIn || voiceLoading) return;
+    setVoiceLoading(true);
+    try {
+      setVoice(await generatePlantVoice({
+        diagnosis: { primarySymptom: latestCheckIn.changes.join(', ') || 'no visible changes' },
+        plantName: plant.name,
+        species: plant.species,
+        driftStatus,
+        previousMessage: voice?.message,
+      }));
+    } catch (err) {
+      error(err instanceof Error ? err.message : 'Could not hear from the plant.');
+    } finally {
+      setVoiceLoading(false);
+    }
+  };
+  const generateForecast = async () => {
+    if (!history || history.length < 3 || forecastLoading) return;
+    setForecastLoading(true);
+    try {
+      setForecast(await forecastGrowth({
+        plantId: plant.id,
+        species: plant.species,
+        checkInHistory: history.slice(-10).map(checkIn => ({
+          date: checkIn.timestamp.toISOString(),
+          driftScore: checkIn.driftScore,
+          driftStatus: checkIn.driftStatus,
+          symptoms: checkIn.changes,
+        })),
+      }));
+    } catch (err) {
+      error(err instanceof Error ? err.message : 'Could not generate a forecast.');
+    } finally {
+      setForecastLoading(false);
+    }
+  };
 
   if (!plant) return <div className="p-20 text-center font-serif text-2xl">Loading specimen dossier...</div>;
 
@@ -195,6 +246,35 @@ export default function PlantDetail() {
 
         {/* Outer Manila Field Binder Cover */}
         <div className="dossier-binder-cover rounded-[2rem] md:rounded-[2.5rem] p-6 sm:p-10 md:p-14 relative shadow-2xl">
+          {latestCheckIn && (
+            <div className="mb-8">
+              {voice ? <PlantVoiceBubble voice={voice} plantName={plant.name} /> : (
+                <button onClick={generateVoice} disabled={voiceLoading} className="rounded-xl border border-[#c5a059]/30 px-4 py-2 text-xs font-mono uppercase tracking-wider text-[#d8bc78] disabled:opacity-50">
+                  {voiceLoading ? 'Listening...' : 'Hear the plant’s voice'}
+                </button>
+              )}
+              {(plant.generation && plant.generation > 1 || children.length > 0) && (
+                <div className="mb-8 rounded-2xl border border-[#c5a059]/20 bg-black/15 p-4">
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-[#d8bc78]">
+                    <Sprout size={16} aria-hidden="true" />
+                    <span>Generation {plant.generation || 1}</span>
+                    {plant.propagationMethod && <span className="text-[#cbbda8]">via {plant.propagationMethod}</span>}
+                    {children.length > 0 && <span className="text-[#cbbda8]">{children.length} descendant{children.length === 1 ? '' : 's'}</span>}
+                  </div>
+                </div>
+              )}
+              <div className="mb-8 rounded-2xl border border-[#c5a059]/20 bg-black/15 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h3 className="font-serif text-xl text-[#f4eee1]">Growth forecast</h3>
+                  <button onClick={generateForecast} disabled={history.length < 3 || forecastLoading} className="rounded-lg border border-[#c5a059]/30 px-3 py-1.5 text-[10px] uppercase tracking-wider text-[#d8bc78] disabled:opacity-50">
+                    {forecastLoading ? 'Forecasting...' : history.length < 3 ? 'Need 3 check-ins' : 'Generate'}
+                  </button>
+                </div>
+                {forecast && <GrowthForecastCard forecast={forecast} />}
+              </div>
+              <div className="mb-8"><NotificationOptIn /></div>
+            </div>
+          )}
           {/* Top Brass Fastener Prongs */}
           <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-20 pointer-events-none z-20">
             <div className="w-12 h-6 dossier-prong dossier-prong-left" title="Binder Fastener" />
@@ -795,4 +875,3 @@ function DetailStat({ icon, label, value }: { icon: any, label: string, value: s
     </div>
   );
 }
-

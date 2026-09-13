@@ -38,6 +38,9 @@ export interface Plant {
   createdAt: Date;
   updatedAt: Date;
   isDemo?: boolean;
+  parentPlantId?: string | null;
+  propagationMethod?: 'cutting' | 'division' | 'seed' | 'offset' | null;
+  generation?: number;
 }
 
 export interface CheckIn {

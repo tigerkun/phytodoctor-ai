@@ -1,9 +1,8 @@
 -- ==============================================================================
 -- Migration: 20260912000000_game_economy.sql
 -- Description: Server-authoritative game economy — profiles (seeds, Pro tier),
---              subscriptions, and seed transaction ledger. Pro status can only
---              be written by the service role (payment webhooks / billing
---              endpoints); clients may adjust their own seed balance only.
+--              subscriptions, and seed transaction ledger. Pro status and seed
+--              balances are written through server-side paths.
 -- ==============================================================================
 
 -- 1. Profiles: one row per auth user. The client mirror lives in IndexedDB;
@@ -36,9 +35,8 @@ create policy "Users can insert own profile"
   to authenticated
   with check (auth.uid() = user_id);
 
--- Clients may update their own row, but column privileges below strip the
--- tier/pro fields — only the service role (billing endpoints, webhooks)
--- can grant Pro.
+-- Column privileges strip the tier/pro fields. Seed changes are hardened by
+-- the follow-up increment_seeds migration.
 drop policy if exists "Users can update own profile" on public.profiles;
 create policy "Users can update own profile"
   on public.profiles for update

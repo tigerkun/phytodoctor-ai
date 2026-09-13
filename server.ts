@@ -78,9 +78,9 @@ app.use('/api', generalLimiter);
 // Periodically evict stale limiter entries so the Map cannot grow unbounded.
 setInterval(() => {
   const now = Date.now();
-  for (const [ip, entry] of rateCounts) {
-    if (now > entry.resetAt) rateCounts.delete(ip);
-  }
+  for (const [ip, entry] of rateCounts) if (now > entry.resetAt) rateCounts.delete(ip);
+  const today = new Date().toISOString().slice(0, 10);
+  for (const key of usageCounts.keys()) if (!key.includes(`:${today}:`)) usageCounts.delete(key);
 }, 5 * 60_000).unref();
 
 // ── Shared helpers ─────────────────────────────────────────────────────────
@@ -157,8 +157,8 @@ const PRO_DURATION_DAYS = 31;
 
 // Daily usage caps per user (in-memory; resets on restart — the rate limiter
 // still bounds abuse, this protects Gemini cost per account).
-const FREE_LIMITS = { identify: 3, assess: 2 } as const;
-const PRO_LIMITS = { identify: 30, assess: Infinity } as const;
+const FREE_LIMITS = { identify: 3, assess: 2, voice: 5, forecast: 0 } as const;
+const PRO_LIMITS = { identify: 30, assess: Infinity, voice: Infinity, forecast: Infinity } as const;
 const usageCounts = new Map<string, number>();
 
 function usageKey(userId: string, kind: string) {
@@ -166,7 +166,7 @@ function usageKey(userId: string, kind: string) {
   return `${userId}:${day}:${kind}`;
 }
 
-function tierGate(kind: 'identify' | 'assess') {
+function tierGate(kind: keyof typeof FREE_LIMITS) {
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const userId = (req as any).authUserId;
     if (!userId || !supabaseAdmin) return next(); // open mode: rate limiter only
@@ -177,6 +177,104 @@ function tierGate(kind: 'identify' | 'assess') {
       if (tier === 'pro' && profile?.pro_expires_at && new Date(profile.pro_expires_at) < new Date()) {
         tier = 'free'; // lapsed commission — honest downgrade, no write needed
       }
+
+      app.post("/api/plant-voice", express.json({ limit: '16kb' }), aiLimiter, apiGate, tierGate("voice"), async (req, res) => {
+        try {
+          const { diagnosis, plantName, species, driftStatus, previousMessage } = req.body || {};
+          const name = strLimit(plantName, 80);
+          const plantSpecies = strLimit(species, 120);
+          const symptom = strLimit(diagnosis?.primarySymptom || diagnosis?.diagnosis, 300);
+          if (!name || !plantSpecies || !symptom || !['stable', 'declining', 'critical'].includes(driftStatus)) {
+            return fail(res, 400, "Plant voice requires a valid plant, symptom, and drift status.");
+          }
+          const response = await generateWithRetry({
+            contents: [{
+              parts: [{ text: `Plant name: ${name}
+      Species: ${plantSpecies}
+      Drift status: ${driftStatus}
+      Specific symptom: ${symptom}
+      Previous message: ${strLimit(previousMessage, 160) || 'none'}` }]
+            }],
+            config: {
+              systemInstruction: "Speak as the plant itself in 1-2 short sentences. Reference the specific symptom, match urgency to severity, never mention AI or break character. Return only the requested JSON.",
+              temperature: 0.7,
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: Type.OBJECT,
+                required: ["message", "tone"],
+                properties: {
+                  message: { type: Type.STRING, description: "Maximum 160 characters." },
+                  tone: { type: Type.STRING, enum: ["content", "concerned", "urgent"] },
+                  suggestedAction: { type: Type.STRING, description: "Optional, maximum 60 characters." }
+                }
+              }
+            }
+          });
+
+          app.post("/api/predict-growth", express.json({ limit: '16kb' }), aiLimiter, apiGate, tierGate("forecast"), async (req, res) => {
+            try {
+              const { plantId, species, checkInHistory } = req.body || {};
+              if (typeof plantId !== 'string' || !isValidSpecies(species) || !Array.isArray(checkInHistory) || checkInHistory.length < 3 || checkInHistory.length > 10) {
+                return fail(res, 400, "At least three valid check-ins are required.");
+              }
+              const response = await generateWithRetry({
+                contents: [{ parts: [{ text: JSON.stringify({ plantId, species, checkIns: checkInHistory }) }] }],
+                config: {
+                  systemInstruction: "You are a cautious plant health forecaster. Never invent certainty. Return a short two-path forecast grounded only in the supplied history.",
+                  temperature: 0.2,
+                  responseMimeType: "application/json",
+                  responseSchema: {
+                    type: Type.OBJECT,
+                    required: ["hasEnoughData", "currentTrend", "ifUnchanged", "ifFixed", "confidence"],
+                    properties: {
+                      hasEnoughData: { type: Type.BOOLEAN },
+                      currentTrend: { type: Type.STRING, enum: ["improving", "stable", "declining", "insufficient_data"] },
+                      ifUnchanged: { type: Type.OBJECT, properties: { timeframe: { type: Type.STRING }, prediction: { type: Type.STRING } } },
+                      ifFixed: { type: Type.OBJECT, properties: { fix: { type: Type.STRING }, timeframe: { type: Type.STRING }, prediction: { type: Type.STRING } } },
+                      confidence: { type: Type.STRING, enum: ["low", "medium", "high"] }
+                    }
+                  }
+                }
+              });
+
+              app.post("/api/push/subscribe", express.json({ limit: '16kb' }), apiGate, async (req, res) => {
+                try {
+                  const userId = (req as any).authUserId;
+                  const client = userClient((req as any).authToken);
+                  const subscription = req.body || {};
+                  if (!userId || !client || typeof subscription.endpoint !== 'string'
+                    || typeof subscription.keys?.p256dh !== 'string' || typeof subscription.keys?.auth !== 'string') {
+                    return fail(res, 400, "Invalid push subscription.");
+                  }
+                  const { error } = await client.from('push_subscriptions').upsert({
+                    user_id: userId,
+                    endpoint: subscription.endpoint,
+                    p256dh: subscription.keys.p256dh,
+                    auth_key: subscription.keys.auth
+                  }, { onConflict: 'user_id,endpoint' });
+                  if (error) return fail(res, 500, "Could not save push subscription.");
+                  res.json({ ok: true });
+                } catch (error: any) {
+                  console.error("Push subscription error:", error?.message || error);
+                  fail(res, 500, "Could not save push subscription.");
+                }
+              });
+              res.json(JSON.parse((response.text || "").replace(/```json|```/gi, "").trim()));
+            } catch (error: any) {
+              console.error("Growth forecast error:", error?.message || error);
+              fail(res, 500, AI_GENERIC_ERROR);
+            }
+          });
+          const result = JSON.parse((response.text || "").replace(/```json|```/gi, "").trim());
+          if (typeof result.message !== 'string' || !['content', 'concerned', 'urgent'].includes(result.tone)) {
+            return fail(res, 502, AI_GENERIC_ERROR);
+          }
+          res.json({ ...result, message: result.message.slice(0, 160), suggestedAction: result.suggestedAction?.slice(0, 60) });
+        } catch (error: any) {
+          console.error("Plant voice error:", error?.message || error);
+          fail(res, 500, AI_GENERIC_ERROR);
+        }
+      });
       (req as any).userTier = tier;
       const limit = (tier === 'pro' ? PRO_LIMITS : FREE_LIMITS)[kind];
       if (limit === Infinity) return next();
@@ -683,17 +781,21 @@ app.post("/api/economy/seed-sync", express.json({ limit: '16kb' }), apiGate, asy
     const userId = (req as any).authUserId;
     const client = userClient((req as any).authToken);
     if (!userId || !client || !supabaseAdmin) return res.json({ ok: true, synced: false }); // open mode: local only
-    const { delta, source, description } = req.body || {};
+    const { delta, source, description, transactionId } = req.body || {};
     const d = Math.trunc(Number(delta));
-    if (!Number.isFinite(d) || d === 0 || Math.abs(d) > 10000) return fail(res, 400, "Invalid seed delta.");
-    const { data: profile } = await client
-      .from('profiles').select('seeds').eq('user_id', userId).single();
-    const current = profile?.seeds ?? 500;
-    const next = Math.max(0, current + d);
-    const { error: upErr } = await client
-      .from('profiles').update({ seeds: next }).eq('user_id', userId);
-    if (upErr) return fail(res, 500, "Could not sync seeds.");
-    await client.from('seed_transactions').insert({ user_id: userId, amount: d, source: String(source || 'sync').slice(0, 40), description: String(description || '').slice(0, 200) });
+    if (!Number.isFinite(d) || d === 0 || Math.abs(d) > 10000
+      || !['checkin', 'bonus', 'spend', 'reward'].includes(source)
+      || typeof transactionId !== 'string') {
+      return fail(res, 400, "Invalid seed transaction.");
+    }
+    const { data: next, error } = await client.rpc('increment_seeds', {
+      p_user_id: userId,
+      p_amount: d,
+      p_source: source,
+      p_description: description,
+      p_transaction_id: transactionId
+    });
+    if (error) return fail(res, error.message.includes('insufficient') ? 402 : 400, "Could not sync seeds.");
     res.json({ seeds: next });
   } catch (err: any) {
     console.error("seed-sync error:", err?.message);
@@ -716,10 +818,14 @@ app.post("/api/billing/purchase-with-seeds", express.json({ limit: '8kb' }), api
     if (balance < PRO_COST_SEEDS) {
       return fail(res, 402, `Insufficient seeds. You need ${(PRO_COST_SEEDS - balance).toLocaleString()} more.`);
     }
-    const next = balance - PRO_COST_SEEDS;
-    const { error: upErr } = await supabaseAdmin.from('profiles').update({ seeds: next }).eq('user_id', userId);
-    if (upErr) return fail(res, 500, "Could not deduct seeds.");
-    await supabaseAdmin.from('seed_transactions').insert({ user_id: userId, amount: -PRO_COST_SEEDS, source: 'spend', description: 'Pro Commission (seeds)' });
+    const { data: next, error: upErr } = await supabaseAdmin.rpc('increment_seeds', {
+      p_user_id: userId,
+      p_amount: -PRO_COST_SEEDS,
+      p_source: 'spend',
+      p_description: 'Pro Commission (seeds)',
+      p_transaction_id: require('crypto').randomUUID()
+    });
+    if (upErr) return fail(res, 402, "Could not deduct seeds.");
     const expires = await grantPro(userId);
     res.json({ seeds: next, tier: 'pro', pro_expires_at: expires });
   } catch (err: any) {
