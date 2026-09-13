@@ -658,6 +658,7 @@ app.get("/api/economy/profile", apiGate, async (req, res) => {
   try {
     const userId = (req as any).authUserId;
     const client = userClient((req as any).authToken);
+    if (!userId || !client) return res.json({ seeds: 500, tier: 'free' }); // open mode: local Dexie stays authoritative
     const { data, error } = await client
       .from('profiles').select('seeds, tier, pro_expires_at, current_streak, longest_streak, total_xp, collection_size').eq('user_id', userId).single();
     if (error || !data) {
@@ -680,10 +681,11 @@ app.get("/api/economy/profile", apiGate, async (req, res) => {
 app.post("/api/economy/seed-sync", express.json({ limit: '16kb' }), apiGate, async (req, res) => {
   try {
     const userId = (req as any).authUserId;
+    const client = userClient((req as any).authToken);
+    if (!userId || !client || !supabaseAdmin) return res.json({ ok: true, synced: false }); // open mode: local only
     const { delta, source, description } = req.body || {};
     const d = Math.trunc(Number(delta));
     if (!Number.isFinite(d) || d === 0 || Math.abs(d) > 10000) return fail(res, 400, "Invalid seed delta.");
-    const client = userClient((req as any).authToken);
     const { data: profile } = await client
       .from('profiles').select('seeds').eq('user_id', userId).single();
     const current = profile?.seeds ?? 500;
