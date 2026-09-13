@@ -83,6 +83,15 @@ setInterval(() => {
   }
 }, 5 * 60_000).unref();
 
+// Usage counters are keyed `userId:YYYY-MM-DD:kind` — evict any key from a
+// previous day so the Map cannot grow unbounded across restarts-free uptime.
+setInterval(() => {
+  const today = new Date().toISOString().slice(0, 10);
+  for (const key of usageCounts.keys()) {
+    if (!key.includes(`:${today}:`)) usageCounts.delete(key);
+  }
+}, 60 * 60_000).unref();
+
 // ── Shared helpers ─────────────────────────────────────────────────────────
 // Client-facing errors must never echo internal error messages.
 function fail(res: express.Response, code: number, msg: string) {
@@ -157,8 +166,8 @@ const PRO_DURATION_DAYS = 31;
 
 // Daily usage caps per user (in-memory; resets on restart — the rate limiter
 // still bounds abuse, this protects Gemini cost per account).
-const FREE_LIMITS = { identify: 3, assess: 2 } as const;
-const PRO_LIMITS = { identify: 30, assess: Infinity } as const;
+const FREE_LIMITS = { identify: 3, assess: 2, predict: 2, chat: 10 } as const;
+const PRO_LIMITS = { identify: 30, assess: Infinity, predict: 20, chat: 100 } as const;
 const usageCounts = new Map<string, number>();
 
 function usageKey(userId: string, kind: string) {
@@ -166,7 +175,7 @@ function usageKey(userId: string, kind: string) {
   return `${userId}:${day}:${kind}`;
 }
 
-function tierGate(kind: 'identify' | 'assess') {
+function tierGate(kind: 'identify' | 'assess' | 'predict' | 'chat') {
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const userId = (req as any).authUserId;
     if (!userId || !supabaseAdmin) return next(); // open mode: rate limiter only
@@ -537,7 +546,7 @@ Score climate, water, light, soil, pest pressure, and seasonal timing independen
   }
 });
 
-app.post("/api/chat", express.json({ limit: '64kb' }), aiLimiter, apiGate, async (req, res) => {
+app.post("/api/chat", express.json({ limit: '64kb' }), aiLimiter, apiGate, tierGate("chat"), async (req, res) => {
   try {
     const { messages } = req.body;
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -599,7 +608,7 @@ RESPONSE FORMAT & PACING (SHORT STANZAS):
   }
 });
 
-app.post("/api/guardian/predict", express.json({ limit: '64kb' }), aiLimiter, apiGate, async (req, res) => {
+app.post("/api/guardian/predict", express.json({ limit: '64kb' }), aiLimiter, apiGate, tierGate("predict"), async (req, res) => {
   try {
     const { species, checkins, sensorData, weather } = req.body;
     if (!isValidSpecies(species)) {
@@ -686,14 +695,13 @@ app.post("/api/economy/seed-sync", express.json({ limit: '16kb' }), apiGate, asy
     const { delta, source, description } = req.body || {};
     const d = Math.trunc(Number(delta));
     if (!Number.isFinite(d) || d === 0 || Math.abs(d) > 10000) return fail(res, 400, "Invalid seed delta.");
-    const { data: profile } = await client
-      .from('profiles').select('seeds').eq('user_id', userId).single();
-    const current = profile?.seeds ?? 500;
-    const next = Math.max(0, current + d);
-    const { error: upErr } = await client
-      .from('profiles').update({ seeds: next }).eq('user_id', userId);
-    if (upErr) return fail(res, 500, "Could not sync seeds.");
-    await client.from('seed_transactions').insert({ user_id: userId, amount: d, source: String(source || 'sync').slice(0, 40), description: String(description || '').slice(0, 200) });
+    // Row-locked, cap-checked, ledger-logged — all inside the database.
+    const { data: next, error: rpcErr } = await client
+      .rpc('increment_seeds', { p_delta: d, p_source: String(source || 'sync').slice(0, 40), p_description: String(description || '').slice(0, 200) });
+    if (rpcErr) {
+      console.error("increment_seeds rpc:", rpcErr.message);
+      return fail(res, 500, "Could not sync seeds.");
+    }
     res.json({ seeds: next });
   } catch (err: any) {
     console.error("seed-sync error:", err?.message);
@@ -707,21 +715,22 @@ app.post("/api/billing/purchase-with-seeds", express.json({ limit: '8kb' }), api
   try {
     if (!supabaseAdmin) return fail(res, 501, "Billing requires Supabase configuration.");
     const userId = (req as any).authUserId;
-    const { data: profile } = await supabaseAdmin
-      .from('profiles').select('seeds, tier, pro_expires_at').eq('user_id', userId).single();
-    if (profile?.tier === 'pro' && profile?.pro_expires_at && new Date(profile.pro_expires_at) > new Date()) {
-      return fail(res, 409, "You are already a Pro member.");
+    const expires = new Date(Date.now() + PRO_DURATION_DAYS * 86400000).toISOString();
+    // Atomic deduct + tier grant entirely in the database (row-locked,
+    // ledger + subscription written in the same call).
+    const { data, error: rpcErr } = await supabaseAdmin
+      .rpc('purchase_pro_with_seeds', { p_user_id: userId, p_cost: PRO_COST_SEEDS });
+    if (rpcErr) {
+      const msg = String(rpcErr.message || '');
+      if (msg.includes('already pro')) return fail(res, 409, "You are already a Pro member.");
+      if (msg.startsWith('insufficient:')) {
+        const balance = Number(msg.split(':')[1]) || 0;
+        return fail(res, 402, `Insufficient seeds. You need ${(PRO_COST_SEEDS - balance).toLocaleString()} more.`);
+      }
+      console.error("purchase rpc:", msg);
+      return fail(res, 500, "Purchase failed. Please try again.");
     }
-    const balance = profile?.seeds ?? 0;
-    if (balance < PRO_COST_SEEDS) {
-      return fail(res, 402, `Insufficient seeds. You need ${(PRO_COST_SEEDS - balance).toLocaleString()} more.`);
-    }
-    const next = balance - PRO_COST_SEEDS;
-    const { error: upErr } = await supabaseAdmin.from('profiles').update({ seeds: next }).eq('user_id', userId);
-    if (upErr) return fail(res, 500, "Could not deduct seeds.");
-    await supabaseAdmin.from('seed_transactions').insert({ user_id: userId, amount: -PRO_COST_SEEDS, source: 'spend', description: 'Pro Commission (seeds)' });
-    const expires = await grantPro(userId);
-    res.json({ seeds: next, tier: 'pro', pro_expires_at: expires });
+    res.json(data);
   } catch (err: any) {
     console.error("purchase-with-seeds error:", err?.message);
     fail(res, 500, "Purchase failed. Please try again.");
@@ -787,6 +796,25 @@ app.post("/api/billing/webhook", express.raw({ type: 'application/json', limit: 
 });
 
 async function startServer() {
+  // Fail fast in production when required secrets are missing — a silently
+  // limping server is worse than one that refuses to boot.
+  if (process.env.NODE_ENV === "production") {
+    const missing: string[] = [];
+    if (!process.env.GEMINI_API_KEY) missing.push('GEMINI_API_KEY');
+    if (missing.length) {
+      console.error(`FATAL: missing required env vars: ${missing.join(', ')}`);
+      process.exit(1);
+    }
+    const warnings: string[] = [];
+    if ((process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL) && !SUPABASE_SERVICE_KEY) {
+      warnings.push('SUPABASE_SERVICE_KEY not set — tier enforcement and billing are disabled.');
+    }
+    if (RAZORPAY_KEY_ID && !RAZORPAY_WEBHOOK_SECRET) {
+      warnings.push('RAZORPAY_WEBHOOK_SECRET not set — payments would grant no Pro tier.');
+    }
+    for (const w of warnings) console.warn(`WARN: ${w}`);
+  }
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
