@@ -838,7 +838,8 @@ app.post("/api/billing/webhook", express.raw({ type: 'application/json', limit: 
     const payment = event?.payload?.payment?.entity;
     const userId: string | undefined = payment?.notes?.userId;
     const paymentId = typeof payment?.id === 'string' ? payment.id : '';
-    if ((type === 'payment.captured' || type === 'order.paid') && userId && paymentId) {
+    const validUserId = typeof userId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId);
+    if ((type === 'payment.captured' || type === 'order.paid') && validUserId && paymentId) {
       if (payment.amount !== PRO_PRICE_PAISE || payment.currency !== 'INR') {
         return fail(res, 400, "Payment details do not match the Pro plan.");
       }
