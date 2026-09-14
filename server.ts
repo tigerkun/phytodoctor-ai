@@ -699,7 +699,11 @@ app.get("/api/economy/profile", apiGate, async (req, res) => {
     if (!userId || !client || !supabaseAdmin) return fail(res, 503, "Economy service is temporarily unavailable.");
     const { data, error } = await client
       .from('profiles').select('seeds, tier, pro_expires_at, current_streak, longest_streak, total_xp, collection_size').eq('user_id', userId).single();
-    if (error || !data) {
+    if (error && error.code !== 'PGRST116') {
+      console.error("economy/profile read error:", error.message);
+      return fail(res, 503, "Your profile is temporarily unavailable. Please try again.");
+    }
+    if (!data) {
       // First sign-in on a new device: bootstrap the row.
       if (supabaseAdmin) {
         const { data: created, error: createError } = await supabaseAdmin
