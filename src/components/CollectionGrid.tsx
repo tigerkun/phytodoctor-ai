@@ -2,6 +2,7 @@ import React from 'react';
 import { PlantCard } from './PlantCard';
 import { motion } from 'framer-motion';
 import { ArrowUpDown, Star, Sparkles, Heart, Droplets, Calendar } from 'lucide-react';
+import { getPlantPhoto } from '../utils/plantImage';
 
 interface Plant {
   id: string;
@@ -56,7 +57,16 @@ export const CollectionGrid = ({ plants }: CollectionGridProps) => {
             
             {/* Image Area */}
             <div className="relative aspect-[3/4] overflow-hidden">
-              <img src={plant.image} alt={plant.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+              <img
+                src={getPlantPhoto(plant.image, plant.speciesName)}
+                alt={plant.name}
+                onError={(event) => {
+                  const fallback = getPlantPhoto(undefined, plant.speciesName);
+                  if (event.currentTarget.src !== fallback) event.currentTarget.src = fallback;
+                  else event.currentTarget.style.visibility = 'hidden';
+                }}
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+              />
               
               {/* Rarity Badge */}
               <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-md"
