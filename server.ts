@@ -214,7 +214,7 @@ function tierGate(kind: 'identify' | 'assess') {
       usageCounts.set(key, used + 1);
       next();
     } catch {
-      next(); // economy lookup failed — don't block the AI call on it
+      return fail(res, 503, 'Account limits are temporarily unavailable. Please try again.');
     }
   };
 }
