@@ -17,6 +17,7 @@ create table if not exists public.profiles (
 );
 
 alter table public.profiles enable row level security;
+revoke all on table public.profiles from anon;
 
 drop policy if exists "Users can view own profile" on public.profiles;
 create policy "Users can view own profile"
@@ -52,6 +53,7 @@ create index if not exists idx_seed_tx_user
   on public.seed_transactions(user_id, created_at desc);
 
 alter table public.seed_transactions enable row level security;
+revoke all on table public.seed_transactions from anon;
 
 drop policy if exists "Users can view own seed transactions" on public.seed_transactions;
 create policy "Users can view own seed transactions"
@@ -72,6 +74,7 @@ create table if not exists public.subscriptions (
 );
 
 alter table public.subscriptions enable row level security;
+revoke all on table public.subscriptions from anon;
 
 drop policy if exists "Users can view own subscription" on public.subscriptions;
 create policy "Users can view own subscription"
