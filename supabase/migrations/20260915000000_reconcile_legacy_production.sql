@@ -36,7 +36,7 @@ create policy "Users can update own profile"
   with check (auth.uid() = user_id);
 
 revoke update on table public.profiles from authenticated;
-grant update (display_name, seeds, current_streak, longest_streak,
+grant update (display_name, current_streak, longest_streak,
               total_xp, collection_size, updated_at)
   on table public.profiles to authenticated;
 
