@@ -245,9 +245,13 @@ app.get('/healthz', (_req, res) => {
     gemini: Boolean(process.env.GEMINI_API_KEY),
     razorpay: Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET && RAZORPAY_WEBHOOK_SECRET),
   };
-  res.status(configured.supabase ? 200 : 503).json({
-    status: configured.supabase ? 'ok' : 'degraded',
+  const ready = process.env.NODE_ENV !== 'production'
+    ? true
+    : configured.supabase && Boolean(supabaseAuthClient && supabaseAdmin);
+  res.status(ready ? 200 : 503).json({
+    status: ready ? 'ok' : 'degraded',
     configured,
+    ready,
   });
 });
 
