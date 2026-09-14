@@ -157,8 +157,8 @@ const PRO_DURATION_DAYS = 31;
 
 // Daily usage caps per user (in-memory; resets on restart — the rate limiter
 // still bounds abuse, this protects Gemini cost per account).
-const FREE_LIMITS = { identify: 3, assess: 2, voice: 5, forecast: 0 } as const;
-const PRO_LIMITS = { identify: 30, assess: Infinity, voice: Infinity, forecast: Infinity } as const;
+const FREE_LIMITS = { identify: 3, assess: 2, voice: 5, forecast: 0, predict: 2, chat: 10 } as const;
+const PRO_LIMITS = { identify: 30, assess: Infinity, voice: Infinity, forecast: Infinity, predict: 20, chat: 100 } as const;
 const usageCounts = new Map<string, number>();
 
 function usageKey(userId: string, kind: string) {
@@ -178,103 +178,6 @@ function tierGate(kind: keyof typeof FREE_LIMITS) {
         tier = 'free'; // lapsed commission — honest downgrade, no write needed
       }
 
-      app.post("/api/plant-voice", express.json({ limit: '16kb' }), aiLimiter, apiGate, tierGate("voice"), async (req, res) => {
-        try {
-          const { diagnosis, plantName, species, driftStatus, previousMessage } = req.body || {};
-          const name = strLimit(plantName, 80);
-          const plantSpecies = strLimit(species, 120);
-          const symptom = strLimit(diagnosis?.primarySymptom || diagnosis?.diagnosis, 300);
-          if (!name || !plantSpecies || !symptom || !['stable', 'declining', 'critical'].includes(driftStatus)) {
-            return fail(res, 400, "Plant voice requires a valid plant, symptom, and drift status.");
-          }
-          const response = await generateWithRetry({
-            contents: [{
-              parts: [{ text: `Plant name: ${name}
-      Species: ${plantSpecies}
-      Drift status: ${driftStatus}
-      Specific symptom: ${symptom}
-      Previous message: ${strLimit(previousMessage, 160) || 'none'}` }]
-            }],
-            config: {
-              systemInstruction: "Speak as the plant itself in 1-2 short sentences. Reference the specific symptom, match urgency to severity, never mention AI or break character. Return only the requested JSON.",
-              temperature: 0.7,
-              responseMimeType: "application/json",
-              responseSchema: {
-                type: Type.OBJECT,
-                required: ["message", "tone"],
-                properties: {
-                  message: { type: Type.STRING, description: "Maximum 160 characters." },
-                  tone: { type: Type.STRING, enum: ["content", "concerned", "urgent"] },
-                  suggestedAction: { type: Type.STRING, description: "Optional, maximum 60 characters." }
-                }
-              }
-            }
-          });
-
-          app.post("/api/predict-growth", express.json({ limit: '16kb' }), aiLimiter, apiGate, tierGate("forecast"), async (req, res) => {
-            try {
-              const { plantId, species, checkInHistory } = req.body || {};
-              if (typeof plantId !== 'string' || !isValidSpecies(species) || !Array.isArray(checkInHistory) || checkInHistory.length < 3 || checkInHistory.length > 10) {
-                return fail(res, 400, "At least three valid check-ins are required.");
-              }
-              const response = await generateWithRetry({
-                contents: [{ parts: [{ text: JSON.stringify({ plantId, species, checkIns: checkInHistory }) }] }],
-                config: {
-                  systemInstruction: "You are a cautious plant health forecaster. Never invent certainty. Return a short two-path forecast grounded only in the supplied history.",
-                  temperature: 0.2,
-                  responseMimeType: "application/json",
-                  responseSchema: {
-                    type: Type.OBJECT,
-                    required: ["hasEnoughData", "currentTrend", "ifUnchanged", "ifFixed", "confidence"],
-                    properties: {
-                      hasEnoughData: { type: Type.BOOLEAN },
-                      currentTrend: { type: Type.STRING, enum: ["improving", "stable", "declining", "insufficient_data"] },
-                      ifUnchanged: { type: Type.OBJECT, properties: { timeframe: { type: Type.STRING }, prediction: { type: Type.STRING } } },
-                      ifFixed: { type: Type.OBJECT, properties: { fix: { type: Type.STRING }, timeframe: { type: Type.STRING }, prediction: { type: Type.STRING } } },
-                      confidence: { type: Type.STRING, enum: ["low", "medium", "high"] }
-                    }
-                  }
-                }
-              });
-
-              app.post("/api/push/subscribe", express.json({ limit: '16kb' }), apiGate, async (req, res) => {
-                try {
-                  const userId = (req as any).authUserId;
-                  const client = userClient((req as any).authToken);
-                  const subscription = req.body || {};
-                  if (!userId || !client || typeof subscription.endpoint !== 'string'
-                    || typeof subscription.keys?.p256dh !== 'string' || typeof subscription.keys?.auth !== 'string') {
-                    return fail(res, 400, "Invalid push subscription.");
-                  }
-                  const { error } = await client.from('push_subscriptions').upsert({
-                    user_id: userId,
-                    endpoint: subscription.endpoint,
-                    p256dh: subscription.keys.p256dh,
-                    auth_key: subscription.keys.auth
-                  }, { onConflict: 'user_id,endpoint' });
-                  if (error) return fail(res, 500, "Could not save push subscription.");
-                  res.json({ ok: true });
-                } catch (error: any) {
-                  console.error("Push subscription error:", error?.message || error);
-                  fail(res, 500, "Could not save push subscription.");
-                }
-              });
-              res.json(JSON.parse((response.text || "").replace(/```json|```/gi, "").trim()));
-            } catch (error: any) {
-              console.error("Growth forecast error:", error?.message || error);
-              fail(res, 500, AI_GENERIC_ERROR);
-            }
-          });
-          const result = JSON.parse((response.text || "").replace(/```json|```/gi, "").trim());
-          if (typeof result.message !== 'string' || !['content', 'concerned', 'urgent'].includes(result.tone)) {
-            return fail(res, 502, AI_GENERIC_ERROR);
-          }
-          res.json({ ...result, message: result.message.slice(0, 160), suggestedAction: result.suggestedAction?.slice(0, 60) });
-        } catch (error: any) {
-          console.error("Plant voice error:", error?.message || error);
-          fail(res, 500, AI_GENERIC_ERROR);
-        }
-      });
       (req as any).userTier = tier;
       const limit = (tier === 'pro' ? PRO_LIMITS : FREE_LIMITS)[kind];
       if (limit === Infinity) return next();
@@ -289,11 +192,102 @@ function tierGate(kind: keyof typeof FREE_LIMITS) {
       }
       usageCounts.set(key, used + 1);
       next();
-    } catch {
+    } catch (error) {
+      console.error(`Tier lookup failed for ${kind}:`, error);
       next(); // economy lookup failed — don't block the AI call on it
     }
   };
 }
+
+app.post("/api/plant-voice", express.json({ limit: '16kb' }), aiLimiter, apiGate, tierGate("voice"), async (req, res) => {
+  try {
+    const { diagnosis, plantName, species, driftStatus, previousMessage } = req.body || {};
+    const name = strLimit(plantName, 80);
+    const plantSpecies = strLimit(species, 120);
+    const symptom = strLimit(diagnosis?.primarySymptom || diagnosis?.diagnosis, 300);
+    if (!name || !plantSpecies || !symptom || !['stable', 'declining', 'critical'].includes(driftStatus)) {
+      return fail(res, 400, "Plant voice requires a valid plant, symptom, and drift status.");
+    }
+    const response = await generateWithRetry({
+      contents: [{ parts: [{ text: `Plant name: ${name}\nSpecies: ${plantSpecies}\nDrift status: ${driftStatus}\nSpecific symptom: ${symptom}\nPrevious message: ${strLimit(previousMessage, 160) || 'none'}` }] }],
+      config: {
+        systemInstruction: "Speak as the plant itself in 1-2 short sentences. Reference the specific symptom, match urgency to severity, never mention AI or break character. Return only the requested JSON.",
+        temperature: 0.7,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          required: ["message", "tone"],
+          properties: {
+            message: { type: Type.STRING, description: "Maximum 160 characters." },
+            tone: { type: Type.STRING, enum: ["content", "concerned", "urgent"] },
+            suggestedAction: { type: Type.STRING, description: "Optional, maximum 60 characters." }
+          }
+        }
+      }
+    });
+    const result = JSON.parse((response.text || "").replace(/```json|```/gi, "").trim());
+    if (typeof result.message !== 'string' || !['content', 'concerned', 'urgent'].includes(result.tone)) {
+      return fail(res, 502, AI_GENERIC_ERROR);
+    }
+    res.json({ ...result, message: result.message.slice(0, 160), suggestedAction: result.suggestedAction?.slice(0, 60) });
+  } catch (error: any) {
+    console.error("Plant voice error:", error?.message || error);
+    fail(res, 500, AI_GENERIC_ERROR);
+  }
+});
+
+app.post("/api/predict-growth", express.json({ limit: '16kb' }), aiLimiter, apiGate, tierGate("forecast"), async (req, res) => {
+  try {
+    const { plantId, species, checkInHistory } = req.body || {};
+    if (typeof plantId !== 'string' || !isValidSpecies(species) || !Array.isArray(checkInHistory) || checkInHistory.length < 3 || checkInHistory.length > 10) {
+      return fail(res, 400, "At least three valid check-ins are required.");
+    }
+    const response = await generateWithRetry({
+      contents: [{ parts: [{ text: JSON.stringify({ plantId, species, checkIns: checkInHistory }) }] }],
+      config: {
+        systemInstruction: "You are a cautious plant health forecaster. Never invent certainty. Return a short two-path forecast grounded only in the supplied history.",
+        temperature: 0.2,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          required: ["hasEnoughData", "currentTrend", "ifUnchanged", "ifFixed", "confidence"],
+          properties: {
+            hasEnoughData: { type: Type.BOOLEAN },
+            currentTrend: { type: Type.STRING, enum: ["improving", "stable", "declining", "insufficient_data"] },
+            ifUnchanged: { type: Type.OBJECT, properties: { timeframe: { type: Type.STRING }, prediction: { type: Type.STRING } } },
+            ifFixed: { type: Type.OBJECT, properties: { fix: { type: Type.STRING }, timeframe: { type: Type.STRING }, prediction: { type: Type.STRING } } },
+            confidence: { type: Type.STRING, enum: ["low", "medium", "high"] }
+          }
+        }
+      }
+    });
+    res.json(JSON.parse((response.text || "").replace(/```json|```/gi, "").trim()));
+  } catch (error: any) {
+    console.error("Growth forecast error:", error?.message || error);
+    fail(res, 500, AI_GENERIC_ERROR);
+  }
+});
+
+app.post("/api/push/subscribe", express.json({ limit: '16kb' }), apiGate, async (req, res) => {
+  try {
+    const userId = (req as any).authUserId;
+    const client = userClient((req as any).authToken);
+    const subscription = req.body || {};
+    if (!userId || !client || typeof subscription.endpoint !== 'string'
+      || typeof subscription.keys?.p256dh !== 'string' || typeof subscription.keys?.auth !== 'string') {
+      return fail(res, 400, "Invalid push subscription.");
+    }
+    const { error } = await client.from('push_subscriptions').upsert({
+      user_id: userId, endpoint: subscription.endpoint,
+      p256dh: subscription.keys.p256dh, auth_key: subscription.keys.auth
+    }, { onConflict: 'user_id,endpoint' });
+    if (error) return fail(res, 500, "Could not save push subscription.");
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error("Push subscription error:", error?.message || error);
+    fail(res, 500, "Could not save push subscription.");
+  }
+});
 
 async function grantPro(userId: string, paymentRef: { razorpay_payment_id?: string; razorpay_subscription_id?: string } = {}) {
   const expires = new Date(Date.now() + PRO_DURATION_DAYS * 86400000);
@@ -635,7 +629,7 @@ Score climate, water, light, soil, pest pressure, and seasonal timing independen
   }
 });
 
-app.post("/api/chat", express.json({ limit: '64kb' }), aiLimiter, apiGate, async (req, res) => {
+app.post("/api/chat", express.json({ limit: '64kb' }), aiLimiter, apiGate, tierGate("chat"), async (req, res) => {
   try {
     const { messages } = req.body;
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -697,7 +691,7 @@ RESPONSE FORMAT & PACING (SHORT STANZAS):
   }
 });
 
-app.post("/api/guardian/predict", express.json({ limit: '64kb' }), aiLimiter, apiGate, async (req, res) => {
+app.post("/api/guardian/predict", express.json({ limit: '64kb' }), aiLimiter, apiGate, tierGate("predict"), async (req, res) => {
   try {
     const { species, checkins, sensorData, weather } = req.body;
     if (!isValidSpecies(species)) {
@@ -809,25 +803,21 @@ app.post("/api/billing/purchase-with-seeds", express.json({ limit: '8kb' }), api
   try {
     if (!supabaseAdmin) return fail(res, 501, "Billing requires Supabase configuration.");
     const userId = (req as any).authUserId;
-    const { data: profile } = await supabaseAdmin
-      .from('profiles').select('seeds, tier, pro_expires_at').eq('user_id', userId).single();
-    if (profile?.tier === 'pro' && profile?.pro_expires_at && new Date(profile.pro_expires_at) > new Date()) {
-      return fail(res, 409, "You are already a Pro member.");
-    }
-    const balance = profile?.seeds ?? 0;
-    if (balance < PRO_COST_SEEDS) {
-      return fail(res, 402, `Insufficient seeds. You need ${(PRO_COST_SEEDS - balance).toLocaleString()} more.`);
-    }
-    const { data: next, error: upErr } = await supabaseAdmin.rpc('increment_seeds', {
+    const { data, error } = await supabaseAdmin.rpc('purchase_pro_with_seeds', {
       p_user_id: userId,
-      p_amount: -PRO_COST_SEEDS,
-      p_source: 'spend',
-      p_description: 'Pro Commission (seeds)',
-      p_transaction_id: require('crypto').randomUUID()
+      p_cost: PRO_COST_SEEDS
     });
-    if (upErr) return fail(res, 402, "Could not deduct seeds.");
-    const expires = await grantPro(userId);
-    res.json({ seeds: next, tier: 'pro', pro_expires_at: expires });
+    if (error) {
+      const message = String(error.message || '');
+      if (message.includes('already pro')) return fail(res, 409, "You are already a Pro member.");
+      if (message.startsWith('insufficient:')) {
+        const balance = Number(message.split(':')[1]) || 0;
+        return fail(res, 402, `Insufficient seeds. You need ${(PRO_COST_SEEDS - balance).toLocaleString()} more.`);
+      }
+      console.error("purchase rpc:", message);
+      return fail(res, 500, "Purchase failed. Please try again.");
+    }
+    res.json(data);
   } catch (err: any) {
     console.error("purchase-with-seeds error:", err?.message);
     fail(res, 500, "Purchase failed. Please try again.");
@@ -893,6 +883,11 @@ app.post("/api/billing/webhook", express.raw({ type: 'application/json', limit: 
 });
 
 async function startServer() {
+  if (process.env.NODE_ENV === "production" && !process.env.GEMINI_API_KEY) {
+    console.error("FATAL: missing required env vars: GEMINI_API_KEY");
+    process.exit(1);
+  }
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
