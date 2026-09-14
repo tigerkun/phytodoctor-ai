@@ -167,7 +167,7 @@ begin
 end;
 $$;
 
-revoke all on function public.increment_seeds(uuid, integer, text, text, uuid) from public;
+revoke all on function public.increment_seeds(uuid, integer, text, text, uuid) from public, anon;
 grant execute on function public.increment_seeds(uuid, integer, text, text, uuid)
   to authenticated, service_role;
 
