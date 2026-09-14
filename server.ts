@@ -237,8 +237,18 @@ async function grantPro(userId: string, paymentRef: { razorpay_payment_id?: stri
   return expires;
 }
 
-// Health check for Render
-app.get('/healthz', (_req, res) => res.sendStatus(200));
+// Health check for Render and deployment diagnostics. Never expose secret values.
+app.get('/healthz', (_req, res) => {
+  const configured = {
+    supabase: Boolean(SUPABASE_URL && SUPABASE_KEY && SUPABASE_SERVICE_KEY),
+    gemini: Boolean(process.env.GEMINI_API_KEY),
+    razorpay: Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET && RAZORPAY_WEBHOOK_SECRET),
+  };
+  res.status(configured.supabase ? 200 : 503).json({
+    status: configured.supabase ? 'ok' : 'degraded',
+    configured,
+  });
+});
 
 
 // Gemini Initialization
@@ -815,6 +825,23 @@ app.post("/api/billing/webhook", express.raw({ type: 'application/json', limit: 
 });
 
 async function startServer() {
+  if (process.env.NODE_ENV === "production") {
+    const missing = [
+      !SUPABASE_URL && 'SUPABASE_URL',
+      !SUPABASE_KEY && 'SUPABASE_ANON_KEY',
+      !SUPABASE_SERVICE_KEY && 'SUPABASE_SERVICE_KEY',
+    ].filter(Boolean);
+    if (missing.length > 0) {
+      throw new Error(`Missing required production configuration: ${missing.join(', ')}`);
+    }
+    if (!process.env.GEMINI_API_KEY) {
+      console.warn('GEMINI_API_KEY is not configured; AI requests will use fallback behavior.');
+    }
+    if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET || !RAZORPAY_WEBHOOK_SECRET) {
+      console.warn('Razorpay is not fully configured; paid Pro checkout is disabled.');
+    }
+  }
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
