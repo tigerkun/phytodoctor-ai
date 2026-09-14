@@ -132,15 +132,24 @@ function strLimit(v: unknown, max: number): string | null {
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 let supabaseAuthClient: any = null;
+let supabaseAuthInitFailed = false;
 if (SUPABASE_URL && SUPABASE_KEY) {
   import('@supabase/supabase-js').then(({ createClient }) => {
     supabaseAuthClient = createClient(SUPABASE_URL, SUPABASE_KEY);
     console.log('API auth gate enabled: /api/* requires a Supabase session token.');
-  }).catch((err) => console.error('Supabase gate init failed:', err?.message));
+  }).catch((err) => {
+    supabaseAuthInitFailed = true;
+    console.error('Supabase gate init failed:', err?.message);
+  });
 }
 
 function apiGate(req: express.Request, res: express.Response, next: express.NextFunction) {
-  if (!supabaseAuthClient) return next(); // gate not active (no env or still loading)
+  if (!SUPABASE_URL || !SUPABASE_KEY) return next(); // local mode
+  if (!supabaseAuthClient) {
+    return fail(res, 503, supabaseAuthInitFailed
+      ? 'Authentication service is temporarily unavailable. Please try again.'
+      : 'Authentication service is starting. Please try again.');
+  }
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
   if (!token) return fail(res, 401, 'Sign in to use the AI features.');
