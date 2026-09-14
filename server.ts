@@ -776,6 +776,7 @@ app.post("/api/billing/create-order", express.json({ limit: '8kb' }), aiLimiter,
   try {
     if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) return fail(res, 501, "Payments are not configured yet.");
     const userId = (req as any).authUserId;
+    if (!userId) return fail(res, 401, "Sign in before starting a payment.");
     const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString('base64');
     const resp = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
