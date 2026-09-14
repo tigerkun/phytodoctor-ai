@@ -813,9 +813,20 @@ app.post("/api/billing/webhook", express.raw({ type: 'application/json', limit: 
     const type = event?.event;
     const payment = event?.payload?.payment?.entity;
     const userId: string | undefined = payment?.notes?.userId;
-    if ((type === 'payment.captured' || type === 'order.paid') && userId) {
-      await grantPro(userId, { razorpay_payment_id: payment?.id });
-      console.log(`Pro granted to ${userId} via Razorpay (${payment?.id}).`);
+    const paymentId = typeof payment?.id === 'string' ? payment.id : '';
+    if ((type === 'payment.captured' || type === 'order.paid') && userId && paymentId) {
+      if (payment.amount !== PRO_PRICE_PAISE || payment.currency !== 'INR') {
+        return fail(res, 400, "Payment details do not match the Pro plan.");
+      }
+      const { data: existingPayment, error: lookupError } = await supabaseAdmin
+        .from('subscriptions')
+        .select('user_id')
+        .eq('razorpay_payment_id', paymentId)
+        .maybeSingle();
+      if (lookupError) throw new Error(lookupError.message);
+      if (existingPayment) return res.json({ ok: true, duplicate: true });
+      await grantPro(userId, { razorpay_payment_id: paymentId });
+      console.log(`Pro granted to ${userId} via Razorpay (${paymentId}).`);
     }
     res.json({ ok: true });
   } catch (err: any) {
