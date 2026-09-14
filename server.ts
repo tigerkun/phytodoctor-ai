@@ -771,6 +771,7 @@ app.post("/api/billing/purchase-with-seeds", express.json({ limit: '8kb' }), api
   try {
     if (!supabaseAdmin) return fail(res, 501, "Billing requires Supabase configuration.");
     const userId = (req as any).authUserId;
+    if (!userId) return fail(res, 401, "Sign in before purchasing Pro.");
     const { data, error } = await supabaseAdmin.rpc('purchase_pro_with_seeds', {
       p_user_id: userId,
       p_cost: PRO_COST_SEEDS
