@@ -81,6 +81,11 @@ create policy "Users can view own subscription"
   on public.subscriptions for select to authenticated
   using (auth.uid() = user_id);
 
+revoke insert, update, delete on table public.subscriptions from authenticated;
+grant select on table public.profiles, public.seed_transactions, public.subscriptions
+  to authenticated;
+grant insert on table public.profiles to authenticated;
+
 create or replace function public.touch_updated_at()
 returns trigger
 language plpgsql
