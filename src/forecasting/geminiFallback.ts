@@ -14,7 +14,10 @@ export async function geminiForecast(
     await TelemetryService.log('gemini_hit', 'Request Initiated', input.plant.species);
     const response = await fetch('/api/guardian/predict', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('botanical_guardian_auth_token') || ''}`,
+      },
       body: JSON.stringify({
         species: input.plant.species,
         checkins: input.checkIns.slice(-10), // Send last 10 for context

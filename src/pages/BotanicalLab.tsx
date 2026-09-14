@@ -77,6 +77,7 @@ export default function BotanicalLab() {
   
   const [streakPopupData, setStreakPopupData] = useState<{ streak: number, seeds: number } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadingMessageIndex, setUploadingMessageIndex] = useState(0);
   const [dexImage, setDexImage] = useState<string | null>(null);
   const [dexResult, setDexResult] = useState<any | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -84,6 +85,23 @@ export default function BotanicalLab() {
   const [discoveryBonus, setDiscoveryBonus] = useState(0);
   const [scannedRewards, setScannedRewards] = useState<{ seeds: number; xp: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadingMessages = [
+    'Reading botanical signals...',
+    'Cross-referencing leaf patterns...',
+    'Checking against known symptoms...',
+    'Finalizing the diagnosis...'
+  ];
+
+  useEffect(() => {
+    if (!uploading) {
+      setUploadingMessageIndex(0);
+      return;
+    }
+    const interval = window.setInterval(() => {
+      setUploadingMessageIndex(index => (index + 1) % uploadingMessages.length);
+    }, 1500);
+    return () => window.clearInterval(interval);
+  }, [uploading]);
 
   const [coins, setCoins] = useState<Particle[]>([]);
   const coinIdCounter = useRef(0);
@@ -392,7 +410,7 @@ export default function BotanicalLab() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12 relative z-10">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8 sm:mb-12 border-b border-border-light pb-6 sm:pb-8 w-full">
-          <div className="flex-grow min-w-[320px] max-w-2xl">
+          <div className="flex-grow min-w-0 max-w-2xl">
             <p className="lab-kicker mb-2">Expedition Wet Lab · Microscope Bench № 02</p>
             <h1 className="text-3xl sm:text-4xl font-serif font-black text-text-bark flex items-center gap-3">
               Botanical Lab <span className="text-moss">🔬</span>
@@ -650,8 +668,8 @@ export default function BotanicalLab() {
                           transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
                           className="w-10 h-10 border-2 border-moss border-t-transparent rounded-full mb-4"
                         />
-                        <p className="font-serif text-lg font-bold text-text-bark">Reading botanical signals...</p>
-                        <p className="text-xs text-text-muted mt-1">Consulting Gemini engine</p>
+                        <p className="font-serif text-lg font-bold text-text-bark">{uploadingMessages[uploadingMessageIndex]}</p>
+                        <p className="text-xs text-text-muted mt-1">Analyzing specimen data.</p>
                       </div>
                     )}
 

@@ -10,7 +10,7 @@ export default function NotFound() {
   return (
     <PageWrapper className="min-h-screen skin-lost flex items-center justify-center relative overflow-hidden">
       {/* Background Ambience */}
-      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/leaves.png')] opacity-[0.03] pointer-events-none" />
+      <div className="absolute inset-0 leaf-texture opacity-[0.03] pointer-events-none" />
       <div className="absolute -top-20 -left-20 w-96 h-96 bg-moss/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-72 h-72 bg-gold/5 rounded-full blur-2xl pointer-events-none" />
 

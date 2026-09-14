@@ -256,6 +256,9 @@ function HeroCarousel({ onClaim }: { onClaim: (id: string, refundValue: number) 
               src={product.image}
               alt={product.name}
               className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.opacity = '0';
+              }}
             />
             <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent" />
           </div>
@@ -374,7 +377,7 @@ function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish }: { 
           alt={product.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           onError={(e) => {
-            e.currentTarget.src = 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?auto=format&fit=crop&w=800&q=80';
+            e.currentTarget.style.opacity = '0';
           }}
         />
         {product.isLimited && (
@@ -1011,7 +1014,14 @@ export default function GardenMarket() {
                   transition={{ delay: idx * 0.05 }}
                   className="flex gap-3 bg-bg-tertiary border border-border-light rounded-lg p-3"
                 >
-                  <img src={item.image} alt={item.name} className="w-16 h-16 rounded object-cover" />
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="w-16 h-16 rounded object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.opacity = '0';
+                    }}
+                  />
                   <div className="flex-1">
                     <p className="font-bold text-sm text-text-bark line-clamp-1">{item.name}</p>
                     <p className="text-xs text-text-stone">₹{item.cashPrice}</p>

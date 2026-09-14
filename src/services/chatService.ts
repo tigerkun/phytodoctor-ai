@@ -9,6 +9,7 @@ export async function chatWithGardener(messages: Message[]): Promise<string> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem('botanical_guardian_auth_token') || ''}`,
       },
       body: JSON.stringify({ messages }),
     });

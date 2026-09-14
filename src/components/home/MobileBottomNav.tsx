@@ -44,7 +44,7 @@ export default function MobileBottomNav() {
           <button
             key={item.href}
             onClick={() => transitionTo(item.href, item.label)}
-            className="relative flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all focus:outline-none"
+            className="relative flex min-w-0 flex-1 flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl transition-all focus:outline-none"
             style={{
               color: active
                 ? 'var(--accent)'
@@ -57,7 +57,7 @@ export default function MobileBottomNav() {
               className="relative z-10 flex flex-col items-center gap-1"
             >
               <Icon size={18} className={active ? 'stroke-[2.5]' : 'stroke-[1.8]'} />
-              <span className="text-[9px] font-black uppercase tracking-wider font-sans">
+              <span className="whitespace-nowrap text-[8px] font-black uppercase tracking-[0.08em] font-sans">
                 {item.label}
               </span>
             </motion.div>

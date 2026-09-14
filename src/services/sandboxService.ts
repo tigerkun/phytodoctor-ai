@@ -88,7 +88,10 @@ export function consumeAssessment() {
 async function sandboxApi(body: object) {
   const res = await fetch('/api/sandbox', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${localStorage.getItem('botanical_guardian_auth_token') || ''}`,
+    },
     body: JSON.stringify(body),
   });
   const data = await res.json();

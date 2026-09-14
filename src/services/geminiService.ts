@@ -49,7 +49,10 @@ export interface LocationContext {
 export async function identifyPlant(base64Image: string, location?: LocationContext): Promise<PlantCare> {
   const response = await fetch("/api/identify", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${localStorage.getItem('botanical_guardian_auth_token') || ''}`,
+    },
     body: JSON.stringify({ image: base64Image, location }),
   });
 

@@ -26,8 +26,14 @@ function GoogleMark() {
  * Writes the botanical_guardian_* localStorage keys the rest of the app reads
  * (Dexie userId, GameService, etc.) from a Supabase session or local auth.
  */
-async function persistSession(userId: string, userEmail: string, displayName: string) {
-  localStorage.setItem('botanical_guardian_auth_token', 'token_' + Date.now());
+async function persistSession(userId: string, userEmail: string, displayName: string, accessToken?: string) {
+  if (accessToken) {
+    localStorage.setItem('botanical_guardian_auth_token', accessToken);
+  } else if (!supabase) {
+    localStorage.setItem('botanical_guardian_auth_token', 'token_' + Date.now());
+  } else {
+    localStorage.removeItem('botanical_guardian_auth_token');
+  }
   localStorage.setItem('botanical_guardian_userId', userId);
   localStorage.setItem('botanical_guardian_user_email', userEmail);
   localStorage.setItem('botanical_guardian_user_name', displayName);
@@ -84,7 +90,7 @@ export default function Auth() {
       const u = session.user;
       const userId = `sb_${u.id}`;
       const displayName = u.user_metadata?.full_name || u.user_metadata?.name || u.email?.split('@')[0] || 'Naturalist';
-      await persistSession(userId, u.email ?? '', displayName);
+      await persistSession(userId, u.email ?? '', displayName, session.access_token);
       navigate('/');
     });
     return () => subscription.unsubscribe();
@@ -148,7 +154,7 @@ export default function Auth() {
         if (data.user) {
           const userId = `sb_${data.user.id}`;
           const displayName = data.user.user_metadata?.full_name || data.user.email?.split('@')[0] || 'Naturalist';
-          await persistSession(userId, data.user.email ?? '', displayName);
+          await persistSession(userId, data.user.email ?? '', displayName, (await supabase.auth.getSession()).data.session?.access_token);
           window.history.replaceState(null, '', window.location.pathname);
           navigate('/');
         }
@@ -202,7 +208,7 @@ export default function Auth() {
           if (data.user) {
             const userId = `sb_${data.user.id}`;
             const displayName = data.user.user_metadata?.full_name || data.user.email?.split('@')[0] || name;
-            await persistSession(userId, data.user.email ?? email, displayName);
+            await persistSession(userId, data.user.email ?? email, displayName, data.session?.access_token);
             navigate('/');
           }
         } else {
@@ -218,7 +224,7 @@ export default function Auth() {
           }
           if (data.user) {
             const userId = `sb_${data.user.id}`;
-            await persistSession(userId, data.user.email ?? email, name);
+            await persistSession(userId, data.user.email ?? email, name, data.session?.access_token);
             // Store onboarding profile data in Dexie
             const { db } = await import('../db/database');
             await db.userProfile.update(userId, {
@@ -329,7 +335,7 @@ export default function Auth() {
             <div className="inline-block px-3 py-1 mb-2 rounded-full border border-[#c5a059]/40 bg-[#f0e8d8]/60 text-[10px] uppercase font-bold tracking-[0.25em] text-[#8c6e38]">
               Royal Sanctuary Ledger • Vol. IX
             </div>
-            <h2 className="text-2xl sm:text-3xl font-serif font-black tracking-tight text-[#2b2118] dark:text-[#f4eee1]">
+            <h2 className="auth-heading text-2xl sm:text-3xl font-serif font-black tracking-tight">
               {isRecovery
                 ? 'Restore Your Seal Passphrase'
                 : isLogin

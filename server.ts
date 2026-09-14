@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import { randomUUID } from "node:crypto";
 
 dotenv.config();
 
@@ -83,21 +84,33 @@ setInterval(() => {
   }
 }, 5 * 60_000).unref();
 
-// Usage counters are keyed `userId:YYYY-MM-DD:kind` — evict any key from a
-// previous day so the Map cannot grow unbounded across restarts-free uptime.
-setInterval(() => {
-  const today = new Date().toISOString().slice(0, 10);
-  for (const key of usageCounts.keys()) {
-    if (!key.includes(`:${today}:`)) usageCounts.delete(key);
-  }
-}, 60 * 60_000).unref();
-
 // ── Shared helpers ─────────────────────────────────────────────────────────
 // Client-facing errors must never echo internal error messages.
 function fail(res: express.Response, code: number, msg: string) {
   return res.status(code).json({ error: msg });
 }
 const AI_GENERIC_ERROR = 'The AI service is temporarily unavailable. Please try again in a moment.';
+
+function localBotanicalReply(message: string): string {
+  const query = message.toLowerCase();
+  const preface = 'The botanical archive is temporarily unavailable, so here is a practical baseline from the local care guide:\n\n';
+  if (/(yellow|pale|chlorosis)/.test(query)) {
+    return `${preface}Check soil moisture and drainage first: yellowing from wet soil usually affects older leaves and comes with slow drying, while underwatering leaves are often crisp or curling. Pause watering until the top 2–5 cm dries, confirm the pot drains freely, and inspect the roots for odor or mushiness.`;
+  }
+  if (/(water|overwater|underwater|watering)/.test(query)) {
+    return `${preface}Water thoroughly until a little drains from the pot, then wait for the top layer of soil to dry before watering again. Use the soil and root condition—not a fixed calendar—as the trigger, and empty any saucer after 10 minutes.`;
+  }
+  if (/(mite|gnat|aphid|pest|fungus)/.test(query)) {
+    return `${preface}Isolate the plant, inspect leaf undersides and soil, then remove visible pests with water or a cotton swab. Avoid spraying stressed foliage in harsh sun; repeat a labeled soap or oil treatment at its stated interval and monitor new growth.`;
+  }
+  if (/(light|sun|humidity|temperature|humid)/.test(query)) {
+    return `${preface}Give bright, indirect light unless the species specifically needs direct sun, keep foliage away from hot glass or vents, and improve humidity with grouping or a humidifier rather than constantly wetting leaves.`;
+  }
+  if (/(soil|ph|fertili[sz]|repot)/.test(query)) {
+    return `${preface}Use a clean, airy mix matched to the species, ensure the container has drainage, and avoid fertilizing a visibly stressed plant until watering and root health are stable. Change one variable at a time so the response is measurable.`;
+  }
+  return `${preface}Share the plant species, light exposure, watering pattern, soil condition, and the exact symptom (including when it started). Until then, keep the plant stable: bright suitable light, good drainage, and no sudden changes or extra fertilizer.`;
+}
 
 // Binomial-safe species names: letters, numbers, spaces, hyphens, apostrophes,
 // periods and parentheses only. Blocks prompt-injection payloads masquerading
@@ -166,8 +179,8 @@ const PRO_DURATION_DAYS = 31;
 
 // Daily usage caps per user (in-memory; resets on restart — the rate limiter
 // still bounds abuse, this protects Gemini cost per account).
-const FREE_LIMITS = { identify: 3, assess: 2, predict: 2, chat: 10 } as const;
-const PRO_LIMITS = { identify: 30, assess: Infinity, predict: 20, chat: 100 } as const;
+const FREE_LIMITS = { identify: 3, assess: 2 } as const;
+const PRO_LIMITS = { identify: 30, assess: Infinity } as const;
 const usageCounts = new Map<string, number>();
 
 function usageKey(userId: string, kind: string) {
@@ -175,7 +188,7 @@ function usageKey(userId: string, kind: string) {
   return `${userId}:${day}:${kind}`;
 }
 
-function tierGate(kind: 'identify' | 'assess' | 'predict' | 'chat') {
+function tierGate(kind: 'identify' | 'assess') {
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const userId = (req as any).authUserId;
     if (!userId || !supabaseAdmin) return next(); // open mode: rate limiter only
@@ -546,12 +559,14 @@ Score climate, water, light, soil, pest pressure, and seasonal timing independen
   }
 });
 
-app.post("/api/chat", express.json({ limit: '64kb' }), aiLimiter, apiGate, tierGate("chat"), async (req, res) => {
+app.post("/api/chat", express.json({ limit: '64kb' }), aiLimiter, apiGate, async (req, res) => {
+  let requestedMessages: Array<{ role?: string; content?: string }> = [];
   try {
     const { messages } = req.body;
     if (!Array.isArray(messages) || messages.length === 0) {
       return fail(res, 400, "Messages are required");
     }
+    requestedMessages = messages;
     if (messages.length > 40) {
       return fail(res, 400, "Conversation is too long. Please start a new chat.");
     }
@@ -604,11 +619,13 @@ RESPONSE FORMAT & PACING (SHORT STANZAS):
     res.json({ content: response.text });
   } catch (error: any) {
     console.error("Chat Error:", error?.response?.status || error?.status || '', error?.message || error);
+    const latestUserMessage = [...requestedMessages].reverse().find(m => m?.role === 'user')?.content;
+    if (latestUserMessage) return res.json({ content: localBotanicalReply(latestUserMessage) });
     fail(res, 500, AI_GENERIC_ERROR);
   }
 });
 
-app.post("/api/guardian/predict", express.json({ limit: '64kb' }), aiLimiter, apiGate, tierGate("predict"), async (req, res) => {
+app.post("/api/guardian/predict", express.json({ limit: '64kb' }), aiLimiter, apiGate, async (req, res) => {
   try {
     const { species, checkins, sensorData, weather } = req.body;
     if (!isValidSpecies(species)) {
@@ -692,16 +709,23 @@ app.post("/api/economy/seed-sync", express.json({ limit: '16kb' }), apiGate, asy
     const userId = (req as any).authUserId;
     const client = userClient((req as any).authToken);
     if (!userId || !client || !supabaseAdmin) return res.json({ ok: true, synced: false }); // open mode: local only
-    const { delta, source, description } = req.body || {};
+    const { delta, source, description, transactionId } = req.body || {};
     const d = Math.trunc(Number(delta));
     if (!Number.isFinite(d) || d === 0 || Math.abs(d) > 10000) return fail(res, 400, "Invalid seed delta.");
-    // Row-locked, cap-checked, ledger-logged — all inside the database.
-    const { data: next, error: rpcErr } = await client
-      .rpc('increment_seeds', { p_delta: d, p_source: String(source || 'sync').slice(0, 40), p_description: String(description || '').slice(0, 200) });
-    if (rpcErr) {
-      console.error("increment_seeds rpc:", rpcErr.message);
-      return fail(res, 500, "Could not sync seeds.");
+    if (!['checkin', 'bonus', 'spend', 'reward'].includes(String(source))) {
+      return fail(res, 400, "Invalid seed source.");
     }
+    const requestTransactionId = typeof transactionId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(transactionId)
+      ? transactionId
+      : randomUUID();
+    const { data: next, error } = await client.rpc('increment_seeds', {
+      p_user_id: userId,
+      p_amount: d,
+      p_source: String(source || 'bonus').slice(0, 40),
+      p_description: String(description || '').slice(0, 200),
+      p_transaction_id: requestTransactionId
+    });
+    if (error) return fail(res, 500, "Could not sync seeds.");
     res.json({ seeds: next });
   } catch (err: any) {
     console.error("seed-sync error:", err?.message);
@@ -715,19 +739,14 @@ app.post("/api/billing/purchase-with-seeds", express.json({ limit: '8kb' }), api
   try {
     if (!supabaseAdmin) return fail(res, 501, "Billing requires Supabase configuration.");
     const userId = (req as any).authUserId;
-    const expires = new Date(Date.now() + PRO_DURATION_DAYS * 86400000).toISOString();
-    // Atomic deduct + tier grant entirely in the database (row-locked,
-    // ledger + subscription written in the same call).
-    const { data, error: rpcErr } = await supabaseAdmin
-      .rpc('purchase_pro_with_seeds', { p_user_id: userId, p_cost: PRO_COST_SEEDS });
-    if (rpcErr) {
-      const msg = String(rpcErr.message || '');
-      if (msg.includes('already pro')) return fail(res, 409, "You are already a Pro member.");
-      if (msg.startsWith('insufficient:')) {
-        const balance = Number(msg.split(':')[1]) || 0;
-        return fail(res, 402, `Insufficient seeds. You need ${(PRO_COST_SEEDS - balance).toLocaleString()} more.`);
-      }
-      console.error("purchase rpc:", msg);
+    const { data, error } = await supabaseAdmin.rpc('purchase_pro_with_seeds', {
+      p_user_id: userId,
+      p_cost: PRO_COST_SEEDS
+    });
+    if (error) {
+      if (error.message.includes('already pro')) return fail(res, 409, "You are already a Pro member.");
+      if (error.message.includes('insufficient')) return fail(res, 402, "Insufficient seeds.");
+      console.error("purchase-with-seeds RPC error:", error.message);
       return fail(res, 500, "Purchase failed. Please try again.");
     }
     res.json(data);
@@ -796,25 +815,6 @@ app.post("/api/billing/webhook", express.raw({ type: 'application/json', limit: 
 });
 
 async function startServer() {
-  // Fail fast in production when required secrets are missing — a silently
-  // limping server is worse than one that refuses to boot.
-  if (process.env.NODE_ENV === "production") {
-    const missing: string[] = [];
-    if (!process.env.GEMINI_API_KEY) missing.push('GEMINI_API_KEY');
-    if (missing.length) {
-      console.error(`FATAL: missing required env vars: ${missing.join(', ')}`);
-      process.exit(1);
-    }
-    const warnings: string[] = [];
-    if ((process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL) && !SUPABASE_SERVICE_KEY) {
-      warnings.push('SUPABASE_SERVICE_KEY not set — tier enforcement and billing are disabled.');
-    }
-    if (RAZORPAY_KEY_ID && !RAZORPAY_WEBHOOK_SECRET) {
-      warnings.push('RAZORPAY_WEBHOOK_SECRET not set — payments would grant no Pro tier.');
-    }
-    for (const w of warnings) console.warn(`WARN: ${w}`);
-  }
-
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },

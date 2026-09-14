@@ -130,7 +130,12 @@
   position: absolute;
   width: 100%;
   height: 100%;
-  background-image: url('https://www.transparenttextures.com/patterns/leaves.png');
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 14px,
+    rgba(90, 122, 90, 0.18) 14px 15px,
+    transparent 15px 28px
+  );
   opacity: 0.055;
   animation: sway 10s ease-in-out infinite;
 }

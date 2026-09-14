@@ -195,6 +195,16 @@ export default function PlantDetail() {
 
         {/* Outer Manila Field Binder Cover */}
         <div className="dossier-binder-cover rounded-[2rem] md:rounded-[2.5rem] p-6 sm:p-10 md:p-14 relative shadow-2xl">
+          {card?.battleScars.length ? (
+            <details className="mb-6 rounded-xl border border-[#c5a059]/30 bg-black/20 p-3 text-[#d8bc78]">
+              <summary className="cursor-pointer text-xs font-black uppercase tracking-widest">
+                Resilience record · {card.battleScars.length} survived {card.battleScars.length === 1 ? 'crisis' : 'crises'}
+              </summary>
+              <ul className="mt-3 space-y-1 text-xs text-[#e8d7b0]">
+                {card.battleScars.map((scar, index) => <li key={`${scar}-${index}`}>{scar}</li>)}
+              </ul>
+            </details>
+          ) : null}
           {/* Top Brass Fastener Prongs */}
           <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-20 pointer-events-none z-20">
             <div className="w-12 h-6 dossier-prong dossier-prong-left" title="Binder Fastener" />
@@ -795,4 +805,3 @@ function DetailStat({ icon, label, value }: { icon: any, label: string, value: s
     </div>
   );
 }
-

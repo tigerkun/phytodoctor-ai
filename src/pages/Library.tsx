@@ -816,7 +816,7 @@ export default function Library() {
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-6 sm:gap-8 mast"
         >
-          <div className="max-w-[620px] flex-grow min-w-[320px]">
+          <div className="max-w-[620px] flex-grow min-w-0">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-[#8c6d46] dark:text-[#caa651] block">
                 Naturalist's Guild Codex · Herbarium Stacks
@@ -1298,6 +1298,9 @@ export default function Library() {
                       loading="lazy"
                       decoding="async"
                       className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                      onError={(e) => {
+                        e.currentTarget.style.opacity = '0';
+                      }}
                     />
                     
                     {/* target badge */}

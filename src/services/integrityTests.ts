@@ -122,6 +122,55 @@ export class IntegrityTestSuite {
       results.push({ name: 'Daily XP Throttle', passed: false, message: String(e) });
     }
 
+    // Test 3: Battle scar recovery
+    try {
+      const plantId = 'scar-test-plant';
+      const card = await db.cards.where('plantId').equals(plantId).first();
+      if (card) await db.cards.delete(card.id);
+      await db.checkins.where('plantId').equals(plantId).delete();
+      await db.plants.delete(plantId);
+
+      await db.plants.add({
+        id: plantId,
+        species: 'Test Monstera',
+        userId: 'local_user',
+        name: 'Scar Test Plant',
+        createdAt: new Date(),
+        acquiredAt: new Date(),
+        updatedAt: new Date(),
+        status: 'Alert',
+        guardianScore: 60
+      } as any);
+      await GameService.generateCardForPlant(plantId);
+
+      const critical = {
+        id: 'scar-critical',
+        plantId,
+        timestamp: new Date(Date.now() - 86_400_000),
+        driftStatus: 'alert',
+        guardianScore: 40
+      } as any;
+      const recovered = {
+        id: 'scar-recovered',
+        plantId,
+        timestamp: new Date(),
+        driftStatus: 'stable',
+        guardianScore: 90
+      } as any;
+      await db.checkins.bulkAdd([critical, recovered]);
+      await GameService.updateCardFromCheckIn(plantId, critical);
+      await GameService.updateCardFromCheckIn(plantId, recovered);
+
+      const updated = await db.cards.where('plantId').equals(plantId).first();
+      results.push({
+        name: 'Battle Scar Recovery',
+        passed: updated?.battleScars.length === 1,
+        message: 'A single alert-to-stable recovery creates one bounded scar.'
+      });
+    } catch (e) {
+      results.push({ name: 'Battle Scar Recovery', passed: false, message: String(e) });
+    }
+
     return results;
   }
 }

@@ -89,7 +89,7 @@ const PhytoCard: React.FC<Props> = ({ card, size = 'md', interactive = true, sho
   return (
     <div
       onClick={interactive ? onClick : undefined}
-      className={`relative rounded-2xl flex flex-col p-3 text-garden-earth select-none shadow-2xl ${interactive ? 'card-interactive cursor-pointer' : ''} ${sizeClasses[size]} ${appliedFrameStyle} ${appliedThemeStyle}`}
+      className={`relative rounded-2xl flex flex-col p-3 text-garden-earth select-none shadow-2xl ${interactive ? 'card-interactive cursor-pointer' : ''} ${sizeClasses[size]} ${appliedFrameStyle} ${appliedThemeStyle} ${animate === 'levelup' ? 'phyto-card-levelup' : ''}`}
       style={{ perspective: '1000px' }}
     >
       {/* Rarity Effects */}
@@ -138,7 +138,7 @@ const PhytoCard: React.FC<Props> = ({ card, size = 'md', interactive = true, sho
                
                {/* Aesthetic Overlays */}
                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-white/10 mix-blend-overlay" />
-               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cardboard.png')] opacity-20 pointer-events-none" />
+               <div className="absolute inset-0 card-texture opacity-20 pointer-events-none" />
                
                {/* Scanlines for Technical look */}
                <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.02),rgba(0,255,0,0.01),rgba(0,0,255,0.02))] bg-[length:100%_4px,3px_100%] pointer-events-none opacity-20" />

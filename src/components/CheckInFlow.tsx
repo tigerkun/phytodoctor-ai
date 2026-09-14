@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { Droplets, Sun, Wind, Check, Camera, ArrowRight, X, Loader2, Sparkles, AlertTriangle, Zap } from 'lucide-react';
 import { db } from '../db/database';
 import { extractSignature, analyzePlantHealth, type DriftResult } from '../services/driftDetector';
@@ -8,6 +9,7 @@ import { GameService } from '../services/gameService';
 import { StorageService } from '../services/storageService';
 import { createSensorProvider } from '../sensors/SensorProvider';
 import { MoistureLevel, LightLevel } from '../types';
+import PhytoCard from './game/PhytoCard';
 
 interface CheckInFlowProps {
   plantName: string;
@@ -20,6 +22,16 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [driftResult, setDriftResult] = useState<DriftResult | null>(null);
+  const [completion, setCompletion] = useState<{ animate: 'levelup' | 'idle'; cardId: string } | null>(null);
+  const completionCard = useLiveQuery(
+    () => completion ? db.cards.get(completion.cardId) : undefined,
+    [completion?.cardId]
+  );
+  useEffect(() => {
+    if (!completion) return;
+    const timeout = window.setTimeout(onComplete, 3000);
+    return () => window.clearTimeout(timeout);
+  }, [completion, onComplete]);
   const [sensorStatus, setSensorStatus] = useState<'available' | 'unavailable' | 'detecting'>('unavailable');
   const [data, setData] = useState({
     soilMoisture: '' as 'Dry' | 'Moist' | 'Wet' | '',
@@ -152,7 +164,13 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
       const finalCheckIn = await db.checkins.get(checkInId);
       if (finalCheckIn) {
         await GameService.generateCardForPlant(plantId);
-        await GameService.updateCardFromCheckIn(plantId, finalCheckIn);
+        const outcome = await GameService.updateCardFromCheckIn(plantId, finalCheckIn);
+        const updatedCard = await db.cards.where('plantId').equals(plantId).first();
+        if (updatedCard && (outcome.leveledUp || outcome.stageChanged)) {
+          setCompletion({ animate: 'levelup', cardId: updatedCard.id });
+          await runGuardianDossier(plantId);
+          return;
+        }
       }
       
       // Run forecasting dossier
@@ -209,7 +227,18 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
             </div>
           </header>
 
-          <AnimatePresence mode="wait">
+          {completion && completionCard ? (
+            <div className="flex flex-col items-center gap-6 py-8 text-center">
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-garden-sage">PhytoCard evolved</span>
+              <PhytoCard
+                card={completionCard}
+                size="md"
+                interactive={false}
+                animate={completion.animate}
+              />
+              <p className="text-sm text-garden-earth/60">Your specimen has reached a new chapter.</p>
+            </div>
+          ) : <AnimatePresence mode="wait">
             {step === 1 && (
               <motion.div 
                 key="step1"
@@ -384,7 +413,7 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
                 </div>
               </motion.div>
             )}
-          </AnimatePresence>
+          </AnimatePresence>}
 
           <footer className="mt-12 flex justify-between items-center">
             {step > 1 ? (

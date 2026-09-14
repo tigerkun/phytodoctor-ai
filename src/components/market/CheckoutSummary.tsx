@@ -50,7 +50,7 @@ export default function CheckoutSummary({
   }, [items, selectedVoucher]);
 
   const finalPrice = Math.max(0, totalCash - discount);
-  const seedRefund = Math.floor(totalSeeds / 200);
+  const seedRefund = items.reduce((sum, item) => sum + Math.floor((item.seedCost * item.quantity) / 200), 0);
   const hasEnoughSeeds = userSeeds >= totalSeeds;
   const canCheckout = items.length > 0 && hasEnoughSeeds;
 
