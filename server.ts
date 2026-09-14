@@ -226,7 +226,7 @@ async function grantPro(userId: string, paymentRef: { razorpay_payment_id?: stri
     .update({ tier: 'pro', pro_expires_at: expires.toISOString() })
     .eq('user_id', userId);
   if (error) throw new Error(error.message);
-  await supabaseAdmin.from('subscriptions').upsert({
+  const { error: subscriptionError } = await supabaseAdmin.from('subscriptions').upsert({
     user_id: userId,
     tier: 'pro',
     started_at: new Date().toISOString(),
@@ -234,6 +234,7 @@ async function grantPro(userId: string, paymentRef: { razorpay_payment_id?: stri
     cancel_at_period_end: false,
     ...paymentRef
   });
+  if (subscriptionError) throw new Error(subscriptionError.message);
   return expires;
 }
 
