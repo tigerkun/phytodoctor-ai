@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Droplets } from 'lucide-react';
+import { getPlantPhoto } from '../utils/plantImage';
 
 interface PlantCardProps {
   id: string;
@@ -12,6 +13,7 @@ interface PlantCardProps {
 }
 
 export const PlantCard = ({ id, photoUrl, nickname, healthScore, daysSinceWater, speciesName }: PlantCardProps) => {
+  const fallbackPhoto = getPlantPhoto(undefined, speciesName);
   // Determine health dot color
   let healthDotColor: string;
   if (healthScore >= 90) {
@@ -29,7 +31,18 @@ export const PlantCard = ({ id, photoUrl, nickname, healthScore, daysSinceWater,
       className="group rounded-2xl overflow-hidden bg-white/70 border border-[var(--border)] backdrop-blur-sm shadow-sm hover:shadow-md transition-all cursor-pointer"
     >
       <div className="aspect-square overflow-hidden relative">
-        <img src={photoUrl} alt={nickname} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        <img
+          src={getPlantPhoto(photoUrl, speciesName)}
+          alt={nickname}
+          onError={(event) => {
+            if (event.currentTarget.src !== fallbackPhoto) {
+              event.currentTarget.src = fallbackPhoto;
+            } else {
+              event.currentTarget.style.visibility = 'hidden';
+            }
+          }}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
         <div className={`absolute top-3 right-3 w-3 h-3 rounded-full border-2 border-white shadow-sm ${healthDotColor}`} />
       </div>
       <div className="p-3">
