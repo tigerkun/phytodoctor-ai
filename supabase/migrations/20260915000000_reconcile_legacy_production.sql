@@ -233,3 +233,60 @@ $$;
 revoke all on function public.purchase_pro_with_seeds(uuid, integer) from public, anon;
 grant execute on function public.purchase_pro_with_seeds(uuid, integer)
   to authenticated, service_role;
+
+create or replace function public.grant_pro_from_payment(
+  p_user_id uuid,
+  p_payment_id text,
+  p_amount integer,
+  p_currency text
+)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_expires timestamptz;
+  v_existing uuid;
+begin
+  if coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'not authorized';
+  end if;
+  if p_payment_id is null or length(trim(p_payment_id)) = 0
+     or p_amount <> 9900 or p_currency <> 'INR' then
+    raise exception 'invalid payment';
+  end if;
+
+  -- Serialize duplicate deliveries across all app instances.
+  perform pg_advisory_xact_lock(hashtextextended(p_payment_id, 0));
+  select user_id into v_existing
+    from public.subscriptions
+   where razorpay_payment_id = p_payment_id
+   for update;
+  if v_existing is not null then
+    return json_build_object('duplicate', true);
+  end if;
+
+  v_expires := now() + interval '31 days';
+  update public.profiles
+     set tier = 'pro', pro_expires_at = v_expires
+   where user_id = p_user_id;
+  if not found then raise exception 'profile not found'; end if;
+
+  insert into public.subscriptions (
+    user_id, tier, started_at, expires_at, cancel_at_period_end, razorpay_payment_id
+  ) values (
+    p_user_id, 'pro', now(), v_expires, false, p_payment_id
+  )
+  on conflict (user_id) do update
+    set tier = 'pro', started_at = now(), expires_at = v_expires,
+        cancel_at_period_end = false, razorpay_payment_id = excluded.razorpay_payment_id;
+
+  return json_build_object('duplicate', false, 'expires_at', v_expires);
+end;
+$$;
+
+revoke all on function public.grant_pro_from_payment(uuid, text, integer, text)
+  from public, anon, authenticated;
+grant execute on function public.grant_pro_from_payment(uuid, text, integer, text)
+  to service_role;

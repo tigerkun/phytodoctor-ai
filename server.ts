@@ -175,7 +175,6 @@ function userClient(token: string) {
 
 const PRO_COST_SEEDS = 1000;
 const PRO_PRICE_PAISE = 9900; // ₹99/month
-const PRO_DURATION_DAYS = 31;
 
 // Daily usage caps per user (in-memory; resets on restart — the rate limiter
 // still bounds abuse, this protects Gemini cost per account).
@@ -219,23 +218,15 @@ function tierGate(kind: 'identify' | 'assess') {
   };
 }
 
-async function grantPro(userId: string, paymentRef: { razorpay_payment_id?: string; razorpay_subscription_id?: string } = {}) {
-  const expires = new Date(Date.now() + PRO_DURATION_DAYS * 86400000);
-  const { error } = await supabaseAdmin
-    .from('profiles')
-    .update({ tier: 'pro', pro_expires_at: expires.toISOString() })
-    .eq('user_id', userId);
-  if (error) throw new Error(error.message);
-  const { error: subscriptionError } = await supabaseAdmin.from('subscriptions').upsert({
-    user_id: userId,
-    tier: 'pro',
-    started_at: new Date().toISOString(),
-    expires_at: expires.toISOString(),
-    cancel_at_period_end: false,
-    ...paymentRef
+async function grantPro(userId: string, paymentId: string, amount: number, currency: string) {
+  const { data, error } = await supabaseAdmin.rpc('grant_pro_from_payment', {
+    p_user_id: userId,
+    p_payment_id: paymentId,
+    p_amount: amount,
+    p_currency: currency,
   });
-  if (subscriptionError) throw new Error(subscriptionError.message);
-  return expires;
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 // Health check for Render and deployment diagnostics. Never expose secret values.
@@ -819,14 +810,8 @@ app.post("/api/billing/webhook", express.raw({ type: 'application/json', limit: 
       if (payment.amount !== PRO_PRICE_PAISE || payment.currency !== 'INR') {
         return fail(res, 400, "Payment details do not match the Pro plan.");
       }
-      const { data: existingPayment, error: lookupError } = await supabaseAdmin
-        .from('subscriptions')
-        .select('user_id')
-        .eq('razorpay_payment_id', paymentId)
-        .maybeSingle();
-      if (lookupError) throw new Error(lookupError.message);
-      if (existingPayment) return res.json({ ok: true, duplicate: true });
-      await grantPro(userId, { razorpay_payment_id: paymentId });
+      const result = await grantPro(userId, paymentId, payment.amount, payment.currency);
+      if (result?.duplicate) return res.json({ ok: true, duplicate: true });
       console.log(`Pro granted to ${userId} via Razorpay (${paymentId}).`);
     }
     res.json({ ok: true });
