@@ -692,8 +692,12 @@ app.get("/api/economy/profile", apiGate, async (req, res) => {
     if (error || !data) {
       // First sign-in on a new device: bootstrap the row.
       if (supabaseAdmin) {
-        const { data: created } = await supabaseAdmin
+        const { data: created, error: createError } = await supabaseAdmin
           .from('profiles').upsert({ user_id: userId, seeds: 500, tier: 'free' }).select().single();
+        if (createError || !created) {
+          console.error("economy/profile bootstrap error:", createError?.message || "profile was not created");
+          return fail(res, 503, "Your profile is temporarily unavailable. Please try again.");
+        }
         return res.json(created);
       }
       return res.json({ seeds: 500, tier: 'free' });
