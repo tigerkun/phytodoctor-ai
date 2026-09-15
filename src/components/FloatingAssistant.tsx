@@ -159,7 +159,8 @@ export default function FloatingAssistant() {
               </div>
               <button 
                 onClick={() => setIsOpen(false)}
-                className="w-8 h-8 rounded-full hover:bg-white/20 flex items-center justify-center transition-colors"
+                aria-label="Close assistant"
+                className="w-8 h-8 rounded-full hover:bg-white/20 flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <X size={18} />
               </button>
@@ -229,7 +230,8 @@ export default function FloatingAssistant() {
                 <button 
                   type="button"
                   onClick={handleMicClick}
-                  className={`absolute right-[3.25rem] w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+                  aria-label={isListening ? "Stop listening" : "Start voice input"}
+                  className={`absolute right-[3.25rem] w-8 h-8 flex items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-moss focus-visible:ring-offset-1 ${
                     isListening ? 'text-rose-500 bg-rose-500/10 animate-pulse' : 'text-text-muted hover:text-moss'
                   }`}
                 >
@@ -238,7 +240,8 @@ export default function FloatingAssistant() {
                 <button 
                   type="submit"
                   disabled={loading || !input.trim()}
-                  className="w-10 h-10 shrink-0 bg-moss text-white rounded-xl flex items-center justify-center hover:bg-moss-dark transition-all disabled:opacity-30 active:scale-95"
+                  aria-label="Send message"
+                  className="w-10 h-10 shrink-0 bg-moss text-white rounded-xl flex items-center justify-center hover:bg-moss-dark transition-all disabled:opacity-30 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-moss focus-visible:ring-offset-2"
                 >
                   <Send size={14} />
                 </button>
@@ -252,7 +255,8 @@ export default function FloatingAssistant() {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-14 h-14 bg-moss text-white rounded-full shadow-2xl flex items-center justify-center relative border-2 border-white/20"
+        aria-label={isOpen ? "Close assistant" : "Open assistant"}
+        className="w-14 h-14 bg-moss text-white rounded-full shadow-2xl flex items-center justify-center relative border-2 border-white/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-moss/50"
       >
         <AnimatePresence mode="wait">
           {isOpen ? (
