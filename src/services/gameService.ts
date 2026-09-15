@@ -347,43 +347,60 @@ export class GameService {
     await db.cards.update(cardId, { isFeatured: true });
   }
 
-  static async updateCardFromCheckIn(plantId: string, checkIn: CheckIn) {
+  static async updateCardFromCheckIn(plantId: string, checkIn: CheckIn): Promise<{
+    leveledUp: boolean;
+    stageChanged: boolean;
+    newLevel: number;
+    newStage: GrowthStage;
+  } | null> {
     let card = await db.cards.where('plantId').equals(plantId).first();
     if (!card) {
       // Lazy generate if missing
       card = await this.generateCardForPlant(plantId);
     }
-    if (!card) return;
+    if (!card) return null;
 
     const plant = await db.plants.get(plantId);
-    if (!plant) return;
+    if (!plant) return null;
+
+    // Battle scar: a plant earns one by RECOVERING from a critical drift —
+    // previous check-in was 'alert', this one is 'stable'. Adversity survived.
+    const allCheckIns = await db.checkins.where('plantId').equals(plantId).toArray();
+    const previous = allCheckIns
+      .filter(c => c.id !== checkIn.id)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+    const recovered = previous?.driftStatus === 'alert' && checkIn.driftStatus === 'stable';
+    const battleScars = recovered
+      ? [...(card.battleScars || []), {
+          symptom: 'Recovered from critical drift',
+          recoveredAt: new Date().toISOString()
+        }].slice(-6)
+      : (card.battleScars || []);
 
     const todayDate = new Date();
     const today = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
-    
+
     // Check if XP already granted for this plant today
     const alreadyGainedXP = await db.xpLog
       .where('[plantId+date]')
       .equals([plantId, today])
       .count();
 
-
     if (alreadyGainedXP > 0) {
-      // Still log the check-in stats but don't grant XP orSeeds
+      // Still log the check-in stats (and any earned scar) but no XP or Seeds
       await db.cards.update(card.id, {
         checkInsTotal: card.checkInsTotal + 1,
-        checkInsHealthy: checkIn.guardianScore >= 80 ? card.checkInsHealthy + 1 : card.checkInsHealthy
+        checkInsHealthy: checkIn.guardianScore >= 80 ? card.checkInsHealthy + 1 : card.checkInsHealthy,
+        battleScars
       });
-      return;
+      return { leveledUp: false, stageChanged: false, newLevel: card.level, newStage: card.growthStage };
     }
 
     // XP gain logic from brief: base 5, excellence +5, stable +3, streak +5
     let xpGain = 5;
     if (checkIn.guardianScore >= 90) xpGain += 5;
     if (checkIn.driftStatus === 'stable') xpGain += 3;
-    
-    const checkIns = await db.checkins.where('plantId').equals(plantId).toArray();
-    // Use card's streak or plant status
+
     const currentStreak = card.currentStreak || (plant.status === 'Stable' ? 7 : 0);
     if (currentStreak >= 7) xpGain += 5;
 
@@ -396,7 +413,7 @@ export class GameService {
       newXp -= newXpToNext;
       newLevel++;
       newXpToNext = Math.floor(newXpToNext * 1.2) + 5;
-      
+
       // Stage evolution
       if (newLevel === 10) newStage = 'seedling';
       if (newLevel === 20) newStage = 'juvenile';
@@ -404,7 +421,7 @@ export class GameService {
       if (newLevel === 45) newStage = 'ancient';
     }
 
-    const newStats = this.calculateCardStats(plant, checkIns, card.rarity);
+    const newStats = this.calculateCardStats(plant, allCheckIns, card.rarity);
 
     await db.cards.update(card.id, {
       level: newLevel,
@@ -413,6 +430,7 @@ export class GameService {
       growthStage: newStage,
       abilityUnlocked: newLevel >= 25,
       stats: newStats,
+      battleScars,
       checkInsTotal: card.checkInsTotal + 1,
       checkInsHealthy: checkIn.guardianScore >= 80 ? card.checkInsHealthy + 1 : card.checkInsHealthy,
       daysAlive: Math.floor((Date.now() - new Date(plant.createdAt).getTime()) / (1000 * 60 * 60 * 24))
@@ -431,6 +449,13 @@ export class GameService {
     if (checkIn.guardianScore >= 95 && checkIn.photoBlob) { // Require photo for precision bonus
       await this.addSeeds(ECONOMY_CONFIG.EARNING_BASE.perfect_checkin, 'checkin', `Perfect Check-in Bonus`, card.userId);
     }
+
+    return {
+      leveledUp: newLevel > card.level,
+      stageChanged: newStage !== card.growthStage,
+      newLevel,
+      newStage
+    };
   }
 
   // Care-Off Challenges
