@@ -470,6 +470,13 @@ function AddPlantModal({
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  const [existingPlants, setExistingPlants] = useState<Plant[]>([]);
+  const [parentPlantId, setParentPlantId] = useState('');
+  const [propagationMethod, setPropagationMethod] = useState<Plant['propagationMethod']>(null);
+
+  useEffect(() => {
+    if (isOpen) PlantService.fetchPlants().then(setExistingPlants);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -510,6 +517,8 @@ function AddPlantModal({
         guardianScore: 92,
         status: 'Stable',
         photoUrl: uploadedPhotoUrl,
+        parentPlantId: parentPlantId || null,
+        propagationMethod: parentPlantId ? propagationMethod : null,
       });
       onClose();
     } catch (err: any) {
@@ -543,6 +552,28 @@ function AddPlantModal({
               Persisted directly to Supabase Postgres with RLS
             </p>
           </div>
+
+          {existingPlants.length > 0 && (
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695]">
+                Propagated from
+                <select value={parentPlantId} onChange={e => setParentPlantId(e.target.value)} className="mt-1 w-full rounded-lg border border-[#dcd2c0] bg-white px-2 py-2 text-xs dark:bg-[#251d16]">
+                  <option value="">New root specimen</option>
+                  {existingPlants.map(candidate => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
+                </select>
+              </label>
+              <label className="text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695]">
+                Method
+                <select value={propagationMethod || ''} onChange={e => setPropagationMethod((e.target.value || null) as Plant['propagationMethod'])} disabled={!parentPlantId} className="mt-1 w-full rounded-lg border border-[#dcd2c0] bg-white px-2 py-2 text-xs disabled:opacity-50 dark:bg-[#251d16]">
+                  <option value="">Choose method</option>
+                  <option value="cutting">Cutting</option>
+                  <option value="division">Division</option>
+                  <option value="seed">Seed</option>
+                  <option value="offset">Offset</option>
+                </select>
+              </label>
+            </div>
+          )}
           <button
             onClick={onClose}
             className="text-xs font-mono font-bold text-[#8c6e38] hover:text-[#2b2118] dark:hover:text-white"
@@ -676,5 +707,4 @@ function AddPlantModal({
     </div>
   );
 }
-
 

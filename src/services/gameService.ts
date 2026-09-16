@@ -149,8 +149,10 @@ export class GameService {
     amount: number, 
     source: SeedTransaction['source'], 
     description: string, 
-    userId: string = this.getUserId()
+    userId: string = this.getUserId(),
+    transactionId: string = crypto.randomUUID()
   ) {
+    if (await db.seedTransactions.get(transactionId)) return;
     const profile = await this.ensureProfile(userId);
     const multiplier = SEED_MULTIPLIERS[profile.tier || 'free'];
     const finalAmount = Math.floor(amount * multiplier);
@@ -160,7 +162,7 @@ export class GameService {
 
     // Record transaction
     const transaction: SeedTransaction = {
-      id: crypto.randomUUID(),
+      id: transactionId,
       userId,
       amount: finalAmount,
       source,
@@ -445,11 +447,17 @@ export class GameService {
       checkInId: checkIn.id
     });
 
-    // Seeds for check-in
-    await this.addSeeds(ECONOMY_CONFIG.EARNING_BASE.checkin, 'checkin', `Check-in: ${plant.name}`, card.userId);
-    if (checkIn.guardianScore >= 95 && checkIn.photoBlob) { // Require photo for precision bonus
-      await this.addSeeds(ECONOMY_CONFIG.EARNING_BASE.perfect_checkin, 'checkin', `Perfect Check-in Bonus`, card.userId);
-    }
+    // One transaction per check-in keeps retries idempotent server-side.
+    const perfectBonus = checkIn.guardianScore >= 95 && checkIn.photoBlob
+      ? ECONOMY_CONFIG.EARNING_BASE.perfect_checkin
+      : 0;
+    await this.addSeeds(
+      ECONOMY_CONFIG.EARNING_BASE.checkin + perfectBonus,
+      'checkin',
+      perfectBonus ? `Check-in: ${plant.name} (precision bonus)` : `Check-in: ${plant.name}`,
+      card.userId,
+      checkIn.id
+    );
 
     return {
       leveledUp: newLevel > card.level,

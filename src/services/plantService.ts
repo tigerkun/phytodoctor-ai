@@ -30,6 +30,9 @@ export function postgresToPlant(row: any): Plant {
     createdAt: row.created_at ? new Date(row.created_at) : new Date(),
     updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
     isDemo: Boolean(row.is_demo),
+    parentPlantId: row.parent_plant_id ?? null,
+    propagationMethod: row.propagation_method ?? null,
+    generation: typeof row.generation === 'number' ? row.generation : 1,
   };
 }
 
@@ -80,6 +83,9 @@ export function plantToPostgres(plant: Partial<Plant>, userId?: string): Record<
   }
 
   if (plant.isDemo !== undefined) payload.is_demo = Boolean(plant.isDemo);
+  if (plant.parentPlantId !== undefined) payload.parent_plant_id = plant.parentPlantId;
+  if (plant.propagationMethod !== undefined) payload.propagation_method = plant.propagationMethod;
+  if (plant.generation !== undefined) payload.generation = plant.generation;
 
   return payload;
 }
@@ -176,6 +182,12 @@ export const PlantService = {
       resolvedUserId = GameService.getUserId();
     }
 
+    let generation = input.generation ?? 1;
+    if (input.parentPlantId) {
+      const parent = await this.getPlant(input.parentPlantId);
+      if (!parent || parent.userId !== resolvedUserId) throw new Error('Parent specimen not found.');
+      generation = (parent.generation || 1) + 1;
+    }
     const newPlant: Plant = {
       id,
       userId: resolvedUserId,
@@ -198,6 +210,9 @@ export const PlantService = {
       createdAt: now,
       updatedAt: now,
       isDemo: Boolean(input.isDemo),
+      parentPlantId: input.parentPlantId ?? null,
+      propagationMethod: input.propagationMethod ?? null,
+      generation,
     };
 
     if (supabase) {

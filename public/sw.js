@@ -60,6 +60,21 @@ self.addEventListener('fetch', (event) => {
         // Fallback for offline access
         return caches.match('/index.html');
       });
+
+      self.addEventListener('push', (event) => {
+        const data = event.data?.json() || {};
+        event.waitUntil(self.registration.showNotification(data.title || 'PhytoDoctor alert', {
+          body: data.body || 'A specimen needs your attention.',
+          icon: '/manifest.json',
+          tag: data.tag || 'plant-alert',
+          data: { url: data.url || '/' }
+        }));
+      });
+
+      self.addEventListener('notificationclick', (event) => {
+        event.notification.close();
+        event.waitUntil(clients.openWindow(event.notification.data?.url || '/'));
+      });
     })
   );
 });
