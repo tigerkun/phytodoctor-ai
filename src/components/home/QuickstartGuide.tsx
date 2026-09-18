@@ -54,7 +54,7 @@ export function QuickstartGuide({ onAddPlant, onRefreshProfile }: QuickstartGuid
   const handleClaimBonus = async () => {
     if (claimedBonus) return;
     try {
-      await GameService.addSeeds(500, 'bonus', 'Starter Welcome Bonus');
+      await GameService.earnSeeds(500, 'bonus', 'Starter Welcome Bonus');
       localStorage.setItem('claimed_starter_bonus', 'true');
       setClaimedBonus(true);
       success('🎁 Welcome Bonus claimed! +500 Seeds added to wallet!');

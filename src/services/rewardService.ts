@@ -120,8 +120,10 @@ export class RewardService {
     // Apply streak multiplier to active rewards
     if (action.capsCategory === 'active') {
       const streak = await this.ensureStreakRecord(userId);
-      xpAwarded = Math.floor(xpAwarded * streak.streakMultiplier);
-      seedsAwarded = Math.floor(seedsAwarded * streak.streakMultiplier);
+      // BUG-01 Fix: compute multiplier dynamically instead of relying on potentially stale DB field
+      const dynamicStreakMultiplier = this.getStreakMultiplier(streak.currentStreak);
+      xpAwarded = Math.floor(xpAwarded * dynamicStreakMultiplier);
+      seedsAwarded = Math.floor(seedsAwarded * dynamicStreakMultiplier);
 
       // Check daily active seed cap
       const dailyCap = await this.ensureDailyRewardCap(userId);
@@ -323,15 +325,12 @@ export class RewardService {
       streak.currentStreak = 1;
     }
 
-    // Check for streak milestones
-    const multiplierData = STREAK_MULTIPLIERS.find(m => m.day === streak.currentStreak);
-    if (multiplierData) {
-      streak.streakMultiplier = multiplierData.multiplier;
-    }
-
     streak.longestStreak = Math.max(streak.longestStreak, streak.currentStreak);
     streak.lastLoginDate = today;
     streak.nextResetDate = this.getNextMonthDateStr();
+
+    // Make sure we write the purely calculated multiplier just in case other things read it
+    streak.streakMultiplier = this.getStreakMultiplier(streak.currentStreak);
 
     await db.streakRecords.put(streak);
     return { currentStreak: streak.currentStreak, continuedToday };
@@ -370,9 +369,8 @@ export class RewardService {
     return false;
   }
 
-  static async getStreakMultiplier(streak: number): Promise<number> {
-    const multiplierData = STREAK_MULTIPLIERS.find(m => m.day <= streak);
-    return multiplierData?.multiplier || 1.0;
+  static getStreakMultiplier(streak: number): number {
+    return STREAK_MULTIPLIERS.reduce((max, m) => m.day <= streak && m.multiplier > max ? m.multiplier : max, 1.0);
   }
 
   // ============ UTILITY HELPERS ============

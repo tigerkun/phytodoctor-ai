@@ -75,12 +75,12 @@ export class GameService {
     if (profile.seeds < GameService.PRO_UPGRADE_COST) {
       throw new Error(`Insufficient seeds. You need ${(GameService.PRO_UPGRADE_COST - profile.seeds).toLocaleString()} more.`);
     }
-    await this.addSeeds(-GameService.PRO_UPGRADE_COST, 'spend', 'Upgraded to Pro Commission', userId);
+    await this.spendSeeds(GameService.PRO_UPGRADE_COST, 'spend', 'Upgraded to Pro Commission', userId);
     try {
       await this.upgradeToPro(userId);
     } catch (err) {
       // Refund if the tier upgrade failed after the deduction.
-      await this.addSeeds(GameService.PRO_UPGRADE_COST, 'bonus', 'Pro upgrade refund', userId);
+      await this.earnSeeds(GameService.PRO_UPGRADE_COST, 'bonus', 'Pro upgrade refund', userId);
       throw err;
     }
   }
@@ -121,15 +121,46 @@ export class GameService {
     }
   }
 
-  private static syncSeedsToServer(userId: string, amount: number, source: string, description: string, transactionId: string) {
+  private static async syncSeedsToServer(userId: string, amount: number, source: string, description: string, transactionId: string) {
+    if (!userId.startsWith('sb_')) return;
+    
+    // 1. Add to outbox
+    await db.seedSyncOutbox.put({
+      id: transactionId,
+      userId,
+      amount,
+      source,
+      description
+    });
+    
+    // 2. Try to flush the outbox
+    await this.flushSeedSyncOutbox();
+  }
+
+  static async flushSeedSyncOutbox() {
+    const userId = this.getUserId();
     if (!userId.startsWith('sb_')) return;
     const token = localStorage.getItem('botanical_guardian_auth_token');
     if (!token) return;
-    fetch('/api/economy/seed-sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ delta: amount, source, description, transactionId })
-    }).catch(() => { /* local balance stays authoritative offline */ });
+
+    const pending = await db.seedSyncOutbox.where('userId').equals(userId).toArray();
+    for (const item of pending) {
+      try {
+        const res = await fetch('/api/economy/seed-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ delta: item.amount, source: item.source, description: item.description, transactionId: item.id })
+        });
+
+        if (res.ok || (res.status >= 400 && res.status < 500)) {
+           // 2xx or 4xx -> clear from outbox
+           await db.seedSyncOutbox.delete(item.id);
+        }
+      } catch (err) {
+        // Network error -> keep in outbox for retry later
+        break; // stop flushing if offline
+      }
+    }
   }
 
   static async purchaseProUpgradeWithServer(userId: string = this.getUserId()) {
@@ -145,20 +176,21 @@ export class GameService {
     return true;
   }
 
-  static async addSeeds(
+  static async earnSeeds(
     amount: number, 
     source: SeedTransaction['source'], 
     description: string, 
     userId: string = this.getUserId(),
     transactionId: string = crypto.randomUUID()
   ) {
+    if (amount < 0) throw new Error('earnSeeds amount must be non-negative');
     if (await db.seedTransactions.get(transactionId)) return;
     const profile = await this.ensureProfile(userId);
     const multiplier = SEED_MULTIPLIERS[profile.tier || 'free'];
     const finalAmount = Math.floor(amount * multiplier);
 
     // Update profile
-    await db.userProfile.update(userId, { seeds: Math.max(0, profile.seeds + finalAmount) });
+    await db.userProfile.update(userId, { seeds: profile.seeds + finalAmount });
 
     // Record transaction
     const transaction: SeedTransaction = {
@@ -170,9 +202,36 @@ export class GameService {
       createdAt: new Date()
     };
     await db.seedTransactions.add(transaction);
-
-    // Mirror the applied delta to the server ledger when cloud-synced.
     this.syncSeedsToServer(userId, finalAmount, source, description, transaction.id);
+  }
+
+  // BUG-03 evidence: -- select count(*) from profiles; -- result pending user run
+  static async spendSeeds(
+    amount: number, 
+    source: SeedTransaction['source'], 
+    description: string, 
+    userId: string = this.getUserId(),
+    transactionId: string = crypto.randomUUID()
+  ) {
+    if (amount < 0) throw new Error('spendSeeds amount must be non-negative');
+    if (await db.seedTransactions.get(transactionId)) return;
+    const profile = await this.ensureProfile(userId);
+    const finalAmount = Math.floor(amount); // No multiplier on spend
+
+    // Update profile
+    await db.userProfile.update(userId, { seeds: Math.max(0, profile.seeds - finalAmount) });
+
+    // Record transaction
+    const transaction: SeedTransaction = {
+      id: transactionId,
+      userId,
+      amount: -finalAmount,
+      source,
+      description,
+      createdAt: new Date()
+    };
+    await db.seedTransactions.add(transaction);
+    this.syncSeedsToServer(userId, -finalAmount, source, description, transaction.id);
   }
 
   static async purchaseItem(itemId: string, userId: string = this.getUserId()) {
@@ -189,7 +248,7 @@ export class GameService {
     }
 
     // Deduct seeds
-    await this.addSeeds(-item.price, 'spend', `Purchased ${item.name}`, userId);
+    await this.spendSeeds(item.price, 'spend', `Purchased ${item.name}`, userId);
 
     // Add cosmetic
     const cosmetic: UserCosmetic = {
@@ -333,7 +392,7 @@ export class GameService {
     const previouslyDiscovered = profile.discoveredSpecies?.includes(plant.species);
     
     if (!previouslyDiscovered) {
-      await this.addSeeds(ECONOMY_CONFIG.EARNING_BASE.new_plant, 'bonus', `Discovered ${plant.species}`, userId);
+      await this.earnSeeds(ECONOMY_CONFIG.EARNING_BASE.new_plant, 'bonus', `Discovered ${plant.species}`, userId);
       await db.userProfile.update(userId, {
         discoveredSpecies: [...(profile.discoveredSpecies || []), plant.species]
       });
@@ -451,7 +510,7 @@ export class GameService {
     const perfectBonus = checkIn.guardianScore >= 95 && checkIn.photoBlob
       ? ECONOMY_CONFIG.EARNING_BASE.perfect_checkin
       : 0;
-    await this.addSeeds(
+    await this.earnSeeds(
       ECONOMY_CONFIG.EARNING_BASE.checkin + perfectBonus,
       'checkin',
       perfectBonus ? `Check-in: ${plant.name} (precision bonus)` : `Check-in: ${plant.name}`,
@@ -499,7 +558,7 @@ export class GameService {
     await db.careOffs.add(careOff);
 
     if (result === 'win') {
-      await this.addSeeds(ECONOMY_CONFIG.EARNING_BASE.arena_win, 'bonus', 'Care-Off Victory', userId);
+      await this.earnSeeds(ECONOMY_CONFIG.EARNING_BASE.arena_win, 'bonus', 'Care-Off Victory', userId);
     }
   }
 
@@ -532,7 +591,7 @@ export class GameService {
     }
 
     // Spend seeds for propagation
-    await this.addSeeds(-ECONOMY_CONFIG.CONVENIENCE_COSTS.propagation_basic, 'spend', 'Propagation Attempt', userId);
+    await this.spendSeeds(ECONOMY_CONFIG.CONVENIENCE_COSTS.propagation_basic, 'spend', 'Propagation Attempt', userId);
 
     const success = Math.random() > (isHybrid ? 0.7 : 0.4);
     

@@ -303,7 +303,7 @@ export default function BotanicalLab() {
           return;
         }
 
-        await GameService.addSeeds(15, 'bonus', 'Updated plant photo check-in');
+        await GameService.earnSeeds(15, 'bonus', 'Updated plant photo check-in');
         const streakRes = await updateUploadStreak(userId);
         if (streakRes.continuedToday) {
           setStreakPopupData({ streak: streakRes.currentStreak, seeds: 15 });

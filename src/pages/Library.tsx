@@ -761,7 +761,7 @@ export default function Library() {
         setBestStreak(newStreak);
         localStorage.setItem('botanical_quiz_best_streak', String(newStreak));
       }
-      await GameService.addSeeds(25, 'bonus', 'Library Puzzle Solved');
+      await GameService.earnSeeds(25, 'bonus', 'Library Puzzle Solved');
       setQuizMessage(`✅ Correct! +25 seeds · the sprout climbed ${PACES_PER_SOLVE} paces. ${dailyQuiz.explanation}`);
     } else {
       // Streak snapped: sprout tumbles back to the compost.

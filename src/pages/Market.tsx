@@ -578,7 +578,7 @@ export default function GardenMarket() {
       cost,
       onConfirm: async () => {
         try {
-          await GameService.addSeeds(-cost, 'spend', `Claimed ₹${refundValue} seed discount for ${product?.name || 'Product'}`);
+          await GameService.spendSeeds(cost, 'spend', `Claimed ₹${refundValue} seed discount for ${product?.name || 'Product'}`);
           const record: ClaimedRefund = {
             id,
             code: makeRefundCode(),
@@ -644,7 +644,7 @@ export default function GardenMarket() {
       return;
     }
     try {
-      await GameService.addSeeds(-voucher.seedCost, 'spend', `Punched ticket: ${voucher.title}`);
+      await GameService.spendSeeds(voucher.seedCost, 'spend', `Punched ticket: ${voucher.title}`);
       setRedeemedTickets([...redeemedTickets, id]);
       setAppliedTicketId(id);
       reward(`Punched ${voucher.title}`);
@@ -1065,7 +1065,7 @@ export default function GardenMarket() {
                     cost: totalSeedsNeeded,
                     onConfirm: async () => {
                       try {
-                        await GameService.addSeeds(-totalSeedsNeeded, 'spend', `Cart checkout: ${cartItems.length} items`);
+                        await GameService.spendSeeds(totalSeedsNeeded, 'spend', `Cart checkout: ${cartItems.length} items`);
 
                         const record: ClaimedRefund = {
                           id: `order-${Date.now()}`,

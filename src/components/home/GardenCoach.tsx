@@ -132,7 +132,7 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
 
     // Grant seeds proportionally
     const baseReward = Math.ceil(activePlan.seedsReward / activePlan.steps.length);
-    await GameService.addSeeds(baseReward, 'bonus', `Completed step for ${selectedPlant?.nickname || 'plant'}`);
+    await GameService.earnSeeds(baseReward, 'bonus', `Completed step for ${selectedPlant?.nickname || 'plant'}`);
     onRefreshProfile();
   };
 
@@ -148,7 +148,7 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
 
     // Grant remaining seeds
     const baseReward = Math.ceil(activePlan.seedsReward / activePlan.steps.length);
-    await GameService.addSeeds(uncompletedCount * baseReward, 'bonus', `Completed all tasks for ${selectedPlant?.nickname || 'plant'}`);
+    await GameService.earnSeeds(uncompletedCount * baseReward, 'bonus', `Completed all tasks for ${selectedPlant?.nickname || 'plant'}`);
     onRefreshProfile();
   };
 
@@ -163,7 +163,7 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
 
     try {
       // Deduct seeds
-      await GameService.addSeeds(-cost, 'spend', `Purchased ${itemName} from coach`);
+      await GameService.spendSeeds(cost, 'spend', `Purchased ${itemName} from coach`);
       triggerHaptic('medium');
       playAudio('success');
       onRefreshProfile();

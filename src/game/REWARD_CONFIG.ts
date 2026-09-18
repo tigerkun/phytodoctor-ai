@@ -468,11 +468,11 @@ export const LEVEL_TIERS: LevelTier[] = [
 // ============ C. STREAK SYSTEM ============
 
 export const STREAK_MULTIPLIERS: StreakMultiplier[] = [
-  { day: 7, multiplier: 2.0, milestoneBonus: { xp: 50, seeds: 50 }, badgeUnlock: 'week-warrior' },
-  { day: 14, multiplier: 2.5, milestoneBonus: { xp: 100, seeds: 100 }, badgeUnlock: 'diligent' },
-  { day: 30, multiplier: 3.0, milestoneBonus: { xp: 200, seeds: 200 }, badgeUnlock: 'seasoned' },
-  { day: 60, multiplier: 3.5, milestoneBonus: { xp: 400, seeds: 400 }, badgeUnlock: 'devoted' },
-  { day: 100, multiplier: 5.0, milestoneBonus: { xp: 800, seeds: 800 }, badgeUnlock: 'century-bloom' }
+  { day: 7, multiplier: 1.25, milestoneBonus: { xp: 50, seeds: 50 }, badgeUnlock: 'week-warrior' },
+  { day: 14, multiplier: 1.5, milestoneBonus: { xp: 100, seeds: 100 }, badgeUnlock: 'diligent' },
+  { day: 30, multiplier: 2.0, milestoneBonus: { xp: 200, seeds: 200 }, badgeUnlock: 'seasoned' },
+  { day: 60, multiplier: 2.5, milestoneBonus: { xp: 400, seeds: 400 }, badgeUnlock: 'devoted' },
+  { day: 100, multiplier: 3.0, milestoneBonus: { xp: 800, seeds: 800 }, badgeUnlock: 'century-bloom' }
 ];
 
 // ============ D. CAPS & LIMITS ============

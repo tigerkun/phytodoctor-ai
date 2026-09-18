@@ -46,9 +46,10 @@ app.use((req, res, next) => {
 const RATE_WINDOW_MS = 60_000;
 const GENERAL_RATE_LIMIT = 60;
 const AI_RATE_LIMIT = 15;
-const rateCounts = new Map<string, { count: number; resetAt: number }>();
+const generalRateCounts = new Map<string, { count: number; resetAt: number }>();
+const aiRateCounts = new Map<string, { count: number; resetAt: number }>();
 
-function makeLimiter(limit: number) {
+function makeLimiter(limit: number, map: Map<string, { count: number; resetAt: number }>) {
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
     // Rightmost X-Forwarded-For entry: the trusted proxy (Render) appends the
     // real client address after any client-supplied entries, so the last value
@@ -58,9 +59,9 @@ function makeLimiter(limit: number) {
     const entries = typeof xff === 'string' ? xff.split(',').map(s => s.trim()).filter(Boolean) : [];
     const ip = (entries.length > 0 ? entries[entries.length - 1] : (req.ip || req.socket.remoteAddress || 'unknown'));
     const now = Date.now();
-    const entry = rateCounts.get(ip);
+    const entry = map.get(ip);
     if (!entry || now > entry.resetAt) {
-      rateCounts.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+      map.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
     } else {
       entry.count++;
       if (entry.count > limit) {
@@ -71,15 +72,16 @@ function makeLimiter(limit: number) {
   };
 }
 
-const generalLimiter = makeLimiter(GENERAL_RATE_LIMIT);
-const aiLimiter = makeLimiter(AI_RATE_LIMIT);
+const generalLimiter = makeLimiter(GENERAL_RATE_LIMIT, generalRateCounts);
+const aiLimiter = makeLimiter(AI_RATE_LIMIT, aiRateCounts);
 
 app.use('/api', generalLimiter);
 
 // Periodically evict stale limiter entries so the Map cannot grow unbounded.
 setInterval(() => {
   const now = Date.now();
-  for (const [ip, entry] of rateCounts) if (now > entry.resetAt) rateCounts.delete(ip);
+  for (const [ip, entry] of generalRateCounts) if (now > entry.resetAt) generalRateCounts.delete(ip);
+  for (const [ip, entry] of aiRateCounts) if (now > entry.resetAt) aiRateCounts.delete(ip);
   const today = new Date().toISOString().slice(0, 10);
   for (const key of usageCounts.keys()) if (!key.includes(`:${today}:`)) usageCounts.delete(key);
 }, 5 * 60_000).unref();
@@ -168,8 +170,9 @@ function apiGate(req: express.Request, res: express.Response, next: express.Next
 // expose SUPABASE_SERVICE_KEY to the client bundle.
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 let supabaseAdmin: any = null;
+let supabaseAdminPromise: Promise<void> | null = null;
 if (SUPABASE_URL && SUPABASE_SERVICE_KEY && (globalThis as any).__createSupabaseAdmin !== true) {
-  import('@supabase/supabase-js').then(({ createClient }) => {
+  supabaseAdminPromise = import('@supabase/supabase-js').then(({ createClient }) => {
     supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
     console.log('Economy admin client ready (service role).');
   }).catch((err) => console.error('Supabase admin init failed:', err?.message));
@@ -337,11 +340,12 @@ app.get('/healthz', (_req, res) => {
     gemini: Boolean(process.env.GEMINI_API_KEY),
     razorpay: Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET && RAZORPAY_WEBHOOK_SECRET),
   };
-  const ready = process.env.NODE_ENV !== 'production'
-    ? true
-    : configured.supabase && Boolean(supabaseAuthClient && supabaseAdmin);
-  res.status(ready ? 200 : 503).json({
-    status: ready ? 'ok' : 'degraded',
+  
+  const isMisconfigured = process.env.NODE_ENV === 'production' && !configured.supabase;
+  const ready = isMisconfigured ? false : Boolean(supabaseAuthClient && supabaseAdmin) || process.env.NODE_ENV !== 'production';
+  
+  res.status(isMisconfigured ? 503 : 200).json({
+    status: isMisconfigured ? 'degraded' : 'ok',
     configured,
     ready,
   });
@@ -843,15 +847,15 @@ app.post("/api/economy/seed-sync", express.json({ limit: '16kb' }), apiGate, asy
     if (!['checkin', 'bonus', 'spend', 'reward'].includes(String(source))) {
       return fail(res, 400, "Invalid seed source.");
     }
-    const requestTransactionId = typeof transactionId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(transactionId)
-      ? transactionId
-      : randomUUID();
+    if (!transactionId || typeof transactionId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(transactionId)) {
+      return fail(res, 400, "Missing or invalid transactionId.");
+    }
     const { data: next, error } = await client.rpc('increment_seeds', {
       p_user_id: userId,
       p_amount: d,
       p_source: String(source || 'bonus').slice(0, 40),
       p_description: String(description || '').slice(0, 200),
-      p_transaction_id: requestTransactionId
+      p_transaction_id: transactionId
     });
     if (error) return fail(res, 500, "Could not sync seeds.");
     res.json({ seeds: next });
@@ -987,6 +991,17 @@ async function startServer() {
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
+  }
+
+  if (supabaseAdminPromise) {
+    try {
+      await Promise.race([
+        supabaseAdminPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 7000))
+      ]);
+    } catch (err) {
+      console.warn('Supabase admin init timed out or failed, continuing boot');
+    }
   }
 
   app.listen(PORT, "0.0.0.0", () => {
