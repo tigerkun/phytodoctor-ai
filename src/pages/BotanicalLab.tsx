@@ -303,18 +303,19 @@ export default function BotanicalLab() {
           return;
         }
 
+        const today = new Date();
+        const cloudUrl = await StorageService.uploadPlantPhoto(file, userId);
+        if (!cloudUrl) {
+          throw new Error("Failed to upload photo to secure vault.");
+        }
+
+        // BUG-06 fix: seeds granted after successful upload — retry-safe
         await GameService.earnSeeds(15, 'bonus', 'Updated plant photo check-in');
         const streakRes = await updateUploadStreak(userId);
         if (streakRes.continuedToday) {
           setStreakPopupData({ streak: streakRes.currentStreak, seeds: 15 });
         }
         triggerCoinBurst();
-        
-        const today = new Date();
-        const cloudUrl = await StorageService.uploadPlantPhoto(file, userId);
-        if (!cloudUrl) {
-          throw new Error("Failed to upload photo to secure vault.");
-        }
 
         await PlantService.updatePlant(targetPlantId, {
           checkInTime: 'just now',
@@ -322,8 +323,6 @@ export default function BotanicalLab() {
           photoUrl: cloudUrl
         });
 
-
-        
         await db.checkins.add({
           id: crypto.randomUUID(),
           plantId: targetPlantId,
@@ -342,6 +341,7 @@ export default function BotanicalLab() {
           weatherDescription: 'Sunny',
           synced: 0
         });
+
       } catch (err: any) {
         console.error("Specimen update error:", err);
         setScanError(err.message || "Failed to process specimen update photo.");
