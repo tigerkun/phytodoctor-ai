@@ -16,10 +16,11 @@
 ## Verified & Fixed
 - **BUG-01**: Streak multiplier: `reduce`-max over `STREAK_MULTIPLIERS` replaces ascending `find`. Returns correct tier at streak=6 (1.0×), 7 (1.25×), 30 (2.0×). Tested.
 - **BUG-03**: `earnSeeds`/`spendSeeds` split — multiplier on earnings only, spend is 1:1. Tested.
+- **BUG-06**: `earnSeeds` moved to after `uploadPlantPhoto` succeeds in `BotanicalLab.tsx`. Each `earnSeeds` call generates a new `crypto.randomUUID()` so retries were NOT idempotent — exploit window confirmed. Fix: 3-line reorder, no new abstraction. Commit `cb9b5ba`.
 - **SEC-03**: Rate limiters decoupled — separate `Map` instances per tier, eviction sweep on both.
 - **SEC-09**: `ENV NODE_ENV=production` in `Dockerfile`. ✅
-- **SEC-10**: `transactionId` required server-side (400 without). Client outbox in `gameService.syncSeedsToServer` — dead-letters on 4xx, retains on 5xx/network. `flushSeedSyncOutbox` called after every earn/spend.
-- **SEC-11**: `startServer()` awaits Supabase admin init with 5s timeout. `/healthz` answers unconditionally (200 unless production misconfiguration → 503).
+- **SEC-10**: `transactionId` required server-side (400 without). Client outbox in `gameService.syncSeedsToServer` — dead-letters on 4xx, retains on 5xx/network. `flushSeedSyncOutbox` hooked to `window.addEventListener('online', ...)` in `main.tsx` — persists across app restarts.
+- **SEC-11**: `startServer()` awaits Supabase admin init with 7s timeout. `/healthz` answers unconditionally (200 unless production misconfiguration → 503).
 
 ## 35 Untriaged — Backlog, NOT Cleared
 This batch focuses solely on critical recovery fixes. 35 audit claims remain untriaged and have been moved to the post-merge backlog.
