@@ -15,12 +15,21 @@
 
 ## Verified & Fixed
 - **BUG-01**: Streak multiplier: `reduce`-max over `STREAK_MULTIPLIERS` replaces ascending `find`. Returns correct tier at streak=6 (1.0×), 7 (1.25×), 30 (2.0×). Tested.
+- **BUG-02**: Empty check-in guard in `src/forecasting/ruleEngine.ts` prevents `TypeError: Cannot read properties of undefined` on newly registered plants. Tested.
 - **BUG-03**: `earnSeeds`/`spendSeeds` split — multiplier on earnings only, spend is 1:1. Tested.
-- **BUG-06**: `earnSeeds` moved to after `uploadPlantPhoto` succeeds in `BotanicalLab.tsx`. Each `earnSeeds` call generates a new `crypto.randomUUID()` so retries were NOT idempotent — exploit window confirmed. Fix: 3-line reorder, no new abstraction. Commit `cb9b5ba`.
+- **BUG-03-offline**: Offline check-in data loss in `src/components/CheckInFlow.tsx`: local Dexie persistence decoupled from cloud Supabase upload; photos cached in Dexie first. Tested.
+- **BUG-06**: `earnSeeds` moved to after `uploadPlantPhoto` succeeds in `BotanicalLab.tsx`. Retries cannot duplicate bonuses. Commit `cb9b5ba`.
+- **BUG-07**: Stream double-read error in `src/services/geminiService.ts`: reads `response.text()` first, then `JSON.parse()` — resolves `TypeError: Body is unusable: Body has already been read` on Cloudflare 502/504 errors. Tested.
+- **PERF-01**: Visual drift detection in `src/services/driftDetector.ts` chunked via `yieldToMain` (with `requestIdleCallback({ timeout: 50 })` and `setTimeout` fallback), eliminating 300ms+ main-thread UI freezes. Tested.
+- **PERF-02**: GPU memory leak in `src/services/driftDetector.ts`: `ImageBitmap.close()` wrapped in `try...finally` guarantees texture deallocation. Tested.
+- **UX-01**: Global `cursor: none !important` in `src/index.css` removed; native cursor and pointer interactions restored on desktop. Tested.
 - **SEC-03**: Rate limiters decoupled — separate `Map` instances per tier, eviction sweep on both.
+- **SEC-05**: Centralized 4-arg JSON error handler registered in `server.ts` preventing unhandled exceptions and JSON parse errors from leaking HTML stack traces. Tested.
 - **SEC-09**: `ENV NODE_ENV=production` in `Dockerfile`. ✅
 - **SEC-10**: `transactionId` required server-side (400 without). Client outbox in `gameService.syncSeedsToServer` — dead-letters on 4xx, retains on 5xx/network. `flushSeedSyncOutbox` hooked to `window.addEventListener('online', ...)` in `main.tsx` — persists across app restarts.
 - **SEC-11**: `startServer()` awaits Supabase admin init with 7s timeout. `/healthz` answers unconditionally (200 unless production misconfiguration → 503).
+- **Gemini Model GA Alignment**: `server.ts` fallback chain updated to stable GA IDs (`gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`), eliminating deprecated preview endpoints and fallback latency.
+- **Test Suite**: 24 tests passed across 3 test suites (`batch.test.ts`, `ruleEngine.challenge.test.ts`, `driftDetector.challenge.test.ts`). Strict typecheck passed (0 errors). Production build clean.
 
 ## 35 Untriaged — Backlog, NOT Cleared
 This batch focuses solely on critical recovery fixes. 35 audit claims remain untriaged and have been moved to the post-merge backlog.
