@@ -17,10 +17,6 @@
   color: #f4eee1;
 }
 
-/* Hide native cursor on desktop — replaced by CursorGlow component */
-@media (pointer: fine) {
-  *, *::before, *::after { cursor: none !important; }
-}
 
 :root[data-theme="day"] {
   --bg: linear-gradient(180deg, #87ceeb, #e8f4e8, #f5f0e8);

@@ -18,27 +18,57 @@ export interface DriftResult {
   biasWarning?: string;
 }
 
+// ponytail: async chunking yields to event loop without Web Worker boilerplate; upgrade to OffscreenCanvas worker if canvas > 224x224
+const yieldToMain = (): Promise<void> =>
+  new Promise((resolve) => {
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(() => resolve(), { timeout: 50 });
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+
 // Convert image to signature using Canvas API
 export async function extractSignature(imageFile: Blob): Promise<PlantSignature> {
   const startTime = performance.now();
   const bitmap = await createImageBitmap(imageFile);
-  const canvas = document.createElement('canvas');
-  canvas.width = 224;
-  canvas.height = 224;
-  const ctx = canvas.getContext('2d')!;
-  ctx.drawImage(bitmap, 0, 0, 224, 224);
-  
-  const imageData = ctx.getImageData(0, 0, 224, 224);
-  const pixels = imageData.data; // Uint8ClampedArray, length = 224*224*4
-  
-  // 1. Mean RGB & Luminance
-  let rSum = 0, gSum = 0, bSum = 0;
-  for (let i = 0; i < pixels.length; i += 4) {
-    rSum += pixels[i];
-    gSum += pixels[i + 1];
-    bSum += pixels[i + 2];
+  let pixels: Uint8ClampedArray;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 224;
+    canvas.height = 224;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(bitmap, 0, 0, 224, 224);
+    pixels = ctx.getImageData(0, 0, 224, 224).data;
+  } finally {
+    bitmap.close();
   }
+  
+  // 1 & 2. Mean RGB, Luminance & HSV Histogram (chunked to prevent main-thread freeze)
   const pixelCount = 224 * 224;
+  let rSum = 0, gSum = 0, bSum = 0;
+  const hBins = new Array(16).fill(0);
+  const sBins = new Array(16).fill(0);
+  const vBins = new Array(16).fill(0);
+  const CHUNK_PIXELS = 8192;
+
+  for (let i = 0; i < pixels.length; i += 4) {
+    if (i > 0 && (i / 4) % CHUNK_PIXELS === 0) {
+      await yieldToMain();
+    }
+    const r = pixels[i];
+    const g = pixels[i + 1];
+    const b = pixels[i + 2];
+    rSum += r;
+    gSum += g;
+    bSum += b;
+
+    const [h, s, v] = rgbToHsv(r, g, b);
+    hBins[Math.min(15, Math.floor(h / 22.5))]++;
+    sBins[Math.min(15, Math.floor(s * 16))]++;
+    vBins[Math.min(15, Math.floor(v * 16))]++;
+  }
+
   const meanRgb: [number, number, number] = [
     rSum / pixelCount,
     gSum / pixelCount,
@@ -47,18 +77,6 @@ export async function extractSignature(imageFile: Blob): Promise<PlantSignature>
   
   // Rec. 709 luminance
   const luminance = (0.2126 * meanRgb[0] + 0.7152 * meanRgb[1] + 0.0722 * meanRgb[2]);
-
-  // 2. HSV Histogram (16 bins per channel)
-  const hBins = new Array(16).fill(0);
-  const sBins = new Array(16).fill(0);
-  const vBins = new Array(16).fill(0);
-  
-  for (let i = 0; i < pixels.length; i += 4) {
-    const [h, s, v] = rgbToHsv(pixels[i], pixels[i + 1], pixels[i + 2]);
-    hBins[Math.min(15, Math.floor(h / 22.5))]++;
-    sBins[Math.min(15, Math.floor(s * 16))]++;
-    vBins[Math.min(15, Math.floor(v * 16))]++;
-  }
   
   // Normalize bins
   const hsvHistogram = [
@@ -68,10 +86,10 @@ export async function extractSignature(imageFile: Blob): Promise<PlantSignature>
   ];
   
   // 3. Leaf contours (simplified: count connected regions of green-ish pixels)
-  const leafContours = estimateLeafContours(pixels);
+  const leafContours = await estimateLeafContours(pixels);
   
   // 4. Texture energy (edge density using simple gradient)
-  const textureEnergy = computeTextureEnergy(pixels, 224, 224);
+  const textureEnergy = await computeTextureEnergy(pixels, 224, 224);
   
   const duration = performance.now() - startTime;
   await TelemetryService.log('latency', Math.round(duration), 'CV_Extraction');
@@ -108,10 +126,14 @@ function rgbToHsv(r: number, g: number, b: number): [number, number, number] {
 }
 
 // Simple leaf contour estimation: threshold green channel, count blobs
-function estimateLeafContours(pixels: Uint8ClampedArray): number {
+async function estimateLeafContours(pixels: Uint8ClampedArray): Promise<number> {
   // Create binary mask: green-dominant pixels
   const mask = new Uint8Array(224 * 224);
+  const CHUNK_PIXELS = 8192;
   for (let i = 0; i < pixels.length; i += 4) {
+    if (i > 0 && (i / 4) % CHUNK_PIXELS === 0) {
+      await yieldToMain();
+    }
     const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
     // Green if G > R + 10 and G > B + 10
     mask[i / 4] = (g > r + 10 && g > b + 10) ? 1 : 0;
@@ -122,6 +144,9 @@ function estimateLeafContours(pixels: Uint8ClampedArray): number {
   let components = 0;
   
   for (let y = 0; y < 224; y++) {
+    if (y > 0 && y % 32 === 0) {
+      await yieldToMain();
+    }
     for (let x = 0; x < 224; x++) {
       const idx = y * 224 + x;
       if (mask[idx] && !visited[idx]) {
@@ -152,9 +177,12 @@ function estimateLeafContours(pixels: Uint8ClampedArray): number {
 }
 
 // Simple edge energy: sum of gradient magnitudes
-function computeTextureEnergy(pixels: Uint8ClampedArray, width: number, height: number): number {
+async function computeTextureEnergy(pixels: Uint8ClampedArray, width: number, height: number): Promise<number> {
   let energy = 0;
   for (let y = 1; y < height - 1; y++) {
+    if (y % 32 === 0) {
+      await yieldToMain();
+    }
     for (let x = 1; x < width - 1; x++) {
       const idx = (y * width + x) * 4;
       const right = ((y * width + (x + 1)) * 4);

@@ -365,8 +365,8 @@ const ai = new GoogleGenAI({
 async function generateWithRetry(params: any, retries = 1) {
   const envModel = process.env.GEMINI_MODEL;
   const models = envModel 
-    ? [envModel, "gemini-3.6-flash", "gemini-3-flash-preview", "gemini-2.0-flash", "gemini-1.5-flash"]
-    : ["gemini-3.6-flash", "gemini-3-flash-preview", "gemini-2.0-flash", "gemini-1.5-flash"];
+    ? [envModel, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    : ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
   
   for (const modelName of models) {
     for (let i = 0; i <= retries; i++) {
@@ -835,6 +835,15 @@ app.get("/api/economy/profile", apiGate, async (req, res) => {
 });
 
 // POST seed delta from the client (dual-write after local Dexie updates).
+// SEC-02 Architecture Rationale:
+// 1. Offline-First: Client records actions locally (IndexedDB) and syncs via outbox.
+// 2. Idempotency & Replay: Strict RFC 4122 UUID transactionId verified here; PostgreSQL RPC
+//    'increment_seeds' enforces 'ON CONFLICT (id) DO NOTHING' on seed_transactions table.
+// 3. Atomic Balance Integrity: Database enforces 'seeds + p_amount >= 0' and table
+//    check constraint. No pre-check in Express is needed, which avoids TOCTOU race
+//    conditions and redundant database round-trips.
+// 4. Column Privileges: Direct 'profiles.seeds' updates are REVOKED from authenticated role.
+// 5. Pro tier escalation is handled server-side via atomic RPC with row locks ('FOR UPDATE').
 app.post("/api/economy/seed-sync", express.json({ limit: '16kb' }), apiGate, async (req, res) => {
   try {
     const userId = (req as any).authUserId;
@@ -959,6 +968,20 @@ app.post("/api/billing/webhook", express.raw({ type: 'application/json', limit: 
     console.error("webhook error:", err?.message);
     fail(res, 500, "Webhook processing failed.");
   }
+});
+
+// ── Centralized Error Handler (SEC-05) ─────────────────────────────────────
+// Intercept JSON parse errors and unexpected exceptions to prevent stack traces
+// and internal file paths from leaking to the client in error responses.
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err instanceof SyntaxError && 'body' in err) {
+    return res.status(400).json({ error: 'Malformed JSON payload.' });
+  }
+  if (res.headersSent) {
+    return next(err);
+  }
+  console.error('[Server Error]', err?.message || err);
+  res.status(500).json({ error: 'Internal server error.' });
 });
 
 async function startServer() {

@@ -63,10 +63,15 @@ export async function identifyPlant(base64Image: string, location?: LocationCont
   // Surface real error to caller — never swallow it with fake data
   let errorMsg = `Server error (${response.status})`;
   try {
-    const parsed = await response.json();
-    errorMsg = parsed.error || errorMsg;
+    const rawText = await response.text();
+    try {
+      const parsed = JSON.parse(rawText);
+      errorMsg = parsed.error || errorMsg;
+    } catch {
+      errorMsg = rawText.substring(0, 200) || errorMsg;
+    }
   } catch {
-    errorMsg = await response.text().then(t => t.substring(0, 200)) || errorMsg;
+    // Fall back to default status message if text read fails
   }
   throw new Error(errorMsg);
 }

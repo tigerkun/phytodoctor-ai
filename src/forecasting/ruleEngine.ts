@@ -82,7 +82,7 @@ export function calculateRiskScore(input: ForecastInput): ForecastResult {
     // 3. Visual drift (The Deterministic Signal)
     const latestCheckIn = checkIns[checkIns.length - 1];
     // Calibration: Only alert if drift exceeds measured baseline variance (0.12)
-    if (latestCheckIn?.driftScore !== null) {
+    if (latestCheckIn && latestCheckIn.driftScore != null) {
       const drift = latestCheckIn.driftScore;
       if (drift > 0.12) {
         stressors.push('Unknown');

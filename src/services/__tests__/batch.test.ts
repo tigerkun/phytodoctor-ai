@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RewardService } from '../rewardService';
 import { GameService } from '../gameService';
 import { db } from '../../db/database';
+import { calculateRiskScore, type ForecastInput } from '../../forecasting/ruleEngine';
+import { TelemetryService } from '../telemetryService';
 
 describe('BUG-01: Streak milestone selection', () => {
   it('should calculate streak multipliers correctly without declaration-order reliance', () => {
@@ -62,5 +64,47 @@ describe('SEC-03: Rate-limit key non-collision', () => {
     expect(generalRateCounts.get(ip)).toBeDefined();
     expect(aiRateCounts.get(ip)).toBeDefined();
     expect(generalRateCounts).not.toBe(aiRateCounts);
+  });
+});
+
+describe('BUG-02: Empty Check-In handling in calculateRiskScore', () => {
+  it('should not throw TypeError when checkIns array is empty', () => {
+    vi.spyOn(TelemetryService, 'log').mockImplementation(async () => {});
+    const input: ForecastInput = {
+      plant: {
+        id: 'test-plant',
+        name: 'Monstera',
+        species: 'Monstera deliciosa',
+        acquiredAt: new Date(),
+        soilType: 'well-draining',
+        soilPh: null,
+        potSize: '10 inch',
+        potMaterial: 'terracotta',
+        location: 'Living room',
+        latitude: null,
+        longitude: null,
+        hardinessZone: null,
+        checkInTime: '09:00',
+        baselineSignature: null,
+        guardianScore: 80,
+        status: 'Stable',
+        photoUrl: '',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      checkIns: [],
+      sensorReadings: [],
+      weather: null
+    };
+
+    expect(() => calculateRiskScore(input)).not.toThrow();
+    const result = calculateRiskScore(input);
+    expect(result).toBeDefined();
+    expect(result.riskScore).toBe(0);
+    expect(result.confidence).toBe(10);
+    expect(result.alertThreshold).toBe('none');
+    expect(result.primaryStressor).toBe('Unknown');
+    expect(Array.isArray(result.reasoning)).toBe(true);
+    expect(Array.isArray(result.recommendedActions)).toBe(true);
   });
 });

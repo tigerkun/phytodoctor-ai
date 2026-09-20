@@ -118,12 +118,19 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
       
       let finalPhotoUrl: string | null = null;
       if (data.photoBlob) {
-        const userId = GameService.getUserId();
-        const cloudUrl = await StorageService.uploadPlantPhoto(data.photoBlob, userId);
-        if (!cloudUrl) {
-          throw new Error("Failed to upload check-in photo to secure vault.");
+        // Cache photo in local Dexie vault first (infallible offline storage)
+        const photoId = crypto.randomUUID();
+        await db.photos.put({ id: photoId, blob: data.photoBlob, createdAt: new Date() });
+        finalPhotoUrl = `local://photos/${photoId}`;
+
+        // Attempt cloud upload if online, but never block or abort local save if offline or failed
+        try {
+          const userId = GameService.getUserId();
+          const cloudUrl = await StorageService.uploadPlantPhoto(data.photoBlob, userId);
+          if (cloudUrl) finalPhotoUrl = cloudUrl;
+        } catch (uploadErr) {
+          console.warn('[CheckInFlow] Cloud photo upload deferred or offline:', uploadErr);
         }
-        finalPhotoUrl = cloudUrl;
       }
 
       const checkInId = crypto.randomUUID();
@@ -134,7 +141,7 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
         soilMoisture: data.soilMoisture as MoistureLevel,
         lightLevel: data.lightLevel as LightLevel,
         changes: data.changes,
-        photoBlob: null,
+        photoBlob: data.photoBlob || null,
         photoUrl: finalPhotoUrl,
         signature: driftResult?.signature || null,
         guardianScore: Math.max(0, Math.min(100, gScore)),
