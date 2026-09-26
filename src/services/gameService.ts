@@ -413,43 +413,43 @@ export class GameService {
     stageChanged: boolean;
     newLevel: number;
     newStage: GrowthStage;
-  }> {
+  } | null> {
     let card = await db.cards.where('plantId').equals(plantId).first();
     if (!card) {
       // Lazy generate if missing
       card = await this.generateCardForPlant(plantId);
     }
-    if (!card) return { leveledUp: false, stageChanged: false, newLevel: 0, newStage: 'sprout' };
+    if (!card) return null;
 
     const plant = await db.plants.get(plantId);
-    if (!plant) return { leveledUp: false, stageChanged: false, newLevel: card.level, newStage: card.growthStage };
+    if (!plant) return null;
 
-    const todayDate = new Date();
-    const today = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
-    const checkIns = await db.checkins.where('plantId').equals(plantId).toArray();
+    // Battle scar: earned by recovering from critical/watching drift to stable.
+    const allCheckIns = await db.checkins.where('plantId').equals(plantId).toArray();
     const currentTime = new Date(checkIn.timestamp).getTime();
-    const previousCheckIn = checkIns
+    const previousCheckIn = allCheckIns
       .filter(existing => existing.id !== checkIn.id && new Date(existing.timestamp).getTime() < currentTime)
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
     const recovered = ['watching', 'alert'].includes(previousCheckIn?.driftStatus || '')
       && checkIn.driftStatus === 'stable';
-    const scar = recovered
-      ? `Recovered from plant stress - ${new Date(checkIn.timestamp).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`
-      : null;
-    const battleScars = recovered && card.battleScars.length < 6
-      && scar && !card.battleScars.includes(scar)
-      ? [...card.battleScars, scar]
-      : card.battleScars;
-    
+    const battleScars = recovered
+      ? [...(card.battleScars || []), {
+          symptom: `Recovered from plant stress - ${new Date(checkIn.timestamp).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`,
+          recoveredAt: new Date().toISOString()
+        }].slice(-6)
+      : (card.battleScars || []);
+
+    const todayDate = new Date();
+    const today = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
+
     // Check if XP already granted for this plant today
     const alreadyGainedXP = await db.xpLog
       .where('[plantId+date]')
       .equals([plantId, today])
       .count();
 
-
     if (alreadyGainedXP > 0) {
-      // Still log the check-in stats but don't grant XP orSeeds
+      // Still log the check-in stats (and any earned scar) but no XP or Seeds
       await db.cards.update(card.id, {
         checkInsTotal: card.checkInsTotal + 1,
         checkInsHealthy: checkIn.guardianScore >= 80 ? card.checkInsHealthy + 1 : card.checkInsHealthy,
@@ -462,8 +462,7 @@ export class GameService {
     let xpGain = 5;
     if (checkIn.guardianScore >= 90) xpGain += 5;
     if (checkIn.driftStatus === 'stable') xpGain += 3;
-    
-    // Use card's streak or plant status
+
     const currentStreak = card.currentStreak || (plant.status === 'Stable' ? 7 : 0);
     if (currentStreak >= 7) xpGain += 5;
 
@@ -476,7 +475,7 @@ export class GameService {
       newXp -= newXpToNext;
       newLevel++;
       newXpToNext = Math.floor(newXpToNext * 1.2) + 5;
-      
+
       // Stage evolution
       if (newLevel === 10) newStage = 'seedling';
       if (newLevel === 20) newStage = 'juvenile';
@@ -484,7 +483,8 @@ export class GameService {
       if (newLevel === 45) newStage = 'ancient';
     }
 
-    const newStats = this.calculateCardStats(plant, checkIns, card.rarity);
+    const newStats = this.calculateCardStats(plant, allCheckIns, card.rarity);
+
     await db.cards.update(card.id, {
       level: newLevel,
       xp: newXp,

@@ -127,7 +127,7 @@ export interface PhytoCard {
   isFavorite: boolean;
   isFeatured: boolean;
   admirations: number;
-  battleScars: string[];
+  battleScars: { symptom: string; recoveredAt: string }[];
   frameSkin: string | null;
   altArt: string | null;
   isDemo?: boolean;

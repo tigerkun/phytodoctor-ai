@@ -51,15 +51,41 @@ The payment path is the highest-consequence surface and is explicitly **OUT OF S
 
 ## Tracked facts (non-blocking)
 - **Bundle size regression**: Gzipped JS bundle is 460.92 KB on `reconcile-recovery` (was ~323 KB on `main`). Regression attributable to Supabase client + deferred `motion`/`framer-motion` dedupe (R2-08 / R3-05). Not blocking; tracked as post-merge work.
-- **Remote main divergence**: Local `main` is **26 commits behind `origin/main`** (`git fetch origin && git log --oneline main..origin/main` returns 26 commits). Before merging `reconcile-recovery → main`, either rebase `reconcile-recovery` onto `origin/main` or perform the merge from an up-to-date local `main`. The "0 commits behind main" claim in earlier verification was a local-vs-local comparison — now confirmed against remote.
+
+## origin/main reconciliation (verified 2026-09-27)
+
+`git fetch origin && git log --oneline main..origin/main` returns **1 commit** (the previous session's fetch had already pulled 25):
+
+```
+3d1a0f7  gameService: updateCardFromCheckIn returns level/stage outcome + battle-scar recovery detection
+```
+
+**Files touched**: `src/services/gameService.ts`, `src/types.ts`
+
+**Conflict test** (`git merge --no-commit --no-ff origin/main`):
+- `src/types.ts` — **auto-merges clean**. `3d1a0f7` narrows `battleScars: string[]` → `battleScars: { symptom: string; recoveredAt: string }[]`. No conflict with reconcile-recovery's changes to this file.
+- `src/services/gameService.ts` — **CONFLICT**. Two independent divergences:
+  1. `3d1a0f7` adds new call sites using the old `this.addSeeds(...)` name; reconcile-recovery's BUG-03 fix renamed it to `earnSeeds`/`spendSeeds`. Git cannot auto-resolve.
+  2. `battleScars` schema: `3d1a0f7` stores `{ symptom, recoveredAt }` objects; reconcile-recovery stores plain `string[]` scars. Divergent implementations of the same feature.
+
+**Merge plan: option (b)** — merge `origin/main` into `reconcile-recovery`, resolve conflicts, re-run `tsc --noEmit` + `npm test`.
+
+Resolution rules for the conflict:
+- **Keep `earnSeeds`/`spendSeeds`** — this is the BUG-03 fix, already tested, must not regress. Any `this.addSeeds(...)` calls introduced by `3d1a0f7` get rewritten to `earnSeeds`/`spendSeeds` as appropriate (spend = `spendSeeds`, earn = `earnSeeds`).
+- **Adopt `{ symptom: string; recoveredAt: string }[]` type** from `3d1a0f7` — richer and correct. Update `src/types.ts` accordingly and align the `battleScars` construction in `updateCardFromCheckIn` to emit objects not strings.
+- **`updateCardFromCheckIn` return type** (`{ leveledUp, stageChanged, newLevel, newStage } | null`) from `3d1a0f7` is net-positive — keep it; it doesn't conflict with our changes.
+
+**Post-merge re-verification required**: `tsc --noEmit` (type change in `types.ts` must propagate cleanly), `npm test` (all 24 tests must still pass).
 
 ## BUG-03 evidence
 ```sql
 SELECT COUNT(*) FROM profiles;
 ```
-*(result pending user run)*
+*(result pending user run — must be done from Supabase Dashboard SQL Editor with service role, not anon key)*
 
 ## Items 2–5 & 7 checklist
+- [ ] **origin/main merge** — resolve `gameService.ts` conflict per rules above; re-run `tsc --noEmit` + `npm test`
+- [ ] Supabase `SELECT COUNT(*) FROM profiles` — report literal number; gates BUG-03 ignore-overpaid stance
 - [ ] Render branch+commit verification
 - [ ] Supabase `pg_proc` expected output including `increment_seeds` 3-arg single row
 - [ ] GitHub app audit
@@ -72,4 +98,5 @@ SELECT COUNT(*) FROM profiles;
 - R4 accessibility pass
 - SEC-06 CSP narrowing (prepared allowlist: api.razorpay.com, checkout.razorpay.com, eonet.gsfc.nasa.gov, api.open-meteo.com, *.supabase.co)
 - Dependency dedupe: `motion` vs `framer-motion` — both genuinely imported, needs import migration
+- SEC-02 remaining: `checkInHistory` element field validation in `/api/predict-growth`; `strLimit` vs `isValidSpecies` on `/api/plant-voice`
 - Docs consolidation into `docs/`
