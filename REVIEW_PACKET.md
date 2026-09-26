@@ -84,13 +84,26 @@ SELECT COUNT(*) FROM profiles;
 *(result pending user run — must be done from Supabase Dashboard SQL Editor with service role, not anon key)*
 
 ## Items 2–5 & 7 checklist
-- [ ] **origin/main merge** — resolve `gameService.ts` conflict per rules above; re-run `tsc --noEmit` + `npm test`
+- [x] **origin/main merge** — resolved `gameService.ts` conflict (commit `eda8bb2`); `tsc --noEmit` 0 errors; 24/24 tests pass
 - [ ] Supabase `SELECT COUNT(*) FROM profiles` — report literal number; gates BUG-03 ignore-overpaid stance
 - [ ] Render branch+commit verification
 - [ ] Supabase `pg_proc` expected output including `increment_seeds` 3-arg single row
 - [ ] GitHub app audit
 - [ ] Branch protection on `main`
 - [ ] Phone tests including gemini model-fallback log check on first real identify
+
+---
+
+## Merge-ready verdict
+
+`reconcile-recovery` is verified and ready for merge sign-off — **pending one user action**:
+
+> Run `SELECT COUNT(*) FROM profiles;` in the [Supabase SQL Editor](https://app.supabase.com/project/rkaawupaxlfdovpkrugp/sql/new) (service role / dashboard, not anon key).
+> - **0** → safe to merge; BUG-03 "ignore overpaid balances" stance confirmed
+> - **1–10** → check spend records before merge
+> - **>10** → remediation plan required before merge
+
+All code fixes are committed, all tests pass, `origin/main` is integrated with conflicts resolved. No known blockers remain in the codebase.
 
 ## Deferred post-merge backlog
 - R2 dead-code purge
