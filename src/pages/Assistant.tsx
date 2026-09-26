@@ -6,6 +6,7 @@ import { chatWithBotanist, type Message } from '../services/chatService';
 import { useToast } from '../components/Toast';
 import { triggerHaptic, playAudio } from '../utils/hapticAudio';
 import { db } from '../db/database';
+import { GameService } from '../services/gameService';
 import PageWrapper from '../components/home/PageWrapper';
 
 const STORAGE_KEY = 'phytodoctor_assistant_history';
@@ -233,7 +234,7 @@ export default function Assistant() {
       await db.notes.add({
         id: `dispatch-${Date.now()}-${index}`,
         plantId: plantSlug || 'botanical-consultation',
-        userId: 'local-gardener',
+        userId: GameService.getUserId(), // ponytail: slug ≠ UUID; pass ?plantId= param if callers add it
         content: content.replace(/<[^>]*>?/gm, ''),
         category: 'observation',
         tags: ['botanist-dispatch', 'kew-consultation', decodedPlant || 'botanical-advice'],
