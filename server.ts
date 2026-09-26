@@ -835,7 +835,7 @@ app.get("/api/economy/profile", apiGate, async (req, res) => {
 });
 
 // POST seed delta from the client (dual-write after local Dexie updates).
-// SEC-02 Architecture Rationale:
+// SEC-01 Architecture Rationale:
 // 1. Offline-First: Client records actions locally (IndexedDB) and syncs via outbox.
 // 2. Idempotency & Replay: Strict RFC 4122 UUID transactionId verified here; PostgreSQL RPC
 //    'increment_seeds' enforces 'ON CONFLICT (id) DO NOTHING' on seed_transactions table.

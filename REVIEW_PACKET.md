@@ -49,6 +49,10 @@ The payment path is the highest-consequence surface and is explicitly **OUT OF S
 - Public-read photo bucket
 - Amazon search-page links
 
+## Tracked facts (non-blocking)
+- **Bundle size regression**: Gzipped JS bundle is 460.92 KB on `reconcile-recovery` (was ~323 KB on `main`). Regression attributable to Supabase client + deferred `motion`/`framer-motion` dedupe (R2-08 / R3-05). Not blocking; tracked as post-merge work.
+- **Remote main divergence**: Local `main` is **26 commits behind `origin/main`** (`git fetch origin && git log --oneline main..origin/main` returns 26 commits). Before merging `reconcile-recovery → main`, either rebase `reconcile-recovery` onto `origin/main` or perform the merge from an up-to-date local `main`. The "0 commits behind main" claim in earlier verification was a local-vs-local comparison — now confirmed against remote.
+
 ## BUG-03 evidence
 ```sql
 SELECT COUNT(*) FROM profiles;

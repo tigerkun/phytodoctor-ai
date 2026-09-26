@@ -28,8 +28,14 @@
 - **BUG-10**: `CheckInFlow.tsx @ b7b3057`. Verdict: **CONFIRMED**. Status: 📋 BACKLOG.
   Evidence: `photoBlob: null` written on check-in record. `updateCardFromCheckIn` checks `checkIn.photoBlob` for the perfect check-in bonus — always falsy, bonus never fires.
 
-- **SEC-02**: `server.ts @ b7b3057`. Verdict: **CONFIRMED**. Status: ✅ PARTIALLY FIXED in Commit 4.
-  Evidence: `app.post('/api/identify', express.json({ limit: '11mb' })` — JSON payload interpolated into Gemini prompts without schema validation. Fixed: `SPECIES_RE` regex validator + `strLimit` + payload size guards added. Full prompt-injection hardening deferred to CSP pass.
+- **SEC-02**: `server.ts @ b7b3057`. Verdict: **CONFIRMED**. Status: ⚠️ PARTIALLY FIXED — see detail below.
+  Evidence: Prompt-injection hardening applied unevenly across AI endpoints:
+  - `/api/sandbox`: `isValidSpecies(species)` ✅ (line 577)
+  - `/api/guardian/predict`: `isValidSpecies(species)` ✅ (line 742)
+  - `/api/predict-growth`: `isValidSpecies(species)` ✅ (line 275), but individual `checkInHistory` array element fields are not field-validated — raw JSON interpolated into Gemini prompt (line 279) ⚠️
+  - `/api/plant-voice`: `strLimit` on all fields (lines 238–241) — length-bounded but no `isValidSpecies` check on species ⚠️
+  Comment mislabel FIXED: `// SEC-02 Architecture Rationale:` at line 838 corrected to `// SEC-01 Architecture Rationale:` (that block describes seed-sync, which is SEC-01 territory).
+  Remaining open: `checkInHistory` element field validation in `/api/predict-growth`; `strLimit` on species in `/api/plant-voice` is not equivalent to regex validation. Full field-level Zod schema hardening deferred to post-merge backlog.
 
 - **SEC-04**: `server.ts @ b7b3057`. Verdict: **CONFIRMED** (at pre-fix SHA). Status: ✅ FIXED in Commit 4.
   Evidence: `entries[entries.length - 1]` (rightmost XFF). Fix: code now documented as intentionally using rightmost XFF — correct for Render's proxy topology where Render appends the real client IP last. Previous concern was valid at old SHA; current code and comment are correct.
