@@ -4,13 +4,22 @@
 
 - **Clean-env build**: `npm run build` exits 0 with all `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_KEY`, `APP_URL` unset. No module-scope `VITE_*` reads cause build failure. Build output: `dist/assets/index-DyPIhEgD.js` (1,583 kB / 461 kB gzip), `dist/server.cjs` (47.2 kB). ✅
 - **Vitest red→green record**: Tests in `src/services/__tests__/batch.test.ts` were written against the *unfixed* code first (BUG-01: streak returned 1.1× at 7 days; BUG-03: spend applied 1.5× multiplier). After applying fixes, all 3 pass (`Tests 3 passed (3)`, 509ms). ✅
-- **Migration additive-only audit**: All 5 new migrations verified safe:
-  - `20260912000000_game_economy.sql` — additive (new table + RLS) ✅
-  - `20260913000000_harden_seed_mutations.sql` — `create or replace function` (5-arg overload), `revoke update(seeds)` ✅ (old code never relied on direct column updates from client)
-  - `20260913010000_plant_lineage.sql` — `alter table ... add column if not exists` ✅
-  - `20260913020000_weather_alert_foundation.sql` — new table + `add column if not exists` ✅
-  - `20260914010000_drop_unsafe_increment_seeds.sql` — drops **old 3-arg overload** `(integer, text, text)` only. New `server.ts:853` calls the 5-arg overload. No caller in `src/` or `server.ts` uses the old signature. ✅ Safe.
-- **Non-audit bug rule**: BUG-06 (seeds-before-upload race) and BUG-09/BUG-10 (assistant/check-in hardcoded IDs) were found mid-batch and confirmed via AUDIT_CLAIMS_VERIFIED. Both are below the BUG-01/SEC-10 severity threshold (no data loss, no security) → correctly deferred to backlog, not buried in this batch. ✅
+- **Migration additive-only audit**: All 13 migrations in `supabase/migrations/` verified safe and additive-only (no DROP COLUMN, no table drops, no row mutations):
+  1. `20260909000000_plants_and_storage_rls.sql` — new `plants` table + RLS + storage bucket policies ✅
+  2. `20260912000000_game_economy.sql` — `profiles`, `seed_transactions`, `subscriptions` tables + initial touch_updated_at trigger ✅
+  3. `20260913000000_harden_seed_mutations.sql` — 5-arg `increment_seeds` with replay & balance protection, revokes direct update(seeds) ✅ (alphabetical order 1st of collision pair)
+  4. `20260913000000_seeds_rpc.sql` — 3-arg legacy `increment_seeds` overload ✅ (alphabetical order 2nd; safely superseded & dropped by migration 9)
+  5. `20260913010000_harden_seed_mutations.sql` — idempotent duplicate of 5-arg function ✅ (alphabetical order 1st of collision pair)
+  6. `20260913010000_plant_lineage.sql` — `alter table plants add column if not exists` (parent_plant_id, propagation_method, generation) ✅ (alphabetical order 2nd)
+  7. `20260913020000_weather_alert_foundation.sql` — `push_subscriptions` table + plant temperature tolerance columns ✅
+  8. `20260914000000_purchase_pro_rpc.sql` — initial `purchase_pro_with_seeds` function ✅ (superseded by migration 11)
+  9. `20260914010000_drop_unsafe_increment_seeds.sql` — drops legacy 3-arg overload `(integer, text, text)`. Zero callers exist. ✅
+  10. `20260914020000_drop_unsafe_increment_seeds.sql` — idempotent duplicate drop if exists ✅
+  11. `20260914030000_purchase_pro_rpc.sql` — hardened `purchase_pro_with_seeds` adding `auth.uid()` validation & FOR UPDATE row-locking ✅
+  12. `20260915000000_reconcile_legacy_production.sql` — idempotent schema-wide reconciliation (adds `handle_new_user` trigger & `grant_pro_from_payment`) ✅
+  13. `20260916000000_pin_touch_updated_at_search_path.sql` — pins `SET search_path = public` on `touch_updated_at` trigger function ✅
+- **Legacy tables confirmation**: Dead tables `seeds_ledger` and `users` confirmed present in DB schema but have zero references in `server.ts` or `src/` — safe, tracked in backlog for removal, not touched by this merge.
+- **Migration 13 (search_path pin) status**: Unapplied on production prior to running the batch (queued as step 13 in the sequential migration run).
 - **No push to `main`**: confirmed via `git log main` — reconcile-recovery diverges at `072a4c1`. ✅
 
 ## Verified & Fixed
@@ -116,7 +125,7 @@ Resolution rules for the conflict:
 **`reconcile-recovery` is verified and ready for merge sign-off. No open code or data gates remain.**
 
 Pre-merge deployment sequence:
-1. Run migrations 1–5 on Supabase production (in order) — all verified additive-only
+1. Run migrations 1–13 on Supabase production (in verified sequential order) — all verified additive-only and safe
 2. Set `NODE_ENV=production` + all env vars on Render
 3. Deploy; confirm deployed SHA matches branch HEAD
 4. Set branch protection + triage open PRs on GitHub
