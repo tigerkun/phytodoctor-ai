@@ -87,7 +87,7 @@ SELECT COUNT(*) FROM profiles;
 - [x] **origin/main merge** — resolved `gameService.ts` conflict (commit `eda8bb2`); `tsc --noEmit` 0 errors; 24/24 tests pass
 - [ ] Supabase `SELECT COUNT(*) FROM profiles` — report literal number; gates BUG-03 ignore-overpaid stance
 - [ ] Render branch+commit verification
-- [ ] Supabase `pg_proc` expected output including `increment_seeds` 3-arg single row
+- [ ] Supabase `pg_proc` check: confirm **only** the 5-arg `increment_seeds(uuid, integer, text, text, uuid)` overload is present; confirm 3-arg overload `(integer, text, text)` is absent (0 rows) — a 3-arg row means migration 5 did not run
 - [ ] GitHub app audit
 - [ ] Branch protection on `main`
 - [ ] Phone tests including gemini model-fallback log check on first real identify

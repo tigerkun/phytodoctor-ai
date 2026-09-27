@@ -281,7 +281,7 @@ export default function PlantDetail() {
                 Resilience record · {card.battleScars.length} survived {card.battleScars.length === 1 ? 'crisis' : 'crises'}
               </summary>
               <ul className="mt-3 space-y-1 text-xs text-[#e8d7b0]">
-                {card.battleScars.map((scar, index) => <li key={`${scar.recoveredAt}-${index}`}>{scar.symptom}</li>)}
+                {card.battleScars.map((scar, index) => <li key={`${scar.recoveredAt ?? index}-${index}`}>{typeof scar === 'string' ? scar : scar.symptom}</li>)}
               </ul>
             </details>
           ) : null}

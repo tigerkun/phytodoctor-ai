@@ -175,6 +175,39 @@ class BotanicalDB extends Dexie {
       streakFreezes: '[userId+monthYear], userId, monthYear, lastUsedAt',
       seedSyncOutbox: 'id, userId'
     });
+    // v19: normalise battleScars from string[] → { symptom, recoveredAt }[]
+    // Any card written before this version has plain strings; wrap them so
+    // PlantDetail renders correctly. recoveredAt is null for migrated entries.
+    this.version(19).stores({
+      plants: 'id, userId, species, isDemo, createdAt',
+      checkins: 'id, plantId, timestamp, synced, isDemo, [plantId+timestamp]',
+      predictions: 'id, plantId, predictedAt, outcome, triggeredAlert, [plantId+predictedAt]',
+      sensorReadings: 'id, plantId, timestamp, sensorType, [plantId+sensorType+timestamp]',
+      alerts: 'id, predictionId, plantId, sentAt, readAt, [plantId+sentAt]',
+      photos: 'id, createdAt',
+      metrics: '++id, type, timestamp',
+      cards: 'id, plantId, userId, species, rarity, level, isFeatured, isDemo',
+      userProfile: 'userId, isDemo, passwordHash',
+      xpLog: '++id, plantId, date, [plantId+date]',
+      subscriptions: 'userId, tier',
+      seedTransactions: 'id, userId, source, createdAt',
+      cosmetics: '[userId+itemId], userId, itemType, equipped',
+      careOffs: 'id, userId, createdAt, result',
+      propagations: 'id, userId, parentCardId, createdAt, success',
+      notes: 'id, plantId, createdAt, *tags',
+      dailyRewardCaps: '[userId+date], userId, lastUpdated',
+      levelProgress: 'userId, currentLevel, lastLevelUpAt',
+      streakRecords: 'userId, lastLoginDate',
+      rewardHistory: 'id, userId, actionId, createdAt, [userId+createdAt]',
+      discoveryRecords: '[userId+species], userId, rarity, discoveredAt',
+      streakFreezes: '[userId+monthYear], userId, monthYear, lastUsedAt',
+      seedSyncOutbox: 'id, userId'
+    }).upgrade(tx => tx.table('cards').toCollection().modify(card => {
+      if (!Array.isArray(card.battleScars)) return;
+      card.battleScars = card.battleScars.map((s: unknown) =>
+        typeof s === 'string' ? { symptom: s, recoveredAt: null } : s
+      );
+    }));
   }
 }
 
