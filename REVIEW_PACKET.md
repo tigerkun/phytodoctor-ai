@@ -77,17 +77,23 @@ Resolution rules for the conflict:
 
 **Post-merge re-verification required**: `tsc --noEmit` (type change in `types.ts` must propagate cleanly), `npm test` (all 24 tests must still pass).
 
-## BUG-03 evidence
-```sql
-SELECT COUNT(*) FROM profiles;
-```
-*(result pending user run — must be done from Supabase Dashboard SQL Editor with service role, not anon key)*
+## BUG-03 evidence (verified 2026-09-27 — dashboard, service role)
+
+| Query | Result | Verdict |
+|---|---|---|
+| `SELECT COUNT(*) FROM profiles` | **1 row** | Single dev/test account — no real users |
+| Pre-fix spend transactions | **0 rows** | Bug existed in code but was never triggered by real spending |
+| Profile: seeds / tier / created | `500` / `free` / `2026-09-14` | Default balance dev account — no remediation needed |
+| `increment_seeds` in `pg_proc` | **1 row, `pronargs = 5`** | Old 3-arg overload confirmed dropped; only hardened 5-arg remains |
+| `profiles` RLS | `relrowsecurity = true` | Row-level security active, not just declared |
+
+**BUG-03 gate: resolved.** Zero pre-fix spends recorded — "ignore overpaid balances" is not a risk decision, there is nothing to ignore. No backfill, no forgive, no remediation plan required.
 
 ## Items 2–5 & 7 checklist
-- [x] **origin/main merge** — resolved `gameService.ts` conflict (commit `eda8bb2`); `tsc --noEmit` 0 errors; 24/24 tests pass
-- [ ] Supabase `SELECT COUNT(*) FROM profiles` — report literal number; gates BUG-03 ignore-overpaid stance
+- [x] **origin/main merge** — resolved `gameService.ts` conflict (commit `eda8bb2`); `tsc --noEmit` 0 errors; 29/29 tests pass
+- [x] Supabase `SELECT COUNT(*) FROM profiles` — **1 row** (dev account, 500 seeds, no real users, zero pre-fix spends). BUG-03 gate resolved.
 - [ ] Render branch+commit verification
-- [ ] Supabase `pg_proc` check: confirm **only** the 5-arg `increment_seeds(uuid, integer, text, text, uuid)` overload is present; confirm 3-arg overload `(integer, text, text)` is absent (0 rows) — a 3-arg row means migration 5 did not run
+- [x] Supabase `pg_proc` check: **5-arg only, 3-arg absent** — confirmed. Migration 5 ran correctly.
 - [ ] GitHub app audit
 - [ ] Branch protection on `main`
 - [ ] Phone tests including gemini model-fallback log check on first real identify
@@ -96,14 +102,15 @@ SELECT COUNT(*) FROM profiles;
 
 ## Merge-ready verdict
 
-`reconcile-recovery` is verified and ready for merge sign-off — **pending one user action**:
+**`reconcile-recovery` is verified and ready for merge sign-off. No open code or data gates remain.**
 
-> Run `SELECT COUNT(*) FROM profiles;` in the [Supabase SQL Editor](https://app.supabase.com/project/rkaawupaxlfdovpkrugp/sql/new) (service role / dashboard, not anon key).
-> - **0** → safe to merge; BUG-03 "ignore overpaid balances" stance confirmed
-> - **1–10** → check spend records before merge
-> - **>10** → remediation plan required before merge
-
-All code fixes are committed, all tests pass, `origin/main` is integrated with conflicts resolved. No known blockers remain in the codebase.
+Pre-merge deployment sequence:
+1. Run migrations 1–5 on Supabase production (in order) — all verified additive-only
+2. Set `NODE_ENV=production` + all env vars on Render
+3. Deploy; confirm deployed SHA matches branch HEAD
+4. Set branch protection + triage open PRs on GitHub
+5. Phone tests per Phase 6 checklist (including Gemini model-fallback log on first identify)
+6. Merge `reconcile-recovery → main`
 
 ## Deferred post-merge backlog
 - R2 dead-code purge
