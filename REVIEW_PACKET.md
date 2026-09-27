@@ -46,8 +46,19 @@ The payment path is the highest-consequence surface and is explicitly **OUT OF S
 
 ## Accepted limitations
 - In-memory rate limiters (per-instance, reset on restart)
-- Public-read photo bucket
+- Public-read photo bucket (confirmed by Security Advisor — already tracked here)
 - Amazon search-page links
+
+## Supabase Security Advisor findings (verified 2026-09-27)
+
+| Finding | Verdict | Evidence |
+|---|---|---|
+| `purchase_pro_with_seeds` SECURITY DEFINER | ✅ **CLEAN** | `auth.uid()` check (line 196), `FOR UPDATE` row lock (line 205), `SET search_path = public`, `REVOKE ... FROM public, anon`. `p_cost` hardcoded server-side at `server.ts:886` — client sends no cost param. Same guardrails as `increment_seeds` plus row locking. |
+| `handle_new_user()` "Public Can Execute" | ✅ **FALSE POSITIVE** | Returns `trigger` type — cannot be called as RPC. `REVOKE ALL FROM public` at migration line 125. Only fires via `on_auth_user_created` trigger on `auth.users`. |
+| `touch_updated_at` mutable search_path | ✅ **FIXED** | New migration `20260916000000_pin_touch_updated_at_search_path.sql` adds `SET search_path = public`. Commit `c0b944c`. |
+| Leaked Password Protection Disabled | ⚠️ **Dashboard toggle** — enable in Supabase Auth settings before production deploy. Two clicks, not code. |
+| Public bucket `plant-photos` allows listing | ℹ️ Already tracked as "Accepted limitation" above — no new information. |
+| `increment_seeds` / `handle_new_user` "Signed-In Can Execute" | ℹ️ Expected and correct. Authenticated users are supposed to call `increment_seeds`. |
 
 ## Tracked facts (non-blocking)
 - **Bundle size regression**: Gzipped JS bundle is 460.92 KB on `reconcile-recovery` (was ~323 KB on `main`). Regression attributable to Supabase client + deferred `motion`/`framer-motion` dedupe (R2-08 / R3-05). Not blocking; tracked as post-merge work.
