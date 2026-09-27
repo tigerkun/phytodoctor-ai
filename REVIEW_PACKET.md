@@ -122,10 +122,10 @@ Resolution rules for the conflict:
 
 ## Merge-ready verdict
 
-**`reconcile-recovery` is verified and ready for merge sign-off. No open code or data gates remain.**
+**`reconcile-recovery` code is frozen and ready, pending manual execution and verification of migrations 1–13 in the Supabase Dashboard SQL Editor by the user.**
 
-Pre-merge deployment sequence:
-1. Run migrations 1–13 on Supabase production (in verified sequential order) — all verified additive-only and safe
+Required gate sequence before merge:
+1. User executes migrations 1–13 in order via Supabase SQL Editor and confirms success + verification queries
 2. Set `NODE_ENV=production` + all env vars on Render
 3. Deploy; confirm deployed SHA matches branch HEAD
 4. Set branch protection + triage open PRs on GitHub
