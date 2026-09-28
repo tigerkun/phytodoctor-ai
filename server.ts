@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -9,6 +10,10 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+// The client bundle is ~1.6 MB raw / ~460 KB gzipped; serving it uncompressed
+// makes every first visit pay full transfer cost.
+app.use(compression());
 
 // Behind Render's proxy: derive req.ip from the trusted proxy chain so a
 // client cannot spoof X-Forwarded-For to rotate rate-limit identities.
