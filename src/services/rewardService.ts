@@ -12,11 +12,11 @@ import {
   SOCIAL_REWARDS,
   REFERRAL_REWARDS,
   LEVEL_TIERS,
-  STREAK_MULTIPLIERS,
   REWARD_CAPS,
   SEED_MULTIPLIERS,
   type RarityReward
 } from '../game/REWARD_CONFIG';
+import { getStreakMultiplier } from './profileUtils';
 
 export class RewardService {
   static getUserId(): string {
@@ -121,7 +121,7 @@ export class RewardService {
     if (action.capsCategory === 'active') {
       const streak = await this.ensureStreakRecord(userId);
       // BUG-01 Fix: compute multiplier dynamically instead of relying on potentially stale DB field
-      const dynamicStreakMultiplier = this.getStreakMultiplier(streak.currentStreak);
+      const dynamicStreakMultiplier = getStreakMultiplier(streak.currentStreak);
       xpAwarded = Math.floor(xpAwarded * dynamicStreakMultiplier);
       seedsAwarded = Math.floor(seedsAwarded * dynamicStreakMultiplier);
 
@@ -330,7 +330,7 @@ export class RewardService {
     streak.nextResetDate = this.getNextMonthDateStr();
 
     // Make sure we write the purely calculated multiplier just in case other things read it
-    streak.streakMultiplier = this.getStreakMultiplier(streak.currentStreak);
+    streak.streakMultiplier = getStreakMultiplier(streak.currentStreak);
 
     await db.streakRecords.put(streak);
     return { currentStreak: streak.currentStreak, continuedToday };
@@ -367,10 +367,6 @@ export class RewardService {
     }
 
     return false;
-  }
-
-  static getStreakMultiplier(streak: number): number {
-    return STREAK_MULTIPLIERS.reduce((max, m) => m.day <= streak && m.multiplier > max ? m.multiplier : max, 1.0);
   }
 
   // ============ UTILITY HELPERS ============

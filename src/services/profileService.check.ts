@@ -120,18 +120,18 @@ export async function runProfileSelfChecks() {
   assert.strictEqual(getStreakMultiplier(0), 1.0);
   assert.strictEqual(getStreakMultiplier(3), 1.0);
   assert.strictEqual(getStreakMultiplier(6), 1.0);
-  assert.strictEqual(getStreakMultiplier(7), 2.0);
-  assert.strictEqual(getStreakMultiplier(10), 2.0);
-  assert.strictEqual(getStreakMultiplier(13), 2.0);
-  assert.strictEqual(getStreakMultiplier(14), 2.5);
-  assert.strictEqual(getStreakMultiplier(29), 2.5);
-  assert.strictEqual(getStreakMultiplier(30), 3.0);
-  assert.strictEqual(getStreakMultiplier(59), 3.0);
-  assert.strictEqual(getStreakMultiplier(60), 3.5);
-  assert.strictEqual(getStreakMultiplier(65), 3.5);
-  assert.strictEqual(getStreakMultiplier(99), 3.5);
-  assert.strictEqual(getStreakMultiplier(100), 5.0);
-  assert.strictEqual(getStreakMultiplier(105), 5.0);
+  assert.strictEqual(getStreakMultiplier(7), 1.25);
+  assert.strictEqual(getStreakMultiplier(10), 1.25);
+  assert.strictEqual(getStreakMultiplier(13), 1.25);
+  assert.strictEqual(getStreakMultiplier(14), 1.5);
+  assert.strictEqual(getStreakMultiplier(29), 1.5);
+  assert.strictEqual(getStreakMultiplier(30), 2.0);
+  assert.strictEqual(getStreakMultiplier(59), 2.0);
+  assert.strictEqual(getStreakMultiplier(60), 2.5);
+  assert.strictEqual(getStreakMultiplier(65), 2.5);
+  assert.strictEqual(getStreakMultiplier(99), 2.5);
+  assert.strictEqual(getStreakMultiplier(100), 3.0);
+  assert.strictEqual(getStreakMultiplier(105), 3.0);
 
   // 4. Folio serial formatting
   console.log('4. Testing Passport Folio Serial Generator...');

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { RewardService } from '../rewardService';
+import { getStreakMultiplier } from '../profileUtils';
+import { STREAK_MULTIPLIERS } from '../../game/REWARD_CONFIG';
 import { GameService } from '../gameService';
 import { db } from '../../db/database';
 import { calculateRiskScore, type ForecastInput } from '../../forecasting/ruleEngine';
@@ -8,11 +9,53 @@ import { TelemetryService } from '../telemetryService';
 describe('BUG-01: Streak milestone selection', () => {
   it('should calculate streak multipliers correctly without declaration-order reliance', () => {
     // 6 days -> 1.0x
-    expect(RewardService.getStreakMultiplier(6)).toBe(1.0);
+    expect(getStreakMultiplier(6)).toBe(1.0);
     // 7 days -> 1.25x
-    expect(RewardService.getStreakMultiplier(7)).toBe(1.25);
+    expect(getStreakMultiplier(7)).toBe(1.25);
     // 30 days -> 2.0x
-    expect(RewardService.getStreakMultiplier(30)).toBe(2.0);
+    expect(getStreakMultiplier(30)).toBe(2.0);
+  });
+
+  it('covers every milestone boundary in the single source-of-truth table', () => {
+    const cases: Array<[number, number]> = [
+      [0, 1.0],   // never checked in
+      [1, 1.0],
+      [6, 1.0],
+      [7, 1.25],  // first milestone
+      [8, 1.25],  // a 6->8 jump must NOT stay at 1.0
+      [13, 1.25],
+      [14, 1.5],
+      [29, 1.5],
+      [30, 2.0],
+      [59, 2.0],
+      [60, 2.5],
+      [99, 2.5],
+      [100, 3.0],
+      [365, 3.0], // long streak clamps at the top milestone
+    ];
+    for (const [streak, expected] of cases) {
+      expect(getStreakMultiplier(streak), `streak ${streak}`).toBe(expected);
+    }
+  });
+
+  it('resets to 1.0x when a streak breaks and restarts at 1', () => {
+    expect(getStreakMultiplier(30)).toBe(2.0);
+    expect(getStreakMultiplier(1)).toBe(1.0);
+    expect(getStreakMultiplier(0)).toBe(1.0);
+  });
+
+  it('agrees with every row of the source table', () => {
+    for (const m of [...STREAK_MULTIPLIERS].sort((a, b) => a.day - b.day)) {
+      expect(getStreakMultiplier(m.day), `day ${m.day}`).toBe(m.multiplier);
+      expect(getStreakMultiplier(m.day)).toBeGreaterThanOrEqual(1.0);
+    }
+  });
+
+  it('handles negative and non-finite input without throwing', () => {
+    expect(getStreakMultiplier(-1)).toBe(1.0);
+    expect(getStreakMultiplier(NaN)).toBe(1.0);
+    // Non-finite streaks are rejected by the guard, not clamped to the top tier.
+    expect(getStreakMultiplier(Infinity)).toBe(1.0);
   });
 });
 
