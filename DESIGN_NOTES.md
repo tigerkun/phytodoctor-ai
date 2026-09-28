@@ -45,8 +45,8 @@
 
 ## Bundle measurement
 
-- Production bundle: `dist/assets/index-CIk1e-IW.js`, 1,585,252 bytes.
-- Gzip command equivalent: PowerShell `GzipStream` (optimal compression); result: **464,822 bytes / 453.93 KB gzip**, below the approximately 461 KB limit.
+- Production bundle: `dist/assets/index-BQkFGik4.js`, 1,562,196 bytes.
+- Gzip command equivalent: PowerShell `GzipStream` (optimal compression); result: **458,545 bytes / 447.8 KB gzip**, below the approximately 461 KB limit.
 - A reliable pre-change bundle was not available in this checkout, so no comparable before value can be claimed.
 
 ## Completed decisions
