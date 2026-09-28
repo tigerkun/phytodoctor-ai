@@ -487,7 +487,7 @@ export default function Auth() {
                 placeholder={isRecovery ? 'Inscribe New Strong Passphrase' : 'Seal Passphrase'}
                 className="w-full pl-11 pr-11 py-3.5 guest-ledger-input rounded-xl text-sm font-medium"
               />
-              <button type="button" onClick={() => setShowPassword(!showPassword)}
+              <button type="button" aria-label={showPassword ? 'Hide passphrase' : 'Show passphrase'} onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-4 bottom-3 text-[#8c6e38] hover:text-[#2b2118] dark:hover:text-[#f4eee1] focus:outline-none">
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
