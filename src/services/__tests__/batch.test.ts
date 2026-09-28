@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getStreakMultiplier } from '../profileUtils';
 import { STREAK_MULTIPLIERS } from '../../game/REWARD_CONFIG';
 import { GameService } from '../gameService';
+import { ECONOMY_CONFIG } from '../../game/ECONOMY_DATA';
 import { db } from '../../db/database';
 import { calculateRiskScore, type ForecastInput } from '../../forecasting/ruleEngine';
 import { TelemetryService } from '../telemetryService';
@@ -88,6 +89,98 @@ describe('BUG-03: seed split', () => {
     await GameService.spendSeeds(100, 'spend', 'test spend');
     // spend 100 => 100 (1:1)
     expect(updatedSeeds).toBe(1050);
+  });
+
+  it('spendSeeds throws on insufficient balance and mutates nothing', async () => {
+    globalThis.localStorage = { getItem: () => 'user123' } as any;
+
+    const startSeeds = 40;
+    let updatedSeeds = startSeeds;
+    let profileUpdates = 0;
+    let transactionsAdded = 0;
+    let outboxWrites = 0;
+
+    vi.spyOn(GameService as any, 'ensureProfile').mockImplementation(async () => ({
+      seeds: startSeeds, tier: 'free'
+    }));
+    vi.spyOn(db.userProfile, 'update').mockImplementation((async (_u: any, data: any) => {
+      updatedSeeds = data.seeds;
+      profileUpdates++;
+      return 1;
+    }) as any);
+    vi.spyOn(db.seedTransactions, 'add').mockImplementation((async () => {
+      transactionsAdded++;
+      return 1;
+    }) as any);
+    vi.spyOn(db.seedTransactions, 'get').mockResolvedValue(undefined);
+    vi.spyOn(db.seedSyncOutbox, 'put').mockImplementation((async () => {
+      outboxWrites++;
+      return 1;
+    }) as any);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true } as any);
+
+    // Spending 100 with a balance of 40 must refuse outright.
+    await expect(GameService.spendSeeds(100, 'spend', 'should not happen')).rejects.toThrow(/Insufficient seeds/);
+
+    // Nothing at all may have been written.
+    expect(updatedSeeds).toBe(startSeeds);
+    expect(profileUpdates).toBe(0);
+    expect(transactionsAdded).toBe(0);
+    expect(outboxWrites).toBe(0);
+  });
+
+  it('spendSeeds allows spending the exact balance', async () => {
+    globalThis.localStorage = { getItem: () => 'user123' } as any;
+
+    const startSeeds = 40;
+    let updatedSeeds = startSeeds;
+
+    vi.spyOn(GameService as any, 'ensureProfile').mockImplementation(async () => ({
+      seeds: startSeeds, tier: 'free'
+    }));
+    vi.spyOn(db.userProfile, 'update').mockImplementation((async (_u: any, data: any) => {
+      updatedSeeds = data.seeds;
+      return 1;
+    }) as any);
+    vi.spyOn(db.seedTransactions, 'add').mockResolvedValue(1 as any);
+    vi.spyOn(db.seedTransactions, 'get').mockResolvedValue(undefined);
+    vi.spyOn(db.seedSyncOutbox, 'put').mockResolvedValue(1 as any);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true } as any);
+
+    await GameService.spendSeeds(40, 'spend', 'spend it all');
+    expect(updatedSeeds).toBe(0);
+  });
+
+  it('propagate is refused when the balance cannot cover the cost', async () => {
+    globalThis.localStorage = { getItem: () => 'user123' } as any;
+
+    const propagationCost = ECONOMY_CONFIG.CONVENIENCE_COSTS.propagation_basic;
+    let spendCalled = false;
+    let addedCards = 0;
+
+    vi.spyOn(GameService as any, 'ensureProfile').mockImplementation(async () => ({
+      seeds: 0, tier: 'free', monthlyPropagations: 0
+    }));
+    vi.spyOn(GameService as any, 'getPropagationsThisMonth').mockResolvedValue(0);
+    vi.spyOn(GameService, 'spendSeeds').mockImplementation((async () => {
+      spendCalled = true;
+      return 1;
+    }) as any);
+    vi.spyOn(db.cards, 'add').mockImplementation((async () => {
+      addedCards++;
+      return 1;
+    }) as any);
+    vi.spyOn(db.propagations, 'add').mockImplementation((async () => {
+      addedCards++;
+      return 1;
+    }) as any);
+
+    await expect(GameService.propagate('parent-card-1', false, null)).rejects.toThrow(/Insufficient seeds/);
+
+    // The debit must never have been attempted, and no card may be created.
+    expect(spendCalled).toBe(false);
+    expect(addedCards).toBe(0);
+    expect(propagationCost).toBeGreaterThan(0);
   });
 });
 

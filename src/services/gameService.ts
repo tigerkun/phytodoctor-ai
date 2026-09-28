@@ -218,8 +218,16 @@ export class GameService {
     const profile = await this.ensureProfile(userId);
     const finalAmount = Math.floor(amount); // No multiplier on spend
 
+    // Refuse before mutating anything. Clamping to zero would let a purchase
+    // settle for free and would desync the client balance from the server RPC,
+    // which raises 'insufficient seeds' and returns a permanent 500 that the
+    // seed-sync outbox would then retry forever.
+    if (finalAmount > profile.seeds) {
+      throw new Error(`Insufficient seeds. You need ${(finalAmount - profile.seeds).toLocaleString()} more.`);
+    }
+
     // Update profile
-    await db.userProfile.update(userId, { seeds: Math.max(0, profile.seeds - finalAmount) });
+    await db.userProfile.update(userId, { seeds: profile.seeds - finalAmount });
 
     // Record transaction
     const transaction: SeedTransaction = {
@@ -590,8 +598,13 @@ export class GameService {
       throw new Error('Hybrid propagation requires Pro subscription');
     }
 
+    const propagationCost = ECONOMY_CONFIG.CONVENIENCE_COSTS.propagation_basic;
+    if (profile.seeds < propagationCost) {
+      throw new Error(`Insufficient seeds. You need ${(propagationCost - profile.seeds).toLocaleString()} more.`);
+    }
+
     // Spend seeds for propagation
-    await this.spendSeeds(ECONOMY_CONFIG.CONVENIENCE_COSTS.propagation_basic, 'spend', 'Propagation Attempt', userId);
+    await this.spendSeeds(propagationCost, 'spend', 'Propagation Attempt', userId);
 
     const success = Math.random() > (isHybrid ? 0.7 : 0.4);
     
