@@ -43,6 +43,14 @@
 - 4/8px spacing rhythm, neutral warm-white/slate surfaces, moss as the single primary accent, and semantic success/warning/danger tokens.
 - One compact radius scale, low-elevation shadows, visible AA-friendly focus rings, 44px interaction targets, and safe-area-aware mobile navigation.
 
-## Bundle baseline
+## Bundle measurement
 
-Pending the production build. The final entry will record the exact gzip command and before/after result; target is no more than approximately 461 KB gzip.
+- Production bundle: `dist/assets/index-CIk1e-IW.js`, 1,585,252 bytes.
+- Gzip command equivalent: PowerShell `GzipStream` (optimal compression); result: **464,822 bytes / 453.93 KB gzip**, below the approximately 461 KB limit.
+- A reliable pre-change bundle was not available in this checkout, so no comparable before value can be claimed.
+
+## Completed decisions
+
+- Removed ambient scene controls, the cat/illustrated override state, cursor-following effects, leaf bursts, particles, animated backgrounds, and decorative floating layers.
+- Replaced the emoji-heavy home status card with a plain Garden status panel and a single moss primary action.
+- Added shared route transition, reduced-motion handling, scroll reset, shared mobile-nav indicator, visible focus treatment, and icon-only button labels.
