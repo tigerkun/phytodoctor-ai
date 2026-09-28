@@ -356,6 +356,9 @@ app.get('/healthz', (_req, res) => {
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
   httpOptions: {
+    // Caps every attempt: without it a hung Gemini call never resolves and
+    // the Express request hangs until the client gives up.
+    timeout: 30000,
     headers: {
       'User-Agent': 'aistudio-build',
     }
@@ -364,26 +367,39 @@ const ai = new GoogleGenAI({
 
 async function generateWithRetry(params: any, retries = 1) {
   const envModel = process.env.GEMINI_MODEL;
-  const models = envModel 
+  const models = envModel
     ? [envModel, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
     : ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
-  
+
   for (const modelName of models) {
     for (let i = 0; i <= retries; i++) {
       try {
-        return await ai.models.generateContent({
-          ...params,
-          model: modelName,
-        });
+        const modelParams: any = { ...params, model: modelName };
+        // 2.5-family models spend internal "thinking" tokens before emitting,
+        // which the scan pipeline pays for in seconds. Older models reject the
+        // field, so it is attached to 2.5 models only. Callers opt in by
+        // setting config.disableThinking (stripped here so it never reaches the API).
+        if (params.config?.disableThinking) {
+          modelParams.config = { ...params.config };
+          delete modelParams.config.disableThinking;
+          if (modelName.startsWith("gemini-2.5")) {
+            modelParams.config.thinkingConfig = { thinkingBudget: 0 };
+          }
+        }
+        return await ai.models.generateContent(modelParams);
       } catch (err: any) {
         const isFatal = err?.status === 400 || err?.status === 401 || err?.status === 403;
         if (isFatal) throw err; // Don't delay on authentication or bad request errors
 
-        const isNotFoundOrQuota = err?.status === 429 || err?.status === 404 || err?.message?.includes("not found") || err?.message?.includes("quota");
-        if (isNotFoundOrQuota && modelName !== models[models.length - 1]) {
+        // 429 is project-level quota, not a model property: falling through
+        // the chain would just repeat the failure against every model. 404
+        // IS model-specific and keeps its fallback.
+        const isModelMissing = err?.status === 404 || err?.message?.includes("not found");
+        if (isModelMissing && modelName !== models[models.length - 1]) {
           console.warn(`Model ${modelName} unavailable (${err?.status || 'error'}), falling back to next model...`);
           break;
         }
+        if (err?.status === 429) throw err;
 
         if (i === retries && modelName === models[models.length - 1]) throw err;
         console.warn(`Gemini API (${modelName}) attempt ${i + 1} failed, retrying...`, err?.message || err);
@@ -436,18 +452,18 @@ app.post("/api/identify", express.json({ limit: '11mb' }), aiLimiter, apiGate, t
       }
     }
 
-    const prompt = `You are PhytoDoctor AI, the world's most advanced botanical diagnostician. Perform an exhaustive, clinically precise analysis of the plant in this image.
+    const prompt = `You are PhytoDoctor AI, the world's most advanced botanical diagnostician. Perform a clinically precise analysis of the plant in this image.
 
-REQUIRED — be specific and detailed in every field:
+Be specific in every field; keep each field concise:
 1. Identify the exact species (common name, full scientific name with authority if known).
 2. Visually assess ALL visible symptoms: leaf colour, texture, lesions, spots, wilting, edge burn, yellowing pattern, stem condition, soil surface if visible, pest evidence.
 3. Assign a health status (Healthy / Stressed / Diseased / Infested) and severity 1-5.
 4. Write a thorough diagnosis paragraph — name the exact pathology or deficiency if detectable, not generic phrases.
 5. List 3-4 differential diagnoses with realistic confidence percentages.
-6. Provide a day-by-day treatment timeline (at least 4 milestones).
-7. Write detailed step-by-step treatment instructions (minimum 5 steps, each actionable).
+6. Provide a treatment timeline with 3-4 milestones.
+7. Write step-by-step treatment instructions (3-5 concise, actionable steps).
 8. Give precise care parameters: watering schedule, light requirements, soil type, temperature range.
-9. List 4+ specific care tips tailored to the detected condition.
+9. List 3-4 specific care tips tailored to the detected condition.
 10. Explain vulnerability notes — WHY this specific specimen shows these symptoms.${locationBlock}
 
 LOCATION-AWARE FIELDS (required if location provided):
@@ -473,6 +489,9 @@ LOCATION-AWARE FIELDS (required if location provided):
       config: {
         systemInstruction: "You are PhytoDoctor AI's Chief Botanical Pathologist and Regional Horticulture Specialist. You perform precise, evidence-based visual diagnoses. You always consider the user's local climate, geography, and current weather when giving care advice. Never give generic advice — always be specific to the plant specimen, its visible condition, and the user's location. Return complete, structured JSON according to the schema.",
         temperature: 0.15,
+        // Internal marker consumed by generateWithRetry: skip 2.5 "thinking"
+        // tokens so the scan result arrives as fast as possible.
+        disableThinking: true,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -638,6 +657,7 @@ Score climate, water, light, soil, pest pressure, and seasonal timing independen
         config: {
           systemInstruction: "You are PhytoDoctor AI running a clinical placement simulation. Be honest: hostile climates should score low. Return only JSON.",
           temperature: 0.2,
+          disableThinking: true, // vault assessments are wait-facing; skip 2.5 thinking tokens
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -866,7 +886,19 @@ app.post("/api/economy/seed-sync", express.json({ limit: '16kb' }), apiGate, asy
       p_description: String(description || '').slice(0, 200),
       p_transaction_id: transactionId
     });
-    if (error) return fail(res, 500, "Could not sync seeds.");
+    if (error) {
+      const message = String(error.message || '');
+      // Permanent failures get 4xx so the client outbox drops them instead of
+      // retrying forever; anything else stays a retryable 500.
+      if (message === 'daily seed credit limit') {
+        return fail(res, 422, "Daily seed earning limit reached. Please try again tomorrow.");
+      }
+      if (message === 'insufficient seeds') {
+        return fail(res, 402, "Insufficient seeds.");
+      }
+      console.error("seed-sync rpc:", message);
+      return fail(res, 500, "Could not sync seeds.");
+    }
     res.json({ seeds: next });
   } catch (err: any) {
     console.error("seed-sync error:", err?.message);
@@ -888,10 +920,9 @@ app.post("/api/billing/purchase-with-seeds", express.json({ limit: '8kb' }), api
     if (error) {
       const message = String(error.message || '');
       if (message.includes('already pro')) return fail(res, 409, "You are already a Pro member.");
-      if (message.startsWith('insufficient:')) {
-        const balance = Number(message.split(':')[1]) || 0;
-        return fail(res, 402, `Insufficient seeds. You need ${(PRO_COST_SEEDS - balance).toLocaleString()} more.`);
-      }
+      // The RPC raises 'insufficient seeds' with no balance payload, so the
+      // exact shortfall cannot be computed here.
+      if (message.includes('insufficient')) return fail(res, 402, "Insufficient seeds.");
       console.error("purchase rpc:", message);
       return fail(res, 500, "Purchase failed. Please try again.");
     }
