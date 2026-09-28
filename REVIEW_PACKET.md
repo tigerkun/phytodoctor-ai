@@ -57,6 +57,7 @@ The payment path is the highest-consequence surface and is explicitly **OUT OF S
 - In-memory rate limiters (per-instance, reset on restart)
 - Public-read photo bucket (confirmed by Security Advisor — already tracked here)
 - Amazon search-page links
+- **Leaked Password Protection is a paid-plan feature and is unavailable on the Supabase Free plan.** Verified in the dashboard: Authentication → Attack Protection renders the "Prevent use of leaked passwords" label and description, but the switch control is never rendered (no element carries the id its `for` attribute targets), and no plan-upgrade prompt is shown. Re-checked after a clean reload — stable, not a hydration flake. **No code action.** Mitigation is the Auth password-strength settings, which are available on Free. Enabling this would require a plan upgrade.
 
 ## Supabase Security Advisor findings (verified 2026-09-27)
 
@@ -65,7 +66,7 @@ The payment path is the highest-consequence surface and is explicitly **OUT OF S
 | `purchase_pro_with_seeds` SECURITY DEFINER | ✅ **CLEAN** | `auth.uid()` check (line 196), `FOR UPDATE` row lock (line 205), `SET search_path = public`, `REVOKE ... FROM public, anon`. `p_cost` hardcoded server-side at `server.ts:886` — client sends no cost param. Same guardrails as `increment_seeds` plus row locking. |
 | `handle_new_user()` "Public Can Execute" | ✅ **FALSE POSITIVE** | Returns `trigger` type — cannot be called as RPC. `REVOKE ALL FROM public` at migration line 125. Only fires via `on_auth_user_created` trigger on `auth.users`. |
 | `touch_updated_at` mutable search_path | ✅ **FIXED** | New migration `20260916000000_pin_touch_updated_at_search_path.sql` adds `SET search_path = public`. Commit `c0b944c`. |
-| Leaked Password Protection Disabled | ⚠️ **Dashboard toggle** — enable in Supabase Auth settings before production deploy. Two clicks, not code. |
+| Leaked Password Protection Disabled | ⚠️ **Unavailable on Free plan** — the toggle's control is not rendered by the dashboard at this plan level. Accepted limitation; no code action. See "Accepted limitations". |
 | Public bucket `plant-photos` allows listing | ℹ️ Already tracked as "Accepted limitation" above — no new information. |
 | `increment_seeds` / `handle_new_user` "Signed-In Can Execute" | ℹ️ Expected and correct. Authenticated users are supposed to call `increment_seeds`. |
 
@@ -120,17 +121,97 @@ Resolution rules for the conflict:
 
 ---
 
+## Production migrations — APPLIED AND VERIFIED (2026-09-28)
+
+All **13/13** migrations were executed in the Supabase Dashboard SQL Editor against
+project `rkaawupaxlfdovpkrugp` using the dashboard/service-role connection. Each one
+returned **"Success. No rows returned"**. Nothing under `supabase/` was edited, added or
+re-run in this session; the migration files remain the source of record and were not
+touched.
+
+| Verification query | Result | Verdict |
+|---|---|---|
+| `information_schema.tables` inventory | **10 tables**, including `push_subscriptions` | ✅ Weather-alert migration created its table — confirms it ran |
+| `pg_proc` function inventory | `handle_new_user`, `increment_seeds`, `purchase_pro_with_seeds`, `touch_updated_at` | ✅ All 4 present |
+| `SELECT proname, pronargs FROM pg_proc WHERE proname='increment_seeds'` | **1 row, `pronargs = 5`** | ✅ 3-arg legacy overload confirmed dropped; only the hardened 5-arg remains |
+| `SELECT proname, prosrc, proconfig FROM pg_proc WHERE proname='touch_updated_at'` | `proconfig = ["search_path=public"]` | ✅ `search_path` is genuinely **pinned**, not merely present as text |
+
+> On that last row: the first attempt queried `prosrc`, which returned a truncated grid
+> cell and was inconclusive — `prosrc` holds only the function *body*, which can never
+> contain `SET search_path`. The correct column is `proconfig`, which is what the
+> `["search_path=public"]` result above comes from.
+
+### `grant_pro_from_payment`
+Created by **migration 12**. It is `SECURITY DEFINER` with `REVOKE ALL ... FROM public, anon`,
+so it is **service_role-only and not client-callable**. Previously absent from production.
+**The payment path has not been tested end to end** — a real Razorpay test-mode purchase
+has not yet been run through it.
+
+### Migration 3 — transient editor artifact, no SQL defect
+On the first attempt at migration 3, leftover content from the migration 2 run was still
+sitting in the editor, so the new statement was concatenated mid-identifier and failed with
+`42601: unterminated quoted identifier`. Re-running migration 3 in a fresh snippet
+succeeded. This was **one editor-paste artifact, self-resolved, with no SQL defect** — the
+migration itself is sound. Recorded here so a future reader does not mistake it for a
+migration bug.
+
+---
+
+## BUG-01 outcome — one source of truth for streak multipliers (2026-09-28)
+
+**There was never more than one table.** The apparent disagreement between "7d = 1.25x"
+(this branch) and "7d = 2.0x" came from a *different clone* still carrying the older
+`main` version of `REWARD_CONFIG.ts`. On `reconcile-recovery` there is a single table:
+
+| Streak | Multiplier |
+|---|---|
+| 1–6 | 1.0x |
+| 7–13 | 1.25x |
+| 14–29 | 1.5x |
+| 30–59 | 2.0x |
+| 60–99 | 2.5x |
+| 100+ | 3.0x |
+
+What did need fixing was **two implementations of the lookup function**, plus stale
+assertions:
+
+| file:line | Role | Before | After |
+|---|---|---|---|
+| `src/game/REWARD_CONFIG.ts:470-476` | the one exported table | unchanged | unchanged |
+| `src/services/profileUtils.ts:99` | **single** pure function | existed | kept as the one source |
+| `src/services/rewardService.ts:372-374` | **duplicate** implementation | existed | **deleted**; callers now import the single function |
+| `src/services/__tests__/batch.test.ts` | test | 3 streak cases | expanded to 8 cases |
+| `src/services/profileService.check.ts:123-134` | legacy self-check | asserted the **old** table (`7d=2.0`) and **failed** (`1.25 !== 2`) | corrected to the real values |
+
+**Award path and display now call the identical function** (`rewardService.ts:124` awards,
+`rewardService.ts:333` writes the stored field, `Profile.tsx:263` displays), so the Profile
+page cannot show a different multiplier from what is actually granted.
+
+The "stored field goes stale" concern is **already fixed on this branch**: both
+`rewardService.ts:124` and `:333` derive the multiplier from `streak.currentStreak` on
+every update rather than matching an exact milestone day, so a 6→8 jump cannot leave a
+stale value.
+
+---
+
 ## Merge-ready verdict
 
-**`reconcile-recovery` code is frozen and ready, pending manual execution and verification of migrations 1–13 in the Supabase Dashboard SQL Editor by the user.**
+**Updated 2026-09-28. The database gate is now CLEARED. The deployment gate is NOT — this branch is not yet unconditionally merge-ready.**
 
-Required gate sequence before merge:
-1. User executes migrations 1–13 in order via Supabase SQL Editor and confirms success + verification queries
-2. Set `NODE_ENV=production` + all env vars on Render
-3. Deploy; confirm deployed SHA matches branch HEAD
-4. Set branch protection + triage open PRs on GitHub
-5. Phone tests per Phase 6 checklist (including Gemini model-fallback log on first identify)
-6. Merge `reconcile-recovery → main`
+What changed: the previous verdict was blocked on the user manually executing
+migrations 1–13. That is **done** — 13/13 applied and all four verification queries pass
+(see "Production migrations"). The `reconcile-recovery` branch has also been **pushed to
+GitHub**, so Render can actually build from it; it previously existed locally only, and
+GitHub was 21 commits behind.
+
+Still outstanding before merge — none of these are code defects, all are operational steps:
+1. ~~Execute migrations 1–13~~ — ✅ **DONE 2026-09-28**
+2. Set `NODE_ENV=production` + all env vars on Render, and confirm `RAZORPAY_WEBHOOK_SECRET` matches the URL registered in Razorpay
+3. Deploy; confirm the deployed SHA matches branch HEAD
+4. Set branch protection on `main` + triage open PRs on GitHub
+5. Run one **Razorpay test-mode** purchase end to end — `grant_pro_from_payment` (migration 12) has never been exercised against a real payment event
+6. Phone tests per the Phase 6 checklist, including the Gemini model-fallback log on first identify (expect `gemini-2.5-flash` → `gemini-2.0-flash` → `gemini-1.5-flash`)
+7. Merge `reconcile-recovery → main` (squash)
 
 ## Deferred post-merge backlog
 - R2 dead-code purge
