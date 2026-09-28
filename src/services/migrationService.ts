@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { db } from '../db/database';
+import { generateLocalUserId } from './authUtils';
 import type { Plant } from '../types';
 
 export interface PostgresPlant {
@@ -90,8 +91,14 @@ export const MigrationService = {
 
       const userId = session.user.id;
 
-      // 2. Fetch all local records from Dexie
-      const localPlants = await db.plants.toArray();
+      // 2. Fetch only plants this signed-in user could own: those created
+      // under the cloud identity ('sb_<uuid>') plus those from the local
+      // account derived from their own email. The Dexie store is per-browser
+      // and shared by every local account on the device, so an unfiltered
+      // copy would push other people's plants into this user's cloud.
+      const ownIds = new Set<string>([`sb_${userId}`]);
+      if (session.user.email) ownIds.add(generateLocalUserId(session.user.email));
+      const localPlants = (await db.plants.toArray()).filter(p => ownIds.has(p.userId));
       if (localPlants.length === 0) {
         return { success: true, count: 0 };
       }

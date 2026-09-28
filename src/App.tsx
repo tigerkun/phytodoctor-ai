@@ -20,6 +20,7 @@ import { CaseStudy } from './components/CaseStudy';
 import SystemAudit from './components/SystemAudit';
 import Leafify from './components/Leafify';
 import RequireAuth from './components/RequireAuth';
+import ErrorBoundary from './components/ErrorBoundary';
 
 
 /**
@@ -34,7 +35,8 @@ import RequireAuth from './components/RequireAuth';
 export default function App() {
   return (
     <BrowserRouter>
-      <ToastProvider>
+      <ErrorBoundary>
+        <ToastProvider>
         <Layout>
           <Leafify />
           <FloatingAssistant />
@@ -79,7 +81,8 @@ export default function App() {
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Layout>
-      </ToastProvider>
+        </ToastProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

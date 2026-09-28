@@ -248,6 +248,10 @@ export default function Profile() {
       localStorage.removeItem('botanical_guardian_auth_token');
       localStorage.removeItem('botanical_guardian_onboarded');
       localStorage.removeItem('botanical_guardian_userId');
+      // Identity left behind here would prefill the next user's session on a
+      // shared terminal.
+      localStorage.removeItem('botanical_guardian_user_email');
+      localStorage.removeItem('botanical_guardian_user_name');
       navigate('/auth', { replace: true });
     }
   };
