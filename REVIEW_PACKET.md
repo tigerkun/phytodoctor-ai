@@ -38,7 +38,7 @@
 - **SEC-10**: `transactionId` required server-side (400 without). Client outbox in `gameService.syncSeedsToServer` — dead-letters on 4xx, retains on 5xx/network. `flushSeedSyncOutbox` hooked to `window.addEventListener('online', ...)` in `main.tsx` — persists across app restarts.
 - **SEC-11**: `startServer()` awaits Supabase admin init with 7s timeout. `/healthz` answers unconditionally (200 unless production misconfiguration → 503).
 - **Gemini Model GA Alignment**: `server.ts` fallback chain updated to stable GA IDs (`gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`), eliminating deprecated preview endpoints and fallback latency.
-- **Test Suite**: 24 tests passed across 3 test suites (`batch.test.ts`, `ruleEngine.challenge.test.ts`, `driftDetector.challenge.test.ts`). Strict typecheck passed (0 errors). Production build clean.
+- **Test Suite**: **36 tests passed across 4 test suites** (`batch.test.ts` 11, `ruleEngine.challenge.test.ts` 9, `driftDetector.challenge.test.ts` 11, `updateCardFromCheckIn.test.ts` 5), re-run 2026-09-28. Strict typecheck passed (0 errors). Production build clean. *(This line previously read "24 tests across 3 test suites" and elsewhere "29/29" — both stale.)*
 
 ## 35 Untriaged — Backlog, NOT Cleared
 This batch focuses solely on critical recovery fixes. 35 audit claims remain untriaged and have been moved to the post-merge backlog.
@@ -96,7 +96,7 @@ Resolution rules for the conflict:
 - **Adopt `{ symptom: string; recoveredAt: string }[]` type** from `3d1a0f7` — richer and correct. Update `src/types.ts` accordingly and align the `battleScars` construction in `updateCardFromCheckIn` to emit objects not strings.
 - **`updateCardFromCheckIn` return type** (`{ leveledUp, stageChanged, newLevel, newStage } | null`) from `3d1a0f7` is net-positive — keep it; it doesn't conflict with our changes.
 
-**Post-merge re-verification required**: `tsc --noEmit` (type change in `types.ts` must propagate cleanly), `npm test` (all 24 tests must still pass).
+**Post-merge re-verification required**: `tsc --noEmit` (type change in `types.ts` must propagate cleanly), `npm test` (all 36 tests must still pass).
 
 ## BUG-03 evidence (verified 2026-09-27 — dashboard, service role)
 
@@ -111,7 +111,7 @@ Resolution rules for the conflict:
 **BUG-03 gate: resolved.** Zero pre-fix spends recorded — "ignore overpaid balances" is not a risk decision, there is nothing to ignore. No backfill, no forgive, no remediation plan required.
 
 ## Items 2–5 & 7 checklist
-- [x] **origin/main merge** — resolved `gameService.ts` conflict (commit `eda8bb2`); `tsc --noEmit` 0 errors; 29/29 tests pass
+- [x] **origin/main merge** — resolved `gameService.ts` conflict (commit `eda8bb2`); `tsc --noEmit` 0 errors; 36/36 tests pass (re-verified 2026-09-28)
 - [x] Supabase `SELECT COUNT(*) FROM profiles` — **1 row** (dev account, 500 seeds, no real users, zero pre-fix spends). BUG-03 gate resolved.
 - [ ] Render branch+commit verification
 - [x] Supabase `pg_proc` check: **5-arg only, 3-arg absent** — confirmed. Migration 5 ran correctly.
@@ -194,18 +194,106 @@ stale value.
 
 ---
 
+## 🔴 CRITICAL — `increment_seeds` INSERT column/value mismatch (found 2026-09-28)
+
+**Migration 12 (`20260915000000_reconcile_legacy_production.sql:156-157`) re-created
+`public.increment_seeds` with a malformed INSERT:**
+
+```sql
+insert into public.seed_transactions (id, user_id, amount, source, description)
+values (p_transaction_id, p_user_id, p_amount, left(coalesce(p_description, ''), 200))
+```
+
+**5 target columns, 4 values.** `p_source` is missing. The good body in
+`20260913000000_harden_seed_mutations.sql:30-38` supplies all five.
+
+`seed_transactions.source` is `text not null` with **no default**
+(`20260912000000_game_economy.sql:57`), so there is no fallback value.
+
+**Why nothing caught it:** Postgres validates the row shape at *run* time, not at
+`CREATE FUNCTION` time. The earlier verification — `pronargs = 5` — only proved the
+signature exists. It said nothing about whether the function could execute. The
+migration reported "Success. No rows returned" because it genuinely did return
+successfully; it just defined a function that throws on every call.
+
+**Impact:** every call to `increment_seeds` fails with
+`ERROR: INSERT has more target columns than expressions`, surfacing as HTTP 500.
+The client outbox treats 5xx as retryable and retains the entry, so **no delta is
+silently dropped — but nothing ever reaches the ledger and no balance is ever applied.**
+Seed sync is effectively non-functional in production right now.
+
+### Fix
+
+`supabase/migrations/20260917000000_fix_increment_seeds_insert.sql` (commit `3926b72`)
+restores the verified-good 5-arg body. Already-applied migration files were deliberately
+**not** edited, so the replay history stays intact.
+
+### Gate A — ⏳ PENDING USER RUN
+
+Not executed by the agent. Run in the Supabase SQL Editor; it rolls back so it changes
+nothing:
+
+```sql
+begin;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select public.increment_seeds(
+  '1645084f-4437-40e9-b4f6-0fbeea50fc62'::uuid, 1, 'bonus', 'smoke test', gen_random_uuid());
+rollback;
+```
+
+- **Returns the new balance** → the function works (or is already fixed).
+- **`INSERT has more target columns than expressions`** → the fix migration has not been applied yet.
+
+### Source-string whitelist — ✅ no mismatch
+
+The DB accepts only `checkin`, `bonus`, `spend`, `reward`. Verified there is no way to
+send anything else:
+
+| Layer | Enforcement |
+|---|---|
+| TypeScript | `SeedTransaction['source']` is the union `'checkin' \| 'bonus' \| 'spend' \| 'reward'` (`src/types.ts:148`) — compile-time |
+| Call sites | All 16 literal `earnSeeds`/`spendSeeds` calls use only `'bonus'` or `'spend'`, both whitelisted |
+| Server | `server.ts:856` rejects anything outside the whitelist with **400** before the RPC is called |
+| Database | The function itself raises `'invalid seed transaction'` as defence in depth |
+
+**No fix required.** The theoretical risk — a 4xx causing the outbox to delete a real
+delta — cannot be triggered from the client, because the value cannot be constructed
+outside the type union. Note that the `String(source \|\| 'bonus')` fallback at
+`server.ts:865` is unreachable: an absent `source` already 400s at line 856.
+
+---
+
+## BUG-03 balance-guard finding (2026-09-28)
+
+`spendSeeds` clamped with `Math.max(0, profile.seeds - finalAmount)`, so a purchase
+costing more than the balance **settled for free**. `GameService.propagate` was worse —
+it never checked the balance at all, and was the only one of the 7 debit paths without a
+pre-check.
+
+This also masked a **permanent retry loop**: the server maps the RPC's
+`'insufficient seeds'` error to 500, and the outbox retains 5xx, so a clamped spend
+would have been retried on every flush forever and never cleared.
+
+Fixed in `77d0d85`: `spendSeeds` now throws before mutating anything (0 profile updates,
+0 ledger rows, 0 outbox writes on refusal), and `propagate` checks the balance first.
+
+---
+
 ## Merge-ready verdict
 
-**Updated 2026-09-28. The database gate is now CLEARED. The deployment gate is NOT — this branch is not yet unconditionally merge-ready.**
+**Updated 2026-09-28. The database gate is NOT cleared — a critical `increment_seeds` defect was found after the migrations were applied. Do not deploy until the fix migration is applied and Gate A passes.**
 
-What changed: the previous verdict was blocked on the user manually executing
-migrations 1–13. That is **done** — 13/13 applied and all four verification queries pass
-(see "Production migrations"). The `reconcile-recovery` branch has also been **pushed to
-GitHub**, so Render can actually build from it; it previously existed locally only, and
-GitHub was 21 commits behind.
+### 🔴 Blocking defect (added 2026-09-28)
 
-Still outstanding before merge — none of these are code defects, all are operational steps:
-1. ~~Execute migrations 1–13~~ — ✅ **DONE 2026-09-28**
+Migration 12 left `increment_seeds` with a malformed INSERT (5 columns, 4 values). **Every
+seed sync currently fails with a 500 in production**; the outbox retains the entries so
+nothing is lost, but nothing is ever written to the ledger. Fix migration
+`20260917000000_fix_increment_seeds_insert.sql` is committed but **not yet applied**.
+
+**Before merge:**
+0. ⏳ **User applies `20260917000000_fix_increment_seeds_insert.sql` in the dashboard**
+0. ⏳ **User runs Gate A** and confirms the function executes
+1. ~~Execute migrations 1–13~~ — ✅ DONE, **but see the blocking defect above**
 2. Set `NODE_ENV=production` + all env vars on Render, and confirm `RAZORPAY_WEBHOOK_SECRET` matches the URL registered in Razorpay
 3. Deploy; confirm the deployed SHA matches branch HEAD
 4. Set branch protection on `main` + triage open PRs on GitHub
