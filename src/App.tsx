@@ -21,6 +21,8 @@ import SystemAudit from './components/SystemAudit';
 import Leafify from './components/Leafify';
 import RequireAuth from './components/RequireAuth';
 import ErrorBoundary from './components/ErrorBoundary';
+import OnboardingTour from './components/OnboardingTour';
+import HelpPage from './pages/HelpPage';
 
 
 /**
@@ -40,6 +42,7 @@ export default function App() {
         <Layout>
           <Leafify />
           <FloatingAssistant />
+          <OnboardingTour />
           <Routes>
 
 
@@ -47,6 +50,7 @@ export default function App() {
 
             {/* Authentication */}
             <Route path="/auth" element={<Auth />} />
+            <Route path="/help" element={<HelpPage />} />
 
             {/* Main Command Center */}
             <Route path="/" element={<Home />} />

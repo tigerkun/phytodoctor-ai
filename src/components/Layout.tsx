@@ -104,6 +104,7 @@ function Footer() {
       </div>
       <div className="flex gap-6">
         <Link to="/lab">Lab Notes</Link>
+        <Link to="/help">Help &amp; FAQ</Link>
         <Link to="/privacy">Privacy</Link>
         <Link to="/terms">Terms</Link>
       </div>
