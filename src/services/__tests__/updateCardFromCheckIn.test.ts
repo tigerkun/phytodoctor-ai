@@ -78,7 +78,13 @@ function makePlant() {
 
 // Shared seed mocks (earnSeeds path)
 function mockSeeds() {
+  // applySeedDelta wraps balance writes in a Dexie transaction; pass the scope
+  // straight through instead of opening real IndexedDB (absent in tests).
+  vi.spyOn(db, 'transaction').mockImplementation(
+    (async (_mode: unknown, _tables: unknown, scope: () => Promise<unknown>) => scope()) as any
+  );
   vi.spyOn(GameService as any, 'ensureProfile').mockResolvedValue({ seeds: 100, tier: 'free' });
+  vi.spyOn(db.userProfile, 'get').mockResolvedValue({ seeds: 100, tier: 'free' } as any);
   vi.spyOn(db.userProfile, 'update').mockResolvedValue(1 as any);
   vi.spyOn(db.seedTransactions, 'add').mockResolvedValue(1 as any);
   vi.spyOn(db.seedTransactions, 'get').mockResolvedValue(undefined);

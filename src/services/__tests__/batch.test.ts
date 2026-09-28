@@ -61,6 +61,15 @@ describe('BUG-01: Streak milestone selection', () => {
 });
 
 describe('BUG-03: seed split', () => {
+  // applySeedDelta wraps every balance write in a Dexie transaction; the
+  // mocked table methods must run inside it, so pass the scope straight
+  // through instead of opening real IndexedDB (absent in the test runtime).
+  beforeEach(() => {
+    vi.spyOn(db, 'transaction').mockImplementation(
+      (async (...args: any[]) => { const scope = args[args.length - 1]; return scope(); }) as any
+    );
+  });
+
   it('spendSeeds 1:1, multiplier applies on earnings only', async () => {
     // Mock globals
     globalThis.localStorage = { getItem: () => 'user123' } as any;
@@ -72,6 +81,8 @@ describe('BUG-03: seed split', () => {
     vi.spyOn(GameService as any, 'ensureProfile').mockImplementation(async () => ({
       seeds: updatedSeeds, tier: 'pro' // pro has 1.5x multiplier in SEED_MULTIPLIERS
     }));
+    // applySeedDelta re-reads the balance inside its transaction.
+    vi.spyOn(db.userProfile, 'get').mockImplementation((async () => ({ seeds: updatedSeeds, tier: 'pro' })) as any);
     
     vi.spyOn(db.userProfile, 'update').mockImplementation((async (userId: any, data: any) => {
       updatedSeeds = data.seeds;
@@ -103,6 +114,7 @@ describe('BUG-03: seed split', () => {
     vi.spyOn(GameService as any, 'ensureProfile').mockImplementation(async () => ({
       seeds: startSeeds, tier: 'free'
     }));
+    vi.spyOn(db.userProfile, 'get').mockImplementation((async () => ({ seeds: updatedSeeds, tier: 'free' })) as any);
     vi.spyOn(db.userProfile, 'update').mockImplementation((async (_u: any, data: any) => {
       updatedSeeds = data.seeds;
       profileUpdates++;
@@ -138,6 +150,7 @@ describe('BUG-03: seed split', () => {
     vi.spyOn(GameService as any, 'ensureProfile').mockImplementation(async () => ({
       seeds: startSeeds, tier: 'free'
     }));
+    vi.spyOn(db.userProfile, 'get').mockImplementation((async () => ({ seeds: updatedSeeds, tier: 'free' })) as any);
     vi.spyOn(db.userProfile, 'update').mockImplementation((async (_u: any, data: any) => {
       updatedSeeds = data.seeds;
       return 1;
