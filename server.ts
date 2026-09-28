@@ -362,32 +362,40 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
   httpOptions: {
     // Caps every attempt: without it a hung Gemini call never resolves and
-    // the Express request hangs until the client gives up.
-    timeout: 30000,
+    // the Express request hangs until the client gives up. 60s because the
+    // full identify schema can legitimately need more than 30s on the
+    // high-capacity tiers before this falls through to the next model.
+    timeout: 60000,
     headers: {
       'User-Agent': 'aistudio-build',
     }
   }
 });
 
+// Verified against the production key on 2026-09-28: Google retired
+// gemini-2.5-flash/2.0-flash/1.5-flash for new-format keys ("no longer
+// available to new users", 404 with a pointer to gemini-3.8-flash), which
+// made EVERY AI route fail after walking the whole dead chain. Live-verified:
+// 3.8-flash and 3.5-flash answer 200 (intermittently 503 capacity-shed),
+// 3.1-flash-lite answers 200. 2.5-flash stays last for legacy AIza keys.
 async function generateWithRetry(params: any, retries = 1) {
   const envModel = process.env.GEMINI_MODEL;
   const models = envModel
-    ? [envModel, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
-    : ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+    ? [envModel, "gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
+    : ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash"];
 
   for (const modelName of models) {
     for (let i = 0; i <= retries; i++) {
       try {
         const modelParams: any = { ...params, model: modelName };
-        // 2.5-family models spend internal "thinking" tokens before emitting,
-        // which the scan pipeline pays for in seconds. Older models reject the
-        // field, so it is attached to 2.5 models only. Callers opt in by
-        // setting config.disableThinking (stripped here so it never reaches the API).
+        // 2.5+ generation models spend internal "thinking" tokens before
+        // emitting — seconds per call on the scan path. 1.5/2.0 reject the
+        // field, so it is attached to everything else. Callers opt in via
+        // config.disableThinking (stripped here so it never reaches the API).
         if (params.config?.disableThinking) {
           modelParams.config = { ...params.config };
           delete modelParams.config.disableThinking;
-          if (modelName.startsWith("gemini-2.5")) {
+          if (!/^gemini-(1\.5|2\.0)/.test(modelName)) {
             modelParams.config.thinkingConfig = { thinkingBudget: 0 };
           }
         }
@@ -396,15 +404,27 @@ async function generateWithRetry(params: any, retries = 1) {
         const isFatal = err?.status === 400 || err?.status === 401 || err?.status === 403;
         if (isFatal) throw err; // Don't delay on authentication or bad request errors
 
-        // 429 is project-level quota, not a model property: falling through
-        // the chain would just repeat the failure against every model. 404
-        // IS model-specific and keeps its fallback.
+        // 404 IS model-specific (retired/renamed model) and keeps its
+        // fallback. 429 is project-level quota — failing fast avoids
+        // repeating the failure against every model with sleeps in between.
         const isModelMissing = err?.status === 404 || err?.message?.includes("not found");
         if (isModelMissing && modelName !== models[models.length - 1]) {
           console.warn(`Model ${modelName} unavailable (${err?.status || 'error'}), falling back to next model...`);
           break;
         }
         if (err?.status === 429) throw err;
+
+        // Capacity shedding (503 "high demand") and deadline kills (504 /
+        // client abort) will not clear within a 400ms retry — fall through to
+        // the next model immediately instead of burning the same one twice.
+        const isCapacity = err?.status === 503 || err?.status === 504 || /aborted|deadline/i.test(String(err?.message || ''));
+        if (isCapacity) {
+          if (modelName !== models[models.length - 1]) {
+            console.warn(`Model ${modelName} saturated (${err?.status || 'error'}), falling back to next model...`);
+            break;
+          }
+          if (i === retries) throw err;
+        }
 
         if (i === retries && modelName === models[models.length - 1]) throw err;
         console.warn(`Gemini API (${modelName}) attempt ${i + 1} failed, retrying...`, err?.message || err);
