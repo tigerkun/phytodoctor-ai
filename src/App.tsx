@@ -18,7 +18,6 @@ import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import { CaseStudy } from './components/CaseStudy';
 import SystemAudit from './components/SystemAudit';
-import Leafify from './components/Leafify';
 import RequireAuth from './components/RequireAuth';
 
 
@@ -36,7 +35,6 @@ export default function App() {
     <BrowserRouter>
       <ToastProvider>
         <Layout>
-          <Leafify />
           <FloatingAssistant />
           <Routes>
 

@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Scroll, ArrowRight, User, Mail, Lock, ShieldCheck, Eye, EyeOff, AlertCircle, CheckCircle2, Feather } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import PageWrapper from '../components/home/PageWrapper';
-import AmbientParticles from '../components/AmbientParticles';
 import { useDayNightTheme } from '../hooks/useDayNightTheme';
 import { GameService } from '../services/gameService';
 import { isValidEmail, evaluatePasswordStrength, generateLocalUserId, hashPassword, verifyPassword, generateSalt, getAuthLockout, recordAuthFailure, clearAuthFailures } from '../services/authUtils';
@@ -312,7 +311,6 @@ export default function Auth() {
 
   return (
     <div className="skin-gatekeeper min-h-screen relative overflow-hidden transition-colors duration-500">
-      <AmbientParticles theme={theme} />
 
       <PageWrapper className="min-h-[88vh] flex items-center justify-center p-4 sm:p-6 md:p-10 relative z-10">
         <motion.div

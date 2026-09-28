@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTimeOfDay, type TimePeriod } from '@/hooks/useTimeOfDay';
-import { useDayNightTheme } from '@/hooks/useDayNightTheme';
-import type { AmbientScene } from '@/components/home/DayNightProvider';
+import { useTimeOfDay } from '@/hooks/useTimeOfDay';
 import { useEcoMode } from '@/hooks/useEcoMode';
 import { useParallax } from '@/hooks/useScrollBehavior';
 import { triggerHaptic, playAudio } from '@/utils/hapticAudio';
@@ -20,8 +18,6 @@ interface HeroSectionProps {
   plantIndex?: number;
   weather?: any;
   onAddPlant: () => void;
-  currentTimePeriod: TimePeriod;
-  onTimePeriodChange: (period: TimePeriod) => void;
 }
 
 export function HeroSection({
@@ -35,14 +31,10 @@ export function HeroSection({
   totalPlants,
   plantIndex = 0,
   weather,
-  onAddPlant,
-  currentTimePeriod,
-  onTimePeriodChange
+  onAddPlant
 }: HeroSectionProps) {
   const { greeting } = useTimeOfDay();
-  const { theme, ambientScene, setAmbientScene } = useDayNightTheme();
   const { shouldDisableAnimations } = useEcoMode();
-  const parallaxRef = useParallax(0.3);
 
   // States for visual effects
   const [activeEffect, setActiveEffect] = useState<'water' | 'prune' | 'nourish' | null>(null);
@@ -76,7 +68,7 @@ export function HeroSection({
     setActiveEffect(action);
     setTimeout(() => {
       setActiveEffect(null);
-    }, 2000);
+    }, 550);
   };
 
   const handleSaveNickname = async () => {
@@ -121,7 +113,6 @@ export function HeroSection({
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Panel - Plant of the Day OR Empty Sanctuary State */}
         <motion.div
-          ref={parallaxRef}
           className="lg:col-span-2"
           initial={{ opacity: 0, x: -50 }}
           animate={{ opacity: 1, x: 0 }}
@@ -213,7 +204,7 @@ export function HeroSection({
                             scale: [0.5, 1, 1, 0.5]
                           }}
                           transition={{ 
-                            duration: 1.2, 
+                            duration: 0.5, 
                             delay: (i * 0.15) % 0.8,
                             repeat: 0,
                             ease: "easeIn"
@@ -246,7 +237,7 @@ export function HeroSection({
                             opacity: [0, 0.7, 0.7, 0]
                           }}
                           transition={{ 
-                            duration: 1.5, 
+                            duration: 0.55, 
                             delay: (i * 0.2) % 0.8,
                             ease: "easeOut"
                           }}
@@ -277,7 +268,7 @@ export function HeroSection({
                             scale: [0.2, 1.2, 0.2]
                           }}
                           transition={{ 
-                            duration: 1.6, 
+                            duration: 0.55, 
                             delay: (i * 0.1) % 0.8,
                             ease: "easeOut"
                           }}
@@ -301,7 +292,7 @@ export function HeroSection({
                     '0 4px 14px rgba(184,149,82,0.3), inset 0 2px 4px rgba(255,255,255,0.9), inset 0 -2px 4px rgba(90,65,25,0.45)'
                   ]
                 } : {}}
-                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
               >
                 <div className="text-[7px] font-black uppercase tracking-[0.22em] text-[#7a602f] dark:text-[#d4af37]/90 leading-tight">
                   BAROMETER
@@ -410,77 +401,23 @@ export function HeroSection({
           transition={{ delay: 0.4, duration: 0.6 }}
           className="flex flex-col gap-6"
         >
-          {/* Greeting */}
-          <div
-            className="rounded-2xl backdrop-blur-md border border-border-light bg-bg-secondary p-6"
-          >
-            <motion.h3
-              className="text-lg font-serif font-bold mb-3 text-text-bark"
-              animate={!shouldDisableAnimations ? { opacity: [0.8, 1, 0.8] } : {}}
-              transition={{ duration: 3, repeat: Infinity }}
-            >
-              {greeting}
-            </motion.h3>
-
-            {/* Atmosphere (Aether) Preset Selector */}
-            <div className="mb-5 pb-4 border-b border-border-light">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-text-stone block mb-2">
-                🌌 Ambient Override
-              </span>
-              <div className="flex items-center justify-between gap-1.5 bg-bg-tertiary/40 p-1.5 rounded-xl border border-border-light">
-                {([
-                  { id: 'morning' as AmbientScene, icon: '🌅', label: 'Morning' },
-                  { id: 'day'     as AmbientScene, icon: '☀️', label: 'Day' },
-                  { id: 'city'   as AmbientScene, icon: '🌇', label: 'City' },
-                  { id: 'night'  as AmbientScene, icon: '🌌', label: 'Night' }
-                ]).map((scene) => (
-                  <motion.button
-                    key={scene.id}
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      triggerHaptic('light');
-                      setAmbientScene(scene.id);
-                    }}
-                    title={scene.label}
-                    className={`flex items-center justify-center w-8 h-8 rounded-lg text-lg transition-all focus:outline-none ${ambientScene === scene.id ? 'bg-moss text-white shadow-md' : 'hover:bg-bg-tertiary text-text-bark/70'}`}
-                  >
-                    {scene.icon}
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-
-            {/* Mini Stats */}
-            <div className="grid grid-cols-2 gap-4">
+          <section className="rounded-[var(--radius-md)] border border-border-light bg-bg-secondary p-6 shadow-[var(--shadow-sm)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Garden status</p>
+            <h3 className="mt-2 text-xl font-serif font-semibold text-text-bark">{greeting}</h3>
+            <dl className="mt-6 grid grid-cols-2 border-t border-border-light">
               {[
-                { icon: '🌡️', label: 'Temp', value: weather?.temp != null ? `${Math.round(weather.temp)}°C` : '28°C' },
-                { icon: '💧', label: 'Humidity', value: weather?.humidity != null ? `${Math.round(weather.humidity)}%` : '62%' },
-                { icon: '🌱', label: 'Plants', value: totalPlants.toString() },
-                { icon: '🔥', label: 'Streak', value: `${profile?.currentStreak || 0}d` }
-              ].map((stat, idx) => (
-                <motion.div
-                  key={stat.label}
-                  className="p-3 rounded-lg bg-bg-tertiary border border-border-light"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 + idx * 0.1, duration: 0.4 }}
-                >
-                  <div className="text-xl mb-1">{stat.icon}</div>
-                  <div
-                    className="text-xs text-text-stone"
-                  >
-                    {stat.label}
-                  </div>
-                  <div
-                    className="text-sm font-bold text-text-bark"
-                  >
-                    {stat.value}
-                  </div>
-                </motion.div>
+                { label: 'Temperature', value: weather?.temp != null ? `${Math.round(weather.temp)}°C` : '28°C' },
+                { label: 'Humidity', value: weather?.humidity != null ? `${Math.round(weather.humidity)}%` : '62%' },
+                { label: 'Plants', value: totalPlants.toString() },
+                { label: 'Current streak', value: `${profile?.currentStreak || 0}d` }
+              ].map((stat) => (
+                <div key={stat.label} className="border-b border-border-light py-4 odd:pr-4 even:pl-4 even:border-l">
+                  <dt className="text-xs text-text-stone">{stat.label}</dt>
+                  <dd className="mt-1 text-lg font-semibold tabular-nums text-text-bark">{stat.value}</dd>
+                </div>
               ))}
-            </div>
-          </div>
+            </dl>
+          </section>
 
           {/* Add Plant Button */}
           <motion.button
@@ -488,16 +425,15 @@ export function HeroSection({
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             aria-label="Add a new plant to your garden"
-            className="w-full py-4 rounded-[var(--radius-lg)] font-bold text-white transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)] focus-visible:ring-offset-2 active:scale-95"
+            className="w-full min-h-11 py-3 rounded-[var(--radius-sm)] font-semibold text-white transition-colors flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2 active:scale-[0.99]"
             style={{
-              background: 'linear-gradient(135deg, var(--terracotta) 0%, var(--gold) 100%)',
-              boxShadow: '0 10px 30px var(--glow)'
+              background: 'var(--moss)',
+              boxShadow: 'var(--shadow-sm)'
             }}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.7, duration: 0.4 }}
           >
-            <span className="text-2xl">🌱</span>
             <span>Add a Plant</span>
           </motion.button>
         </motion.div>

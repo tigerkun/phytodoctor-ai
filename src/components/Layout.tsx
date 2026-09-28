@@ -3,8 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
 import { NavigationBar } from './home/NavigationBar';
 import MobileBottomNav from './home/MobileBottomNav';
-import AmbientGarden from './AmbientGarden';
-import Leafify from './Leafify';
 import { PageTransitionProvider } from './home/PageTransitionContext';
 
 import { supabase } from '../lib/supabase';
@@ -73,8 +71,6 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen flex flex-col font-sans relative overflow-x-hidden" id="app-shell" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
-      <AmbientGarden />
-      <Leafify />
       <PageTransitionProvider>
         {/* Only show nav when authenticated */}
         {!isAuthPage && hasAuth && (

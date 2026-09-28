@@ -5,7 +5,6 @@ import { db } from '@/db/database';
 import { GameService } from '@/services/gameService';
 import { ArrowRight, Leaf, Shield, Swords, Bell } from 'lucide-react';
 
-import { AmbientAnimations } from '@/components/home/AmbientAnimations';
 import { HeroSection } from '@/components/home/HeroSection';
 import SanctuaryHub from '@/components/home/SanctuaryHub';
 import { GardenCoach } from '@/components/home/GardenCoach';
@@ -324,7 +323,6 @@ export default function HomePage() {
       className={`min-h-screen w-full relative skin-conservatory ${textColorClass} transition-colors duration-1000`}
     >
       {/* Ambient Animations */}
-      <AmbientAnimations overrideTimePeriod={activeTimePeriod} />
 
       {/* Main Content */}
       <motion.main
@@ -345,8 +343,6 @@ export default function HomePage() {
           totalPlants={mappedPlants.length}
           plantIndex={selectedPlantIndex}
           weather={weather}
-          currentTimePeriod={activeTimePeriod}
-          onTimePeriodChange={(period) => setTimePeriodOverride(period)}
           onAddPlant={() => setIsAddModalOpen(true)}
         />
 
@@ -707,4 +703,3 @@ function AddPlantModal({
     </div>
   );
 }
-
