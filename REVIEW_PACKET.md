@@ -228,21 +228,26 @@ Seed sync is effectively non-functional in production right now.
 restores the verified-good 5-arg body. Already-applied migration files were deliberately
 **not** edited, so the replay history stays intact.
 
-### Gate A — ⏳ PENDING USER RUN
+### Gate A — ✅ PASSED (run 2026-09-28, agent-executed)
 
-Not executed by the agent. Run in the Supabase SQL Editor; it rolls back so it changes
-nothing:
+The test runs inside `begin; ... rollback;` so it changes nothing.
 
-```sql
-begin;
-select set_config('request.jwt.claims', '{"role":"service_role"}', true);
-select public.increment_seeds(
-  '1645084f-4437-40e9-b4f6-0fbeea50fc62'::uuid, 1, 'bonus', 'smoke test', gen_random_uuid());
-rollback;
+**Before the fix — FAILED:**
+```
+Failed to run sql query: ERROR: 42601: INSERT has more target columns than expressions
+QUERY: insert into public.seed_transactions (id, user_id, amount, source, description)
+values (p_transaction_id, p_user_id, p_amount, left(coalesce(p_description, ''), 200))
+on conflict (id) do nothing
+CONTEXT: PL/pgSQL function increment_seeds(uuid,integer,text,text,uuid) line 14 at SQL statement
 ```
 
-- **Returns the new balance** → the function works (or is already fixed).
-- **`INSERT has more target columns than expressions`** → the fix migration has not been applied yet.
+**Fix applied** (`20260917000000_fix_increment_seeds_insert.sql`) → `Success. No rows returned`.
+
+**After the fix — PASSED:** returns **501** (the dev account's 500 seeds + 1).
+**Rollback verified:** `profiles.seeds = 500` (unchanged) and
+`count(*) where description = 'smoke test'` = **0**.
+
+**Seed sync is functional in production again.**
 
 ### Source-string whitelist — ✅ no mismatch
 
@@ -281,20 +286,13 @@ Fixed in `77d0d85`: `spendSeeds` now throws before mutating anything (0 profile 
 
 ## Merge-ready verdict
 
-**Updated 2026-09-28. The database gate is NOT cleared — a critical `increment_seeds` defect was found after the migrations were applied. Do not deploy until the fix migration is applied and Gate A passes.**
+**Updated 2026-09-28 (later). The database gate is CLEARED — the blocking `increment_seeds`
+defect was found, fixed in production, and verified. The deployment gate is still open.**
 
-### 🔴 Blocking defect (added 2026-09-28)
-
-Migration 12 left `increment_seeds` with a malformed INSERT (5 columns, 4 values). **Every
-seed sync currently fails with a 500 in production**; the outbox retains the entries so
-nothing is lost, but nothing is ever written to the ledger. Fix migration
-`20260917000000_fix_increment_seeds_insert.sql` is committed but **not yet applied**.
-
-**Before merge:**
-0. ⏳ **User applies `20260917000000_fix_increment_seeds_insert.sql` in the dashboard**
-0. ⏳ **User runs Gate A** and confirms the function executes
-1. ~~Execute migrations 1–13~~ — ✅ DONE, **but see the blocking defect above**
-2. Set `NODE_ENV=production` + all env vars on Render, and confirm `RAZORPAY_WEBHOOK_SECRET` matches the URL registered in Razorpay
+Required gate sequence before merge:
+1. ~~Execute migrations 1–13~~ — ✅ DONE
+2. ~~Apply `20260917000000_fix_increment_seeds_insert.sql` + pass Gate A~~ — ✅ DONE (returns 501)
+3. Set `NODE_ENV=production` + all env vars on Render, and confirm `RAZORPAY_WEBHOOK_SECRET` matches the URL registered in Razorpay
 3. Deploy; confirm the deployed SHA matches branch HEAD
 4. Set branch protection on `main` + triage open PRs on GitHub
 5. Run one **Razorpay test-mode** purchase end to end — `grant_pro_from_payment` (migration 12) has never been exercised against a real payment event
