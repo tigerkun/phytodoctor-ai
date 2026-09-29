@@ -765,7 +765,7 @@ export default function Profile() {
                         setLedgerTab('seeds');
                         if (hapticEnabled) triggerHaptic('light');
                       }}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-mono uppercase tracking-wider font-bold transition-all ${
+                      className={`px-2.5 py-2 min-h-[40px] rounded-lg text-[9px] font-mono uppercase tracking-wider font-bold transition-all ${
                         ledgerTab === 'seeds'
                           ? 'bg-[#2b2118] text-[#faecd0] shadow-xs'
                           : 'text-[#6e5843] dark:text-[#bda68e] hover:text-[#2b2118]'
@@ -778,7 +778,7 @@ export default function Profile() {
                         setLedgerTab('checkins');
                         if (hapticEnabled) triggerHaptic('light');
                       }}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-mono uppercase tracking-wider font-bold transition-all ${
+                      className={`px-2.5 py-2 min-h-[40px] rounded-lg text-[9px] font-mono uppercase tracking-wider font-bold transition-all ${
                         ledgerTab === 'checkins'
                           ? 'bg-[#2b2118] text-[#faecd0] shadow-xs'
                           : 'text-[#6e5843] dark:text-[#bda68e] hover:text-[#2b2118]'

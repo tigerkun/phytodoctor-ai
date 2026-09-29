@@ -486,7 +486,7 @@ export default function Auth() {
                 className="w-full pl-11 pr-11 py-3.5 guest-ledger-input rounded-xl text-sm font-medium"
               />
               <button type="button" aria-label={showPassword ? 'Hide passphrase' : 'Show passphrase'} onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 bottom-3 text-[#8c6e38] hover:text-[#2b2118] dark:hover:text-[#f4eee1] focus:outline-none">
+                className="absolute right-1 bottom-0 p-4 text-[#8c6e38] hover:text-[#2b2118] dark:hover:text-[#f4eee1] focus:outline-none">
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
 
@@ -568,7 +568,7 @@ export default function Auth() {
               </button>
             ) : (
               <button onClick={resetForm}
-                className="text-xs font-serif font-semibold text-[#8c6e38] hover:text-[#5a3d28] dark:hover:text-[#c5a059] transition-colors underline underline-offset-4 decoration-[#c5a059]/40">
+                className="py-3 min-h-[44px] text-xs font-serif font-semibold text-[#8c6e38] hover:text-[#5a3d28] dark:hover:text-[#c5a059] transition-colors underline underline-offset-4 decoration-[#c5a059]/40">
                 {isLogin ? 'No account on file? Inscribe new record' : 'Already registered? Open folio'}
               </button>
             )}

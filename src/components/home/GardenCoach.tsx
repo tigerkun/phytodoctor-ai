@@ -234,14 +234,17 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
                 {activePlan.steps.map((step, i) => (
                   <label
                     key={i}
-                    className={`flex items-start gap-2.5 text-xs text-text-stone cursor-pointer group font-medium ${step.done ? 'line-through opacity-50' : ''}`}
+                    className={`flex items-start gap-2.5 min-h-[44px] py-2 text-xs text-text-stone cursor-pointer group font-medium ${step.done ? 'line-through opacity-50' : ''}`}
                   >
+                    {/* The input is the tap target, not the label — a bare
+                        checkbox renders at 13px, so the whole row is padded
+                        out to a 44px touch height instead. */}
                     <input
                       type="checkbox"
                       checked={step.done}
                       disabled={step.done}
                       onChange={() => handleStepToggle(i)}
-                      className="mt-0.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      className="mt-0.5 w-4 h-4 shrink-0 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                     />
                     <span>{step.text}</span>
                   </label>

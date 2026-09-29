@@ -678,7 +678,7 @@ export default function GardenMarket() {
               }}
             />
             {cartItems.length > 0 && (
-              <button onClick={() => setShowCheckout(true)} className="px-3 py-2 bg-[#5a7d5a] text-white text-[10px] font-black uppercase tracking-widest">
+              <button onClick={() => setShowCheckout(true)} className="px-3 py-2 min-h-[44px] bg-[#5a7d5a] text-white text-[10px] font-black uppercase tracking-widest">
                 Basket {cartItems.length}
               </button>
             )}
@@ -705,12 +705,12 @@ export default function GardenMarket() {
             value={filters.search}
             onChange={(e) => setFilters({ ...filters, search: e.target.value })}
             placeholder="Search the stall…"
-            className="ml-auto min-w-[10rem] px-3 py-2 text-xs border border-[#d9c4a0] bg-[#fff8e8] text-[#3d2a1c] placeholder:text-[#7a6a50]/60"
+            className="ml-auto min-w-[10rem] min-h-[44px] px-3 py-2 text-xs border border-[#d9c4a0] bg-[#fff8e8] text-[#3d2a1c] placeholder:text-[#7a6a50]/60"
           />
           <select
             value={filters.sort}
             onChange={(e) => setFilters({ ...filters, sort: e.target.value })}
-            className="px-2 py-2 text-[11px] font-black uppercase tracking-widest border border-[#d9c4a0] bg-[#fff8e8] text-[#3d2a1c]"
+            className="min-h-[44px] px-2 py-2 text-[11px] font-black uppercase tracking-widest border border-[#d9c4a0] bg-[#fff8e8] text-[#3d2a1c]"
           >
             <option value="popular">Popular</option>
             <option value="new">New crate</option>
@@ -718,7 +718,7 @@ export default function GardenMarket() {
             <option value="price-high">₹ high</option>
             <option value="rating">Rating</option>
           </select>
-          <button onClick={() => setShowFilters(!showFilters)} className="px-3 py-2 text-[11px] font-black uppercase tracking-widest border border-[#d9c4a0] text-[#3d2a1c]">
+          <button onClick={() => setShowFilters(!showFilters)} className="min-h-[44px] px-3 py-2 text-[11px] font-black uppercase tracking-widest border border-[#d9c4a0] text-[#3d2a1c]">
             Filter
           </button>
         </div>

@@ -213,7 +213,7 @@ export function QuickstartGuide({ onAddPlant, onRefreshProfile }: QuickstartGuid
               onClick={() => handleExecuteProtocol(activeTab)}
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
-              className="w-full sm:w-auto px-6 py-3 rounded-xl font-serif font-bold text-white text-xs whitespace-nowrap shadow-md flex items-center justify-center gap-2 cursor-pointer flex-shrink-0"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-xl font-serif font-bold text-white text-xs whitespace-nowrap shadow-md flex items-center justify-center gap-2 cursor-pointer flex-shrink-0 min-h-[44px]"
               style={{ background: steps[activeTab].color }}
             >
               Execute Protocol 0{steps[activeTab].num}
