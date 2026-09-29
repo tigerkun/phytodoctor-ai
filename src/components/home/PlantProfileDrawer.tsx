@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { X, Droplets, Sprout, RefreshCw } from 'lucide-react';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
 import { useEcoMode } from '@/hooks/useEcoMode';
 import { usePageTransition } from './PageTransitionContext';
@@ -189,9 +189,9 @@ export function PlantProfileDrawer({ isOpen, onClose, plant }: PlantProfileDrawe
                 </h3>
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { label: 'Watering', value: plantCareSchedule.watering, icon: '💧' },
-                    { label: 'Fertilizing', value: plantCareSchedule.fertilizing, icon: '🌿' },
-                    { label: 'Rotation', value: plantCareSchedule.rotation, icon: '🔄' }
+                    { label: 'Watering', value: plantCareSchedule.watering, icon: Droplets },
+                    { label: 'Fertilizing', value: plantCareSchedule.fertilizing, icon: Sprout },
+                    { label: 'Rotation', value: plantCareSchedule.rotation, icon: RefreshCw }
                   ].map((item, idx) => (
                     <motion.div
                       key={item.label}
@@ -205,7 +205,7 @@ export function PlantProfileDrawer({ isOpen, onClose, plant }: PlantProfileDrawe
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.4 + idx * 0.1 }}
                     >
-                      <div className="text-2xl mb-2">{item.icon}</div>
+                      <item.icon size={20} className="mb-2 text-moss" strokeWidth={1.75} aria-hidden="true" />
                       <p
                         className="text-xs font-bold mb-1"
                         style={{ color: theme === 'day' ? '#5F7161' : '#A8B5A0' }}

@@ -26,10 +26,7 @@ export default function MobileBottomNav() {
   };
 
   return (
-    <motion.div
-      initial={{ y: 100, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ type: 'spring', damping: 25, stiffness: 200, delay: 0.5 }}
+    <div
       className="fixed bottom-0 left-0 right-0 z-50 md:hidden flex justify-around items-center px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] border-t backdrop-blur-lg shadow-2xl"
       style={{
         background: theme === 'day' ? 'rgba(255, 248, 240, 0.88)' : 'rgba(15, 20, 25, 0.88)',
@@ -52,8 +49,7 @@ export default function MobileBottomNav() {
             }}
           >
             <motion.div
-              whileTap={{ scale: 0.85 }}
-              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.98 }}
               className="relative z-10 flex flex-col items-center gap-1"
             >
               <Icon size={18} className={active ? 'stroke-[2.5]' : 'stroke-[1.8]'} />
@@ -64,19 +60,19 @@ export default function MobileBottomNav() {
 
             {active && (
               <motion.div
-                layoutId="bottomBubble animate-pulse"
+                layoutId="bottom-nav-active"
                 className="absolute inset-0 rounded-2xl -z-0"
                 style={{
                   background: theme === 'day'
                     ? 'rgba(90, 122, 90, 0.08)'
                     : 'rgba(255, 255, 255, 0.04)',
                 }}
-                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
               />
             )}
           </button>
         );
       })}
-    </motion.div>
+    </div>
   );
 }

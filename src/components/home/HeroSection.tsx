@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTimeOfDay, type TimePeriod } from '@/hooks/useTimeOfDay';
-import { useDayNightTheme } from '@/hooks/useDayNightTheme';
-import type { AmbientScene } from '@/components/home/DayNightProvider';
+import { Droplets, Scissors, FlaskConical, Pencil, Sprout, Plus } from 'lucide-react';
+import { useTimeOfDay } from '@/hooks/useTimeOfDay';
 import { useEcoMode } from '@/hooks/useEcoMode';
 import { useParallax } from '@/hooks/useScrollBehavior';
 import { triggerHaptic, playAudio } from '@/utils/hapticAudio';
@@ -20,8 +19,6 @@ interface HeroSectionProps {
   plantIndex?: number;
   weather?: any;
   onAddPlant: () => void;
-  currentTimePeriod: TimePeriod;
-  onTimePeriodChange: (period: TimePeriod) => void;
 }
 
 export function HeroSection({
@@ -35,14 +32,10 @@ export function HeroSection({
   totalPlants,
   plantIndex = 0,
   weather,
-  onAddPlant,
-  currentTimePeriod,
-  onTimePeriodChange
+  onAddPlant
 }: HeroSectionProps) {
   const { greeting } = useTimeOfDay();
-  const { theme, ambientScene, setAmbientScene } = useDayNightTheme();
   const { shouldDisableAnimations } = useEcoMode();
-  const parallaxRef = useParallax(0.3);
 
   // States for visual effects
   const [activeEffect, setActiveEffect] = useState<'water' | 'prune' | 'nourish' | null>(null);
@@ -76,7 +69,7 @@ export function HeroSection({
     setActiveEffect(action);
     setTimeout(() => {
       setActiveEffect(null);
-    }, 2000);
+    }, 550);
   };
 
   const handleSaveNickname = async () => {
@@ -121,38 +114,29 @@ export function HeroSection({
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Panel - Plant of the Day OR Empty Sanctuary State */}
         <motion.div
-          ref={parallaxRef}
           className="lg:col-span-2"
           initial={{ opacity: 0, x: -50 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3, duration: 0.6 }}
         >
           {totalPlants === 0 ? (
-            <div className="relative rounded-3xl p-10 oiled-teak-frame text-center flex flex-col items-center justify-center min-h-[420px] shadow-lg">
-              <div className="w-20 h-20 rounded-full bg-moss/10 flex items-center justify-center text-4xl mb-6 shadow-inner border border-moss/20">
-                🪴
+            <div className="relative rounded-3xl p-10 oiled-teak-frame text-center flex flex-col items-center justify-center min-h-[420px]">
+              <div className="w-16 h-16 rounded-full bg-moss/10 flex items-center justify-center mb-6 border border-moss/20">
+                <Sprout size={28} className="text-moss" strokeWidth={1.5} aria-hidden="true" />
               </div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm -rotate-1 zinc-stake font-serif tracking-widest text-[10px] uppercase font-bold mb-4">
-                🏷️ VACANT POTTING BENCH
-              </div>
-              <h2 className="text-3xl font-serif font-bold text-text-bark mb-3">
-                No Specimens in Sanctuary
+              <h2 className="text-2xl font-serif font-bold text-text-bark mb-3">
+                Your sanctuary is empty
               </h2>
               <p className="text-sm text-text-stone max-w-md mb-8 leading-relaxed font-medium">
-                The conservatory potting benches are ready. Catalog your first botanical specimen in the Lab to record its vitality and mount it on the teak bench.
+                Add your first plant to start tracking its health, get diagnoses, and earn seeds for its care.
               </p>
-              <motion.button
+              <button
                 onClick={onAddPlant}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-8 py-4 rounded-full font-bold text-white shadow-lg flex items-center gap-2 cursor-pointer"
-                style={{
-                  background: 'linear-gradient(135deg, var(--moss) 0%, var(--moss-light) 100%)',
-                  boxShadow: '0 10px 25px rgba(90, 125, 90, 0.3)'
-                }}
+                className="px-6 py-3 rounded-[var(--radius-sm)] font-semibold text-sm text-white flex items-center gap-2 cursor-pointer transition-colors active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-moss focus-visible:ring-offset-2"
+                style={{ background: 'var(--moss)' }}
               >
-                🌱 Induct First Specimen
-              </motion.button>
+                <Plus size={16} aria-hidden="true" /> Add your first plant
+              </button>
             </div>
           ) : (
             <div
@@ -193,101 +177,24 @@ export function HeroSection({
                 whileHover={!shouldDisableAnimations ? { scale: 1.05 } : {}}
               />
 
-              {/* Active Care Visual Effects Overlays */}
+              {/* Active Care feedback — a single tint flash. Previously this
+                  spawned 43 animating emoji nodes (💧🍃✨) per action. */}
               <AnimatePresence>
-                {activeEffect === 'water' && (
-                  <motion.div 
+                {activeEffect && (
+                  <motion.div
+                    key={activeEffect}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="absolute inset-0 pointer-events-none z-20 bg-blue-500/10 flex flex-col justify-between overflow-hidden"
-                  >
-                    <div className="absolute inset-0 grid grid-cols-5 gap-2 p-4">
-                      {Array.from({ length: 15 }).map((_, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ y: -50, opacity: 0, scale: 0.5 }}
-                          animate={{ 
-                            y: [0, 400], 
-                            opacity: [0, 1, 1, 0],
-                            scale: [0.5, 1, 1, 0.5]
-                          }}
-                          transition={{ 
-                            duration: 1.2, 
-                            delay: (i * 0.15) % 0.8,
-                            repeat: 0,
-                            ease: "easeIn"
-                          }}
-                          className="text-2xl text-center"
-                        >
-                          💧
-                        </motion.div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-
-                {activeEffect === 'prune' && (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="absolute inset-0 pointer-events-none z-20 bg-emerald-500/10 flex flex-col justify-between overflow-hidden"
-                  >
-                    <div className="absolute inset-0 grid grid-cols-5 gap-2 p-4">
-                      {Array.from({ length: 10 }).map((_, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ y: 50, opacity: 0, rotate: 0 }}
-                          animate={{ 
-                            y: [50, 350], 
-                            x: [0, (i % 2 === 0 ? 30 : -30)],
-                            rotate: [0, 360],
-                            opacity: [0, 0.7, 0.7, 0]
-                          }}
-                          transition={{ 
-                            duration: 1.5, 
-                            delay: (i * 0.2) % 0.8,
-                            ease: "easeOut"
-                          }}
-                          className="text-xl text-center"
-                        >
-                          🍃
-                        </motion.div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-
-                {activeEffect === 'nourish' && (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="absolute inset-0 pointer-events-none z-20 bg-amber-500/10 flex flex-col justify-between overflow-hidden"
-                  >
-                    <div className="absolute inset-0 grid grid-cols-6 gap-2 p-4">
-                      {Array.from({ length: 18 }).map((_, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ y: 350, opacity: 0, scale: 0.2 }}
-                          animate={{ 
-                            y: [350, 50], 
-                            opacity: [0, 1, 1, 0],
-                            scale: [0.2, 1.2, 0.2]
-                          }}
-                          transition={{ 
-                            duration: 1.6, 
-                            delay: (i * 0.1) % 0.8,
-                            ease: "easeOut"
-                          }}
-                          className="text-xl text-center"
-                        >
-                          ✨
-                        </motion.div>
-                      ))}
-                    </div>
-                  </motion.div>
+                    transition={{ duration: shouldDisableAnimations ? 0 : 0.2 }}
+                    aria-hidden="true"
+                    className="absolute inset-0 pointer-events-none z-20"
+                    style={{
+                      backgroundColor: activeEffect === 'water' ? 'rgba(59,130,246,0.10)'
+                        : activeEffect === 'prune' ? 'rgba(16,185,129,0.10)'
+                        : 'rgba(245,158,11,0.10)',
+                    }}
+                  />
                 )}
               </AnimatePresence>
 
@@ -301,7 +208,7 @@ export function HeroSection({
                     '0 4px 14px rgba(184,149,82,0.3), inset 0 2px 4px rgba(255,255,255,0.9), inset 0 -2px 4px rgba(90,65,25,0.45)'
                   ]
                 } : {}}
-                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
               >
                 <div className="text-[7px] font-black uppercase tracking-[0.22em] text-[#7a602f] dark:text-[#d4af37]/90 leading-tight">
                   BAROMETER
@@ -338,8 +245,8 @@ export function HeroSection({
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm -rotate-1 zinc-stake font-serif tracking-widest text-[10px] uppercase font-bold shadow-xs">
-                      🏷️ SPECIMEN NO. 0{plantIndex + 1}
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm zinc-stake font-serif tracking-widest text-[10px] uppercase font-bold shadow-xs">
+                      Specimen no. 0{plantIndex + 1}
                     </span>
                     <h2
                       className="text-3xl font-serif font-bold text-text-bark"
@@ -357,7 +264,7 @@ export function HeroSection({
                     aria-label={`Edit ${plantName} profile`}
                     className="text-xl cursor-pointer p-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-1"
                   >
-                    ✏️
+                    <Pencil size={17} className="text-text-stone" aria-hidden="true" />
                   </motion.button>
                 </div>
                 <p
@@ -377,7 +284,7 @@ export function HeroSection({
                     onClick={() => handleTriggerAction('water')}
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-md border border-blue-500/25 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-600 hover:text-white transition-all text-xs font-bold font-serif focus:outline-none cursor-pointer"
                   >
-                    💧 Hydrate Specimen
+                    <Droplets size={14} aria-hidden="true" /> Water
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
@@ -385,7 +292,7 @@ export function HeroSection({
                     onClick={() => handleTriggerAction('prune')}
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-md border border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white transition-all text-xs font-bold font-serif focus:outline-none cursor-pointer"
                   >
-                    ✂️ Prune Foliage
+                    <Scissors size={14} aria-hidden="true" /> Prune
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
@@ -393,7 +300,7 @@ export function HeroSection({
                     onClick={() => handleTriggerAction('nourish')}
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-md border border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-600 hover:text-white transition-all text-xs font-bold font-serif focus:outline-none cursor-pointer"
                   >
-                    🧪 Botanical Tonic
+                    <FlaskConical size={14} aria-hidden="true" /> Tonic
                   </motion.button>
                 </div>
               </motion.div>
@@ -410,77 +317,26 @@ export function HeroSection({
           transition={{ delay: 0.4, duration: 0.6 }}
           className="flex flex-col gap-6"
         >
-          {/* Greeting */}
-          <div
-            className="rounded-2xl backdrop-blur-md border border-border-light bg-bg-secondary p-6"
-          >
-            <motion.h3
-              className="text-lg font-serif font-bold mb-3 text-text-bark"
-              animate={!shouldDisableAnimations ? { opacity: [0.8, 1, 0.8] } : {}}
-              transition={{ duration: 3, repeat: Infinity }}
-            >
-              {greeting}
-            </motion.h3>
-
-            {/* Atmosphere (Aether) Preset Selector */}
-            <div className="mb-5 pb-4 border-b border-border-light">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-text-stone block mb-2">
-                🌌 Ambient Override
-              </span>
-              <div className="flex items-center justify-between gap-1.5 bg-bg-tertiary/40 p-1.5 rounded-xl border border-border-light">
-                {([
-                  { id: 'morning' as AmbientScene, icon: '🌅', label: 'Morning' },
-                  { id: 'day'     as AmbientScene, icon: '☀️', label: 'Day' },
-                  { id: 'city'   as AmbientScene, icon: '🌇', label: 'City' },
-                  { id: 'night'  as AmbientScene, icon: '🌌', label: 'Night' }
-                ]).map((scene) => (
-                  <motion.button
-                    key={scene.id}
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      triggerHaptic('light');
-                      setAmbientScene(scene.id);
-                    }}
-                    title={scene.label}
-                    className={`flex items-center justify-center w-8 h-8 rounded-lg text-lg transition-all focus:outline-none ${ambientScene === scene.id ? 'bg-moss text-white shadow-md' : 'hover:bg-bg-tertiary text-text-bark/70'}`}
-                  >
-                    {scene.icon}
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-
-            {/* Mini Stats */}
-            <div className="grid grid-cols-2 gap-4">
+          <section className="rounded-[var(--radius-md)] border border-border-light bg-bg-secondary p-6 shadow-[var(--shadow-sm)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Garden status</p>
+            <h3 className="mt-2 text-xl font-serif font-semibold text-text-bark">
+              {greeting.salutation}, <span className="text-moss">{greeting.name}</span>
+            </h3>
+            <p className="mt-1 text-sm text-text-stone">{greeting.detail}</p>
+            <dl className="mt-6 grid grid-cols-2 border-t border-border-light">
               {[
-                { icon: '🌡️', label: 'Temp', value: weather?.temp != null ? `${Math.round(weather.temp)}°C` : '28°C' },
-                { icon: '💧', label: 'Humidity', value: weather?.humidity != null ? `${Math.round(weather.humidity)}%` : '62%' },
-                { icon: '🌱', label: 'Plants', value: totalPlants.toString() },
-                { icon: '🔥', label: 'Streak', value: `${profile?.currentStreak || 0}d` }
-              ].map((stat, idx) => (
-                <motion.div
-                  key={stat.label}
-                  className="p-3 rounded-lg bg-bg-tertiary border border-border-light"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 + idx * 0.1, duration: 0.4 }}
-                >
-                  <div className="text-xl mb-1">{stat.icon}</div>
-                  <div
-                    className="text-xs text-text-stone"
-                  >
-                    {stat.label}
-                  </div>
-                  <div
-                    className="text-sm font-bold text-text-bark"
-                  >
-                    {stat.value}
-                  </div>
-                </motion.div>
+                { label: 'Temperature', value: weather?.temp != null ? `${Math.round(weather.temp)}°C` : '28°C' },
+                { label: 'Humidity', value: weather?.humidity != null ? `${Math.round(weather.humidity)}%` : '62%' },
+                { label: 'Plants', value: totalPlants.toString() },
+                { label: 'Current streak', value: `${profile?.currentStreak || 0}d` }
+              ].map((stat) => (
+                <div key={stat.label} className="border-b border-border-light py-4 odd:pr-4 even:pl-4 even:border-l">
+                  <dt className="text-xs text-text-stone">{stat.label}</dt>
+                  <dd className="mt-1 text-lg font-semibold tabular-nums text-text-bark">{stat.value}</dd>
+                </div>
               ))}
-            </div>
-          </div>
+            </dl>
+          </section>
 
           {/* Add Plant Button */}
           <motion.button
@@ -488,16 +344,15 @@ export function HeroSection({
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             aria-label="Add a new plant to your garden"
-            className="w-full py-4 rounded-[var(--radius-lg)] font-bold text-white transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)] focus-visible:ring-offset-2 active:scale-95"
+            className="w-full min-h-11 py-3 rounded-[var(--radius-sm)] font-semibold text-white transition-colors flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2 active:scale-[0.99]"
             style={{
-              background: 'linear-gradient(135deg, var(--terracotta) 0%, var(--gold) 100%)',
-              boxShadow: '0 10px 30px var(--glow)'
+              background: 'var(--moss)',
+              boxShadow: 'var(--shadow-sm)'
             }}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.7, duration: 0.4 }}
           >
-            <span className="text-2xl">🌱</span>
             <span>Add a Plant</span>
           </motion.button>
         </motion.div>

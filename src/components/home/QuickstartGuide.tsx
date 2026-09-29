@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Camera, Activity, Sprout, MessageCircle, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Sparkles, Camera, Activity, Sprout, MessageCircle, CheckCircle2, ChevronRight, BarChart3, MessageSquare } from 'lucide-react';
 import { GameService } from '@/services/gameService';
 import { useToast } from '@/components/Toast';
 import { usePageTransition } from './PageTransitionContext';
@@ -194,7 +194,7 @@ export function QuickstartGuide({ onAddPlant, onRefreshProfile }: QuickstartGuid
                   borderColor: `${steps[activeTab].color}30`
                 }}
               >
-                {activeTab === 0 ? '📸' : activeTab === 1 ? '📊' : activeTab === 2 ? '🌱' : '💬'}
+                {(() => { const I = [Camera, BarChart3, Sprout, MessageSquare][activeTab] ?? Camera; return <I size={20} aria-hidden="true" />; })()}
               </div>
               <div>
                 <div className="text-[10px] font-mono uppercase tracking-widest text-text-stone mb-0.5">

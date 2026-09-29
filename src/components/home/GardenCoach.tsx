@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Stethoscope, ShoppingBasket, Thermometer, CloudRain, Lightbulb, Sprout, Droplets } from 'lucide-react';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
 import { useEcoMode } from '@/hooks/useEcoMode';
 import { triggerHaptic, playAudio } from '@/utils/hapticAudio';
@@ -110,9 +111,9 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
 
   // Card 2: Market Items
   const marketItems = [
-    { id: 'neem_oil', name: 'Neem Oil Spray', cost: 200, icon: '🌿' },
-    { id: 'moss_pole', name: 'Sphagnum Moss Pole', cost: 150, icon: '🪵' },
-    { id: 'pot_self', name: 'Self-Watering Ceramic Pot', cost: 300, icon: '🏺' }
+    { id: 'neem_oil', name: 'Neem Oil Spray', cost: 200 },
+    { id: 'moss_pole', name: 'Sphagnum Moss Pole', cost: 150 },
+    { id: 'pot_self', name: 'Self-Watering Ceramic Pot', cost: 300 }
   ];
 
   // Card 4: Trivia state
@@ -216,7 +217,7 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
           >
             <div>
               <div className="flex items-center justify-between mb-4">
-                <span className="text-2xl">🩺</span>
+                <Stethoscope size={20} className="text-moss" strokeWidth={1.75} />
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-sm bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20">
                   Confidence: {activePlan.confidence}%
                 </span>
@@ -279,8 +280,8 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
             )}
 
             <div>
-              <div className="text-2xl mb-4 flex items-center justify-between">
-                <span>🛒</span>
+              <div className="mb-4 flex items-center justify-between">
+                <ShoppingBasket size={20} className="text-moss" strokeWidth={1.75} />
                 <span className="text-[9px] font-bold uppercase tracking-wider text-moss bg-moss/10 px-2 py-0.5 rounded-sm border border-moss/20">
                   Apothecary
                 </span>
@@ -299,16 +300,13 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
                     key={item.id}
                     className="flex items-center justify-between p-2 rounded-xl bg-white/40 dark:bg-white/5 border border-black/5 dark:border-white/5 hover:bg-moss/10 transition-colors duration-200"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{item.icon}</span>
-                      <div>
-                        <p className="text-xs font-semibold text-text-bark">{item.name}</p>
-                        <p className="text-[10px] text-text-stone font-mono">🌱 {item.cost} Seeds</p>
-                      </div>
+                    <div>
+                      <p className="text-xs font-semibold text-text-bark">{item.name}</p>
+                      <p className="text-[10px] text-text-stone font-mono flex items-center gap-1">
+                        <Sprout size={10} className="text-moss" strokeWidth={2.5} /> {item.cost} Seeds
+                      </p>
                     </div>
-                    <span className="text-[10px] font-bold text-moss group-hover:translate-x-0.5 transition-transform">
-                      →
-                    </span>
+                    <span className="text-[10px] font-bold text-moss">→</span>
                   </div>
                 ))}
               </div>
@@ -327,7 +325,7 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
           >
             <div>
               <div className="flex items-center justify-between mb-4">
-                <span className="text-2xl">🌡️</span>
+                <Thermometer size={20} className="text-moss" strokeWidth={1.75} />
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-500/20 font-mono">
                   {condition}
                 </span>
@@ -376,7 +374,7 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
             className="p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between cursor-pointer group shadow-xs"
           >
             <div>
-              <div className="text-2xl mb-4">💡</div>
+              <Lightbulb size={20} className="mb-4 text-moss" strokeWidth={1.75} aria-hidden="true" />
               <h3 className="text-lg font-serif font-bold text-text-bark mb-1">
                 Botanical Lore & Notes
               </h3>

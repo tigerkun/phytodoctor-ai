@@ -94,7 +94,7 @@ function WelcomeLanding({ onGetStarted, onSignIn }: { onGetStarted: () => void; 
               boxShadow: '0 10px 28px rgba(61,90,61,0.28)'
             }}
           >
-            🌱 Open Sanctuary Gates
+            Open Sanctuary Gates
             <ArrowRight size={18} />
           </motion.button>
 
@@ -322,6 +322,8 @@ export default function HomePage() {
     <PageWrapper
       className={`min-h-screen w-full relative skin-conservatory ${textColorClass} transition-colors duration-1000`}
     >
+      {/* Ambient Animations */}
+
       {/* Main Content */}
       <motion.main
         className="relative z-10"
@@ -341,8 +343,6 @@ export default function HomePage() {
           totalPlants={mappedPlants.length}
           plantIndex={selectedPlantIndex}
           weather={weather}
-          currentTimePeriod={activeTimePeriod}
-          onTimePeriodChange={(period) => setTimePeriodOverride(period)}
           onAddPlant={() => setIsAddModalOpen(true)}
         />
 
@@ -397,7 +397,7 @@ export default function HomePage() {
                 boxShadow: '0 10px 30px var(--glow)'
               }}
             >
-              🌱 Browse Market
+              Browse Market
             </motion.button>
           </div>
         </motion.section>
@@ -703,4 +703,3 @@ function AddPlantModal({
     </div>
   );
 }
-

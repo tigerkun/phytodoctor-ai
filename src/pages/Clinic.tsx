@@ -22,7 +22,6 @@ import { COMMON_REWARDS } from '../game/rewardUtils';
 import PageWrapper from '../components/home/PageWrapper';
 import { useToast } from '../components/Toast';
 import { GameService } from '../services/gameService';
-import { compressImageToDataUrl } from '../utils/imageCompression';
 import { CaseStudy } from '../components/CaseStudy';
 
 function clamp(n: number, min: number, max: number) {
@@ -188,13 +187,11 @@ export default function Clinic() {
       setError('Unable to read selected leaf specimen file. Please select another.');
     };
     reader.onloadend = () => {
-      // Downscale before the bytes start their trip to the vision model.
-      void compressImageToDataUrl(reader.result as string).then((base64) => {
-        setImages((prev) => [...prev, base64].slice(-3));
-        setIdentification(null);
-        setSavedPlantId(null);
-        identify(base64);
-      });
+      const base64 = reader.result as string;
+      setImages((prev) => [...prev, base64].slice(-3));
+      setIdentification(null);
+      setSavedPlantId(null);
+      identify(base64);
     };
     reader.readAsDataURL(file);
   };

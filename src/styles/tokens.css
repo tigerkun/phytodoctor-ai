@@ -99,6 +99,9 @@
   --health-healthy: #8FB58F;          /* Soft green — 70-89 health */
   --health-stressed: #D4A843;         /* Amber — 50-69 health */
   --health-critical: #C45B4A;         /* Terracotta-red — 0-49 health */
+  --success: #3D7651;
+  --warning: #9A681A;
+  --danger: #B4473C;
   
   /* === BORDERS & SHADOWS === */
   --border-light: rgba(44, 36, 25, 0.06);     /* Subtle warm borders */
@@ -106,8 +109,8 @@
   --border-glow: rgba(90, 125, 90, 0.15);    /* Moss glow on focus/hover */
   --shadow-sm: 0 1px 3px rgba(44, 36, 25, 0.04);
   --shadow-md: 0 4px 12px rgba(44, 36, 25, 0.08);
-  --shadow-lg: 0 8px 24px rgba(44, 36, 25, 0.12);
-  --shadow-xl: 0 16px 48px rgba(44, 36, 25, 0.16);
+  --shadow-lg: 0 8px 24px rgba(44, 36, 25, 0.10);
+  --shadow-xl: 0 16px 48px rgba(44, 36, 25, 0.12);
   --shadow-glow-moss: 0 0 20px rgba(90, 125, 90, 0.2);
   --shadow-glow-terracotta: 0 0 20px rgba(196, 112, 75, 0.2);
   

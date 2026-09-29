@@ -26,10 +26,8 @@ import {
   ArrowUpRight,
   RefreshCw,
   Coins,
-  CloudUpload as CloudUp,
-  HelpCircle
+  CloudUpload as CloudUp
 } from 'lucide-react';
-import { restartOnboardingTour } from '@/components/OnboardingTour';
 import { useNavigate } from 'react-router-dom';
 import { db, type SeedTransaction } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -250,10 +248,6 @@ export default function Profile() {
       localStorage.removeItem('botanical_guardian_auth_token');
       localStorage.removeItem('botanical_guardian_onboarded');
       localStorage.removeItem('botanical_guardian_userId');
-      // Identity left behind here would prefill the next user's session on a
-      // shared terminal.
-      localStorage.removeItem('botanical_guardian_user_email');
-      localStorage.removeItem('botanical_guardian_user_name');
       navigate('/auth', { replace: true });
     }
   };
@@ -998,28 +992,13 @@ export default function Profile() {
 
                 {/* Sign Out Danger Zone */}
                 <div className="mt-6 pt-4 border-t border-[#d8ccb8] dark:border-[#382d22]">
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <button
-                      onClick={() => restartOnboardingTour()}
-                      className="py-3 px-4 bg-[#2e4a34]/10 hover:bg-[#2e4a34]/20 border border-[#2e4a34]/30 text-[#2e4a34] dark:text-[#9fc4a8] rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors"
-                    >
-                      <Compass size={14} /> Replay Tour
-                    </button>
-                    <button
-                      onClick={() => navigate('/help')}
-                      className="py-3 px-4 bg-[#2e4a34]/10 hover:bg-[#2e4a34]/20 border border-[#2e4a34]/30 text-[#2e4a34] dark:text-[#9fc4a8] rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors"
-                    >
-                      <HelpCircle size={14} /> Help &amp; FAQ
-                    </button>
-                  </div>
-
                   <button
                     onClick={handleSync}
                     disabled={syncing}
                     className="w-full py-3 px-4 bg-[#2e4a34] hover:bg-[#395c41] text-[#f4eee1] rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-between transition-colors mb-4"
                   >
                     <span className="flex items-center gap-2">
-                      <CloudUp size={14} />
+                      <CloudUp size={14} /> 
                       {syncing ? 'Uplinking to Vault...' : 'Sync Local Ledger to Cloud'}
                     </span>
                   </button>

@@ -1,5 +1,6 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { AnimatePresence, MotionConfig, motion, useReducedMotion } from 'framer-motion';
 import Layout from './components/Layout';
 import { ToastProvider } from './components/Toast';
 import Home from './pages/Home';
@@ -36,12 +37,44 @@ import HelpPage from './pages/HelpPage';
 export default function App() {
   return (
     <BrowserRouter>
-      <ErrorBoundary>
-        <ToastProvider>
+      <MotionConfig reducedMotion="user">
+      <ToastProvider>
+        <ErrorBoundary>
         <Layout>
           <FloatingAssistant />
           <OnboardingTour />
-          <Routes>
+          <RoutedContent />
+        </Layout>
+        </ErrorBoundary>
+      </ToastProvider>
+      </MotionConfig>
+    </BrowserRouter>
+  );
+}
+
+function RoutedContent() {
+  const location = useLocation();
+  const shouldReduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: shouldReduceMotion ? 'auto' : 'smooth' });
+  }, [location.pathname, shouldReduceMotion]);
+
+  const transition = shouldReduceMotion
+    ? { duration: 0 }
+    : { duration: 0.2, ease: 'easeOut' as const };
+
+  return (
+    <AnimatePresence initial={false} mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={shouldReduceMotion ? undefined : { opacity: 0 }}
+        transition={transition}
+        className="min-w-0"
+      >
+          <Routes location={location}>
 
 
 
@@ -82,9 +115,7 @@ export default function App() {
             {/* Catch-all 404 */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </Layout>
-        </ToastProvider>
-      </ErrorBoundary>
-    </BrowserRouter>
+      </motion.div>
+    </AnimatePresence>
   );
 }

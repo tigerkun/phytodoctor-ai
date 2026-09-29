@@ -56,6 +56,8 @@
 }
 
 @layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+  :focus-visible { outline: 2px solid var(--moss); outline-offset: 3px; }
   body {
     /* Avoid Tailwind JIT errors if garden-* theme colors aren't configured.
        Use plain CSS vars for background/text colors. */
@@ -63,13 +65,9 @@
     background-color: var(--bg-primary);
     color: var(--text-bark);
 
-    background-image:
-      radial-gradient(at 0% 0%, var(--glow-radial-1) 0, transparent 50%),
-      radial-gradient(at 100% 0%, var(--glow-radial-2) 0, transparent 50%),
-      radial-gradient(at 50% 100%, var(--glow-radial-3) 0, transparent 50%);
-    background-attachment: fixed;
+    background-image: none;
     position: relative;
-    transition: background-color 1.2s cubic-bezier(0.4, 0, 0.2, 1), color 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 150ms ease-out, color 150ms ease-out;
     min-width: 320px;
     overflow-x: hidden;
   }

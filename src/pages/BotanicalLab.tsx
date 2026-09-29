@@ -37,7 +37,6 @@ import type { Plant } from '../types';
 
 import { usePageTransition } from '../components/home/PageTransitionContext';
 import { getPlantPhoto } from '../utils/plantImage';
-import { compressImageToDataUrl, dataUrlToBlob } from '../utils/imageCompression';
 import PageWrapper from '../components/home/PageWrapper';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { fetchWeather } from '../utils/weatherIntegration';
@@ -245,12 +244,10 @@ export default function BotanicalLab() {
 
     const reader = new FileReader();
     reader.onloadend = async () => {
-      try {
-        // Downscale before anything else: the same bytes go to the AI, the
-        // preview and the vault, and camera originals are 3-6 MB.
-        const base64 = await compressImageToDataUrl(reader.result as string);
-        setDexImage(base64);
+      const base64 = reader.result as string;
+      setDexImage(base64);
 
+      try {
         let locationCtx: any;
         if (location?.latitude && location?.longitude) {
             locationCtx = { city, latitude: location.latitude, longitude: location.longitude };
@@ -292,7 +289,7 @@ export default function BotanicalLab() {
 
     reader.onloadend = async () => {
       try {
-        const base64 = await compressImageToDataUrl(reader.result as string);
+        const base64 = reader.result as string;
         const result = await identifyPlant(base64);
         const plant = await db.plants.get(targetPlantId);
         if (!plant) throw new Error("Specimen record not found in Sanctuary.");
@@ -300,18 +297,14 @@ export default function BotanicalLab() {
         const resultSpecies = result.speciesName || result.commonName;
         const oldGenus = (plant.species || '').split(' ')[0].toLowerCase();
         const newGenus = (resultSpecies || '').split(' ')[0].toLowerCase();
-
+        
         if (oldGenus && newGenus && oldGenus !== newGenus && !resultSpecies.toLowerCase().includes(oldGenus)) {
           setScanError(`Identification mismatch: specimen appears to be ${resultSpecies}, differing from registered ${plant.species}.`);
           return;
         }
 
         const today = new Date();
-        const photoBlob = await dataUrlToBlob(base64);
-        const cloudUrl = await StorageService.uploadPlantPhoto(
-          new File([photoBlob], 'specimen.jpeg', { type: 'image/jpeg' }),
-          userId
-        );
+        const cloudUrl = await StorageService.uploadPlantPhoto(file, userId);
         if (!cloudUrl) {
           throw new Error("Failed to upload photo to secure vault.");
         }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Archive, MessageSquare, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { Archive, MessageSquare, ArrowRight, ShieldCheck, Sparkles, Sprout } from 'lucide-react';
 import { usePageTransition } from './PageTransitionContext';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -58,7 +58,7 @@ export default function SanctuaryHub() {
             <div className="flex gap-6">
               <div>
                 <span className="text-[9px] font-black uppercase text-text-stone tracking-wider block mb-1">Estate Yield</span>
-                <span className="text-lg font-mono font-bold text-text-bark">🌱 {profile?.seeds != null ? profile.seeds.toLocaleString() : '0'}</span>
+                <span className="text-lg font-mono font-bold text-text-bark flex items-center gap-1.5"><Sprout size={15} className="text-moss" aria-hidden="true" />{profile?.seeds != null ? profile.seeds.toLocaleString() : '0'}</span>
               </div>
               <div>
                 <span className="text-[9px] font-black uppercase text-text-stone tracking-wider block mb-1">Sanctuary Vault</span>
