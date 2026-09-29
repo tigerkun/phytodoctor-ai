@@ -6,6 +6,19 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+# The Vite config is inlined into the bundle at BUILD time, not read at
+# runtime, so these have to be present while `npm run build` runs. They used
+# to come from a .env file, but .dockerignore excludes .env*, so the Docker
+# build saw no Supabase configuration at all: VITE_SUPABASE_URL and
+# VITE_SUPABASE_ANON_KEY inlined as undefined, supabaseConfigured was false,
+# and Google sign-in rendered permanently disabled as "Google Entry Sealed"
+# with no error anywhere. Nothing caught it because every server route is
+# authenticated by its own env var, which is read at runtime and worked fine.
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+
 # Copy package files
 COPY package.json package-lock.json ./
 
