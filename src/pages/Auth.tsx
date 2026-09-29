@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import PageWrapper from '../components/home/PageWrapper';
 import { useDayNightTheme } from '../hooks/useDayNightTheme';
 import { GameService } from '../services/gameService';
-import { isValidEmail, evaluatePasswordStrength, generateLocalUserId, hashPassword, verifyPassword, generateSalt, getAuthLockout, recordAuthFailure, clearAuthFailures } from '../services/authUtils';
+import { isValidEmail, evaluatePasswordStrength, generateLocalUserId, hashPassword, verifyPassword, isCurrentHashScheme, getAuthLockout, recordAuthFailure, clearAuthFailures } from '../services/authUtils';
 import { supabase, supabaseConfigured } from '../lib/supabase';
 
 function GoogleMark() {
@@ -253,24 +253,20 @@ export default function Auth() {
             return;
           }
           const salt = (existing as any).passwordSalt as string | undefined;
-          let ok = await verifyPassword(userId, password, existing.passwordHash as string, salt);
-          if (!ok && salt === undefined) {
-            // Legacy unsalted account that still passed with the old scheme
-            // cannot reach this branch (verify already fell back); this only
-            // guards against a stored legacy hash + missing salt mismatch.
-            ok = false;
-          }
+          const storedHash = existing.passwordHash as string;
+          const ok = await verifyPassword(userId, password, storedHash, salt);
           if (!ok) {
             recordAuthFailure(email);
             setAuthError('Incorrect password.');
             setLoading(false);
             return;
           }
-          // Upgrade legacy unsalted accounts to the salted scheme in-place.
-          if (!salt) {
-            const newSalt = generateSalt();
-            const newHash = await hashPassword(userId, password, newSalt);
-            await db.userProfile.update(userId, { passwordSalt: newSalt, passwordHash: newHash } as any);
+          // Any hash not already in the current scheme — unsalted SHA-256 or
+          // salted SHA-256 — is re-derived now that we hold the plaintext, so
+          // every account upgrades itself the first time it signs in.
+          if (!isCurrentHashScheme(storedHash)) {
+            const newHash = await hashPassword(password);
+            await db.userProfile.update(userId, { passwordHash: newHash } as any);
           }
           clearAuthFailures(email);
           await persistSession(userId, email.toLowerCase().trim(), existing.username || email.split('@')[0]);
@@ -280,15 +276,13 @@ export default function Auth() {
             setLoading(false);
             return;
           }
-          const salt = generateSalt();
-          const hash = await hashPassword(userId, password, salt);
+          const hash = await hashPassword(password);
           await persistSession(userId, email.toLowerCase().trim(), name);
           await db.userProfile.update(userId, {
             username: name,
             experienceLevel: experienceLevel as any,
             environment: environment as any,
             passwordHash: hash,
-            passwordSalt: salt,
           } as any);
         }
         navigate('/');
