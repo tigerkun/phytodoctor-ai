@@ -1,25 +1,45 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence, MotionConfig, motion, useReducedMotion } from 'framer-motion';
 import Layout from './components/Layout';
 import { ToastProvider } from './components/Toast';
 import Home from './pages/Home';
-import Vault from './pages/Vault';
-import Library from './pages/Library';
-import BotanicalLab from './pages/BotanicalLab';
-import Market from './pages/Market';
-import Profile from './pages/Profile';
-import PlantDetail from './pages/PlantDetail';
-import Assistant from './pages/Assistant';
 import FloatingAssistant from './components/FloatingAssistant';
-import Auth from './pages/Auth';
-import NotFound from './pages/NotFound';
-import Clinic from './pages/Clinic';
-import Privacy from './pages/Privacy';
-import Terms from './pages/Terms';
-import { CaseStudy } from './components/CaseStudy';
-import SystemAudit from './components/SystemAudit';
 import RequireAuth from './components/RequireAuth';
+import ErrorBoundary from './components/ErrorBoundary';
+import OnboardingTour from './components/OnboardingTour';
+
+// Everything past the landing page ships on demand. Auth and Home stay in the
+// entry chunk because they are the two routes a first-time visitor hits; the
+// rest were previously forcing ~1.5 MB onto every visitor regardless of use.
+const Vault = lazy(() => import('./pages/Vault'));
+const Library = lazy(() => import('./pages/Library'));
+const BotanicalLab = lazy(() => import('./pages/BotanicalLab'));
+const Market = lazy(() => import('./pages/Market'));
+const Profile = lazy(() => import('./pages/Profile'));
+const PlantDetail = lazy(() => import('./pages/PlantDetail'));
+const Assistant = lazy(() => import('./pages/Assistant'));
+const Auth = lazy(() => import('./pages/Auth'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+const Clinic = lazy(() => import('./pages/Clinic'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const Terms = lazy(() => import('./pages/Terms'));
+const HelpPage = lazy(() => import('./pages/HelpPage'));
+const CaseStudy = lazy(() => import('./components/CaseStudy').then(m => ({ default: m.CaseStudy })));
+const SystemAudit = lazy(() => import('./components/SystemAudit'));
+
+function RouteFallback() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label="Loading page"
+      className="flex items-center justify-center py-32"
+    >
+      <div className="w-6 h-6 rounded-full border-2 border-border-light border-t-moss animate-spin" />
+    </div>
+  );
+}
 
 
 /**
@@ -36,10 +56,13 @@ export default function App() {
     <BrowserRouter>
       <MotionConfig reducedMotion="user">
       <ToastProvider>
+        <ErrorBoundary>
         <Layout>
           <FloatingAssistant />
+          <OnboardingTour />
           <RoutedContent />
         </Layout>
+        </ErrorBoundary>
       </ToastProvider>
       </MotionConfig>
     </BrowserRouter>
@@ -68,6 +91,7 @@ function RoutedContent() {
         transition={transition}
         className="min-w-0"
       >
+          <Suspense fallback={<RouteFallback />}>
           <Routes location={location}>
 
 
@@ -75,6 +99,7 @@ function RoutedContent() {
 
             {/* Authentication */}
             <Route path="/auth" element={<Auth />} />
+            <Route path="/help" element={<HelpPage />} />
 
             {/* Main Command Center */}
             <Route path="/" element={<Home />} />
@@ -108,6 +133,7 @@ function RoutedContent() {
             {/* Catch-all 404 */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
       </motion.div>
     </AnimatePresence>
   );

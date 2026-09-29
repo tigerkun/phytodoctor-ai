@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Archive, MessageSquare, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { Archive, MessageSquare, ArrowRight, ShieldCheck, Sparkles, Sprout } from 'lucide-react';
 import { usePageTransition } from './PageTransitionContext';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -11,7 +11,9 @@ export default function SanctuaryHub() {
   const { transitionTo } = usePageTransition();
   const { theme } = useDayNightTheme();
 
-  const cards = useLiveQuery(() => db.cards.toArray()) || [];
+  // Only the total is displayed, so let the database count instead of
+  // materialising every card row just to read .length off the array.
+  const cardCount = useLiveQuery(() => db.cards.count()) ?? 0;
   const profile = useLiveQuery(() => GameService.getProfile());
 
   return (
@@ -42,7 +44,7 @@ export default function SanctuaryHub() {
                 <span className="text-[10px] font-black uppercase tracking-[0.22em] text-text-stone">Conservatory Archives & Ledger</span>
               </div>
               <span className="px-3 py-1 bg-moss/10 text-moss text-[10px] font-black uppercase tracking-widest border border-moss/20 rounded-md">
-                {cards.length} specimens registered
+                {cardCount} specimens registered
               </span>
             </div>
 
@@ -58,7 +60,7 @@ export default function SanctuaryHub() {
             <div className="flex gap-6">
               <div>
                 <span className="text-[9px] font-black uppercase text-text-stone tracking-wider block mb-1">Estate Yield</span>
-                <span className="text-lg font-mono font-bold text-text-bark">🌱 {profile?.seeds != null ? profile.seeds.toLocaleString() : '0'}</span>
+                <span className="text-lg font-mono font-bold text-text-bark flex items-center gap-1.5"><Sprout size={15} className="text-moss" aria-hidden="true" />{profile?.seeds != null ? profile.seeds.toLocaleString() : '0'}</span>
               </div>
               <div>
                 <span className="text-[9px] font-black uppercase text-text-stone tracking-wider block mb-1">Sanctuary Vault</span>
@@ -99,7 +101,7 @@ export default function SanctuaryHub() {
                 <span className="text-[10px] font-black uppercase tracking-[0.22em] text-text-stone">Estate Apothecary Desk</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-emerald-500" aria-hidden="true" />
                 <span className="text-[9px] font-mono font-bold uppercase text-moss">Live</span>
               </div>
             </div>
@@ -115,7 +117,7 @@ export default function SanctuaryHub() {
           <div className="flex items-end justify-between border-t border-border-light pt-6 mt-auto">
             <div>
               <span className="text-[9px] font-black uppercase text-text-stone tracking-wider block mb-1">Intelligence Core</span>
-              <span className="text-xs font-bold text-text-bark font-mono">Gemini Pro 1.5</span>
+              <span className="text-xs font-bold text-text-bark font-mono">Gemini 3.8 Flash</span>
             </div>
 
             <motion.div

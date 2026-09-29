@@ -3,6 +3,7 @@ import { SPECIES_DIFFICULTY, MYTHIC_SPECIES } from '../game/RARITY_DATA';
 import { SPECIES_PROFILES } from '../forecasting/speciesProfiles';
 import { ECONOMY_CONFIG, SEED_MULTIPLIERS, MARKETPLACE_ITEMS } from '../game/ECONOMY_DATA';
 import { RewardService } from './rewardService';
+import { applySeedDelta, flushSeedSyncOutbox, hasPendingSeedSyncs } from './seedLedger';
 
 export class GameService {
   static getUserId(): string {
@@ -107,6 +108,9 @@ export class GameService {
     try {
       const token = localStorage.getItem('botanical_guardian_auth_token');
       if (!token) return null;
+      // While deltas are still queued the server balance lags the local one;
+      // overwriting now would wipe locally-earned seeds before they sync.
+      if (await hasPendingSeedSyncs(userId)) return null;
       const res = await fetch('/api/economy/profile', { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) return null;
       const p = await res.json();
@@ -121,46 +125,8 @@ export class GameService {
     }
   }
 
-  private static async syncSeedsToServer(userId: string, amount: number, source: string, description: string, transactionId: string) {
-    if (!userId.startsWith('sb_')) return;
-    
-    // 1. Add to outbox
-    await db.seedSyncOutbox.put({
-      id: transactionId,
-      userId,
-      amount,
-      source,
-      description
-    });
-    
-    // 2. Try to flush the outbox
-    await this.flushSeedSyncOutbox();
-  }
-
-  static async flushSeedSyncOutbox() {
-    const userId = this.getUserId();
-    if (!userId.startsWith('sb_')) return;
-    const token = localStorage.getItem('botanical_guardian_auth_token');
-    if (!token) return;
-
-    const pending = await db.seedSyncOutbox.where('userId').equals(userId).toArray();
-    for (const item of pending) {
-      try {
-        const res = await fetch('/api/economy/seed-sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ delta: item.amount, source: item.source, description: item.description, transactionId: item.id })
-        });
-
-        if (res.ok || (res.status >= 400 && res.status < 500)) {
-           // 2xx or 4xx -> clear from outbox
-           await db.seedSyncOutbox.delete(item.id);
-        }
-      } catch (err) {
-        // Network error -> keep in outbox for retry later
-        break; // stop flushing if offline
-      }
-    }
+  static async flushSeedSyncOutbox(userId: string = this.getUserId()) {
+    await flushSeedSyncOutbox(userId);
   }
 
   static async purchaseProUpgradeWithServer(userId: string = this.getUserId()) {
@@ -177,61 +143,39 @@ export class GameService {
   }
 
   static async earnSeeds(
-    amount: number, 
-    source: SeedTransaction['source'], 
-    description: string, 
+    amount: number,
+    source: SeedTransaction['source'],
+    description: string,
     userId: string = this.getUserId(),
     transactionId: string = crypto.randomUUID()
   ) {
     if (amount < 0) throw new Error('earnSeeds amount must be non-negative');
-    if (await db.seedTransactions.get(transactionId)) return;
     const profile = await this.ensureProfile(userId);
     const multiplier = SEED_MULTIPLIERS[profile.tier || 'free'];
     const finalAmount = Math.floor(amount * multiplier);
-
-    // Update profile
-    await db.userProfile.update(userId, { seeds: profile.seeds + finalAmount });
-
-    // Record transaction
-    const transaction: SeedTransaction = {
-      id: transactionId,
-      userId,
-      amount: finalAmount,
-      source,
-      description,
-      createdAt: new Date()
-    };
-    await db.seedTransactions.add(transaction);
-    this.syncSeedsToServer(userId, finalAmount, source, description, transaction.id);
+    await applySeedDelta({ userId, amount: finalAmount, source, description, transactionId });
   }
 
   // BUG-03 evidence: -- select count(*) from profiles; -- result pending user run
   static async spendSeeds(
-    amount: number, 
-    source: SeedTransaction['source'], 
-    description: string, 
+    amount: number,
+    source: SeedTransaction['source'],
+    description: string,
     userId: string = this.getUserId(),
     transactionId: string = crypto.randomUUID()
   ) {
     if (amount < 0) throw new Error('spendSeeds amount must be non-negative');
-    if (await db.seedTransactions.get(transactionId)) return;
     const profile = await this.ensureProfile(userId);
     const finalAmount = Math.floor(amount); // No multiplier on spend
 
-    // Update profile
-    await db.userProfile.update(userId, { seeds: Math.max(0, profile.seeds - finalAmount) });
-
-    // Record transaction
-    const transaction: SeedTransaction = {
-      id: transactionId,
-      userId,
-      amount: -finalAmount,
-      source,
-      description,
-      createdAt: new Date()
-    };
-    await db.seedTransactions.add(transaction);
-    this.syncSeedsToServer(userId, -finalAmount, source, description, transaction.id);
+    // Refuse before mutating anything. Clamping to zero would let a purchase
+    // settle for free and would desync the client balance from the server RPC,
+    // which raises 'insufficient seeds'. applySeedDelta re-checks inside the
+    // transaction so a concurrent spend cannot overdraw between the two.
+    if (finalAmount > profile.seeds) {
+      throw new Error(`Insufficient seeds. You need ${(finalAmount - profile.seeds).toLocaleString()} more.`);
+    }
+    await applySeedDelta({ userId, amount: -finalAmount, source, description, transactionId });
   }
 
   static async purchaseItem(itemId: string, userId: string = this.getUserId()) {
@@ -590,8 +534,13 @@ export class GameService {
       throw new Error('Hybrid propagation requires Pro subscription');
     }
 
+    const propagationCost = ECONOMY_CONFIG.CONVENIENCE_COSTS.propagation_basic;
+    if (profile.seeds < propagationCost) {
+      throw new Error(`Insufficient seeds. You need ${(propagationCost - profile.seeds).toLocaleString()} more.`);
+    }
+
     // Spend seeds for propagation
-    await this.spendSeeds(ECONOMY_CONFIG.CONVENIENCE_COSTS.propagation_basic, 'spend', 'Propagation Attempt', userId);
+    await this.spendSeeds(propagationCost, 'spend', 'Propagation Attempt', userId);
 
     const success = Math.random() > (isHybrid ? 0.7 : 0.4);
     

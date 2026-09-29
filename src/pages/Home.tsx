@@ -94,7 +94,7 @@ function WelcomeLanding({ onGetStarted, onSignIn }: { onGetStarted: () => void; 
               boxShadow: '0 10px 28px rgba(61,90,61,0.28)'
             }}
           >
-            🌱 Open Sanctuary Gates
+            Open Sanctuary Gates
             <ArrowRight size={18} />
           </motion.button>
 
@@ -228,9 +228,12 @@ export default function HomePage() {
     return () => unsubscribe();
   }, [fetchPlantsFromSupabase]);
 
-  const checkins = useLiveQuery(() => db.checkins.toArray()) || [];
-  const profile = useLiveQuery(() => GameService.getProfile(userId), [userId]);
+  // The refresh key is in the deps on purpose: a care action updates the
+  // profile through a service the live query doesn't observe, so bumping the
+  // key is what re-reads it. It was previously inert, which made
+  // onRefreshProfile a no-op.
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
+  const profile = useLiveQuery(() => GameService.getProfile(userId), [userId, profileRefreshKey]);
   const forceRefreshProfile = () => setProfileRefreshKey(prev => prev + 1);
 
 
@@ -397,7 +400,7 @@ export default function HomePage() {
                 boxShadow: '0 10px 30px var(--glow)'
               }}
             >
-              🌱 Browse Market
+              Browse Market
             </motion.button>
           </div>
         </motion.section>

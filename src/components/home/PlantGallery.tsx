@@ -132,7 +132,7 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
                     <div
                       className="absolute bottom-3 left-3 px-2.5 py-0.5 rounded-xs text-[10px] font-mono tracking-wider font-semibold backdrop-blur-md bg-black/50 text-white/90 border border-white/20"
                     >
-                      💧 {daysSince}d ago
+                      {daysSince}d ago
                     </div>
                   </div>
 

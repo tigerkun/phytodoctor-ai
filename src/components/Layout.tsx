@@ -4,6 +4,7 @@ import { MessageCircle } from 'lucide-react';
 import { NavigationBar } from './home/NavigationBar';
 import MobileBottomNav from './home/MobileBottomNav';
 import { PageTransitionProvider } from './home/PageTransitionContext';
+import GardenAmbience from './GardenAmbience';
 
 import { supabase } from '../lib/supabase';
 import { GameService } from '../services/gameService';
@@ -21,25 +22,22 @@ export default function Layout({ children }: LayoutProps) {
     Boolean(localStorage.getItem('botanical_guardian_auth_token'))
   );
 
-  // Auth guard & Supabase session sync
+  // Auth guard & Supabase session sync. This used to re-run on every route
+  // change, refetching the session and hitting /api/economy/profile each time
+  // — a per-navigation round trip. Split into a one-time hydrate and a
+  // separate cheap redirect guard.
   React.useEffect(() => {
-    const checkSession = async () => {
+    const hydrate = async () => {
       // If Supabase isn't configured, fall back to local token check
       if (!supabase) {
-        const token = localStorage.getItem('botanical_guardian_auth_token');
-        setHasAuth(Boolean(token));
-        if (!token && !isAuthPage) navigate('/auth', { replace: true });
+        setHasAuth(Boolean(localStorage.getItem('botanical_guardian_auth_token')));
         return;
       }
 
-      // Check current session
       const { data: { session } } = await supabase.auth.getSession();
       setHasAuth(Boolean(session));
 
-      if (!session && !isAuthPage) {
-        // No session but trying to access protected route
-        navigate('/auth', { replace: true });
-      } else if (session) {
+      if (session) {
         // Ensure local storage is synced for Dexie / GameService
         const u = session.user;
         const userId = `sb_${u.id}`;
@@ -52,25 +50,35 @@ export default function Layout({ children }: LayoutProps) {
       }
     };
 
-    checkSession();
+    hydrate();
 
     // Listen for auth state changes (login, logout, token refresh)
     if (supabase) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         setHasAuth(Boolean(session));
-        if (!session && !isAuthPage) {
-          localStorage.removeItem('botanical_guardian_auth_token');
-          navigate('/auth', { replace: true });
-        } else if (session) {
+        if (session) {
           localStorage.setItem('botanical_guardian_auth_token', session.access_token);
+        } else {
+          localStorage.removeItem('botanical_guardian_auth_token');
         }
       });
       return () => subscription.unsubscribe();
     }
-  }, [location.pathname, isAuthPage, navigate]);
+  }, []);
+
+  // Redirect guard only — depends on the route so a fresh visit to a protected
+  // page still bounces to /auth, but navigation between pages is free.
+  React.useEffect(() => {
+    if (hasAuth) return;
+    const token = supabase
+      ? null
+      : localStorage.getItem('botanical_guardian_auth_token');
+    if (!token && !isAuthPage) navigate('/auth', { replace: true });
+  }, [hasAuth, isAuthPage, navigate]);
 
   return (
     <div className="min-h-screen flex flex-col font-sans relative overflow-x-hidden" id="app-shell" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+      <GardenAmbience />
       <PageTransitionProvider>
         {/* Only show nav when authenticated */}
         {!isAuthPage && hasAuth && (
@@ -100,6 +108,7 @@ function Footer() {
       </div>
       <div className="flex gap-6">
         <Link to="/lab">Lab Notes</Link>
+        <Link to="/help">Help &amp; FAQ</Link>
         <Link to="/privacy">Privacy</Link>
         <Link to="/terms">Terms</Link>
       </div>

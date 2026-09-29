@@ -96,7 +96,17 @@ class BotanicalDB extends Dexie {
   rewardHistory!: Table<RewardHistory>;
   discoveryRecords!: Table<DiscoveryRecord>;
   streakFreezes!: Table<StreakFreeze>;
-  seedSyncOutbox!: Table<{ id: string; userId: string; amount: number; source: string; description: string }>;
+  seedSyncOutbox!: Table<{
+    id: string;
+    userId: string;
+    amount: number;
+    source: string;
+    description: string;
+    createdAt: number;
+    attempts: number;
+    lastError?: string;
+    status: 'pending' | 'dead';
+  }>;
 
   constructor() {
     super('BotanicalGuardian');
@@ -207,6 +217,19 @@ class BotanicalDB extends Dexie {
       card.battleScars = card.battleScars.map((s: unknown) =>
         typeof s === 'string' ? { symptom: s, recoveredAt: null } : s
       );
+    }));
+    // v20: outbox rows gain delivery bookkeeping. createdAt restores FIFO
+    // ordering (the primary key is a random UUID), attempts/status implement
+    // a dead-letter ceiling so a persistently failing sync cannot retry
+    // forever. Queued deltas from v19 are preserved as pending.
+    this.version(20).stores({
+      seedSyncOutbox: 'id, userId, status, [userId+status]'
+    }).upgrade(tx => tx.table('seedSyncOutbox').toCollection().modify(row => {
+      if (row.status === undefined) {
+        row.status = 'pending';
+        row.attempts = row.attempts ?? 0;
+        row.createdAt = row.createdAt ?? Date.now();
+      }
     }));
   }
 }

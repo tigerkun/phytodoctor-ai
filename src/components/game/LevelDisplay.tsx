@@ -91,7 +91,7 @@ export const LevelDisplay: React.FC<LevelDisplayProps> = ({
       {/* Next Unlock */}
       {showUnlock && levelInfo?.nextUnlock && (
         <div className="text-xs text-sage-light bg-moss/10 border border-moss/20 rounded-lg p-2">
-          <p className="font-semibold text-accent-moss mb-1">🎁 Next Unlock:</p>
+          <p className="font-semibold text-accent-moss mb-1">Next unlock:</p>
           <p>{levelInfo.nextUnlock}</p>
         </div>
       )}

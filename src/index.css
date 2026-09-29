@@ -3,6 +3,7 @@
 @import "tailwindcss";
 @import "./styles/tokens.css";
 @import "./styles/page-skins.css";
+@import "./styles/garden-ambience.css";
 
 /* dark: utilities follow the app's data-theme (set by DayNightProvider),
    NOT the OS prefers-color-scheme. Fixes day-mode surfaces rendering with
@@ -127,17 +128,6 @@
   .glass-card {
     @apply bg-white/40 backdrop-blur-md border border-white/20;
   }
-}
-
-/* ── Hummingbird wing: CSS-driven for zero JS overhead ───────── */
-@keyframes hummingbird-wing {
-  0%, 100% { transform: scaleY(1) rotate(0deg); }
-  50% { transform: scaleY(-0.6) rotate(-15deg); }
-}
-
-.wing-beat {
-  animation: hummingbird-wing 0.12s linear infinite;
-  transform-origin: 32px 25px;
 }
 
 @keyframes float {

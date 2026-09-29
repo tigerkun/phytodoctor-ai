@@ -54,3 +54,33 @@
 - Removed ambient scene controls, the cat/illustrated override state, cursor-following effects, leaf bursts, particles, animated backgrounds, and decorative floating layers.
 - Replaced the emoji-heavy home status card with a plain Garden status panel and a single moss primary action.
 - Added shared route transition, reduced-motion handling, scroll reset, shared mobile-nav indicator, visible focus treatment, and icon-only button labels.
+
+---
+
+## Outcome — superseded in part, on purpose
+
+The removals above all landed. What changed afterwards is the *reason* the page
+read as dull rather than calm: stripping every ambient layer took the atmosphere
+with it, and the flat result was not what was wanted.
+
+`src/components/GardenAmbience.tsx` + `src/styles/garden-ambience.css` now
+supply a deliberate, restrained replacement — four composited layers rather than
+the ~700 DOM nodes that were removed:
+
+| Layer | What it is | Motion |
+| --- | --- | --- |
+| Pools | Four large blurred colour washes (moss, gold, sage, clay) | 66–92s drift |
+| Foliage | Two hand-drawn SVG fronds flanking the viewport | 1.4°/1.6° sway, 17s/21s |
+| Motes | 16 hand-placed particles rising through the frame | 18–34s rise |
+| Vignette | Corner falloff so content stays legible | none |
+
+Constraints it holds to, so it doesn't regress into the noise it replaced:
+
+- Compositor-only properties (`transform`, `opacity`) — no layout or paint work
+- `z-index: var(--z-base)`, below the content column and the nav; verified by
+  hit-testing the heading rather than assumed
+- `prefers-reduced-motion` and eco mode both disable it
+- Scene-aware: pools and vignette re-tint in night mode
+- ~24 animated nodes total, versus the 700+ removed
+
+Everything else in this document still stands.

@@ -1,0 +1,204 @@
+/* GardenAmbience — the living background behind every screen.
+   Four layers: light pools, botanical silhouettes, drifting motes, vignette.
+   All animation is transform/opacity so it stays on the compositor. */
+
+.garden-ambience {
+  position: fixed;
+  inset: 0;
+  /* Must sit below the content column (z-content) and the nav (z-nav) or the
+     pools and vignette wash over the text. z-base is above the shell's own
+     opaque background, so the layers still show through. */
+  z-index: var(--z-base);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* ── 1. Light pools ─────────────────────────────────────────────── */
+
+.garden-ambience__pools {
+  position: absolute;
+  inset: -20%;
+}
+
+.garden-pool {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  filter: blur(60px);
+  will-change: transform;
+}
+
+.garden-pool--moss {
+  width: 46vmax;
+  height: 46vmax;
+  top: -12vmax;
+  left: -8vmax;
+  background: radial-gradient(circle, rgba(122, 168, 122, 0.34) 0%, transparent 70%);
+  animation: garden-drift-a 78s ease-in-out infinite;
+}
+
+.garden-pool--gold {
+  width: 38vmax;
+  height: 38vmax;
+  top: 8vmax;
+  right: -10vmax;
+  background: radial-gradient(circle, rgba(226, 190, 106, 0.30) 0%, transparent 70%);
+  animation: garden-drift-b 92s ease-in-out infinite;
+}
+
+.garden-pool--sage {
+  width: 40vmax;
+  height: 40vmax;
+  bottom: -14vmax;
+  left: 24vmax;
+  background: radial-gradient(circle, rgba(168, 190, 168, 0.30) 0%, transparent 70%);
+  animation: garden-drift-c 66s ease-in-out infinite;
+}
+
+.garden-pool--clay {
+  width: 30vmax;
+  height: 30vmax;
+  bottom: 4vmax;
+  left: -6vmax;
+  background: radial-gradient(circle, rgba(206, 146, 112, 0.22) 0%, transparent 70%);
+  animation: garden-drift-b 84s ease-in-out infinite reverse;
+}
+
+@keyframes garden-drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33%      { transform: translate3d(6vmax, 4vmax, 0) scale(1.08); }
+  66%      { transform: translate3d(-3vmax, 7vmax, 0) scale(0.95); }
+}
+
+@keyframes garden-drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(-7vmax, 6vmax, 0) scale(1.12); }
+}
+
+@keyframes garden-drift-c {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.02); }
+  40%      { transform: translate3d(8vmax, -5vmax, 0) scale(0.94); }
+  75%      { transform: translate3d(2vmax, -8vmax, 0) scale(1.06); }
+}
+
+/* Night: the same layers, dimmer and cooler. */
+.garden-ambience[data-scene='night'] .garden-pool--moss {
+  background: radial-gradient(circle, rgba(72, 110, 96, 0.30) 0%, transparent 70%);
+}
+.garden-ambience[data-scene='night'] .garden-pool--gold {
+  background: radial-gradient(circle, rgba(150, 132, 88, 0.20) 0%, transparent 70%);
+}
+.garden-ambience[data-scene='night'] .garden-pool--sage {
+  background: radial-gradient(circle, rgba(86, 108, 122, 0.26) 0%, transparent 70%);
+}
+.garden-ambience[data-scene='night'] .garden-pool--clay {
+  background: radial-gradient(circle, rgba(126, 88, 80, 0.18) 0%, transparent 70%);
+}
+
+/* ── 2. Botanical silhouettes ───────────────────────────────────── */
+
+.garden-ambience__foliage {
+  position: absolute;
+  bottom: 0;
+  width: min(30vw, 340px);
+  height: min(62vh, 620px);
+  color: var(--moss);
+  opacity: 0.16;
+  will-change: transform;
+}
+
+.garden-foliage--left {
+  left: 0;
+  animation: garden-sway-left 17s ease-in-out infinite;
+}
+
+.garden-foliage--right {
+  right: 0;
+  color: var(--sage);
+  opacity: 0.13;
+  animation: garden-sway-right 21s ease-in-out infinite;
+}
+
+.garden-ambience[data-scene='night'] .garden-ambience__foliage {
+  opacity: 0.09;
+}
+
+@keyframes garden-sway-left {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  50%      { transform: rotate(1.4deg) translateY(-1.2%); }
+}
+
+@keyframes garden-sway-right {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  50%      { transform: rotate(-1.6deg) translateY(-1%); }
+}
+
+/* ── 3. Drifting motes ──────────────────────────────────────────── */
+
+.garden-ambience__motes {
+  position: absolute;
+  inset: 0;
+}
+
+.garden-mote {
+  position: absolute;
+  bottom: -6%;
+  display: block;
+  border-radius: 50%;
+  background: var(--gold-light, #e6c98a);
+  will-change: transform, opacity;
+  animation-name: garden-mote-rise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.garden-ambience[data-scene='night'] .garden-mote {
+  background: #cfd9a8;
+}
+
+@keyframes garden-mote-rise {
+  0% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0;
+  }
+  12%  { opacity: 1; }
+  50%  { transform: translate3d(var(--drift, 0px), -48vh, 0); }
+  88%  { opacity: 1; }
+  100% {
+    transform: translate3d(calc(var(--drift, 0px) * -0.4), -104vh, 0);
+    opacity: 0;
+  }
+}
+
+/* ── 4. Vignette ────────────────────────────────────────────────── */
+
+.garden-ambience__vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 70% 60% at 50% 42%,
+    transparent 0%,
+    rgba(250, 247, 242, 0.55) 78%,
+    rgba(250, 247, 242, 0.8) 100%
+  );
+}
+
+.garden-ambience[data-scene='night'] .garden-ambience__vignette {
+  background: radial-gradient(
+    ellipse 70% 60% at 50% 42%,
+    transparent 0%,
+    rgba(15, 20, 25, 0.5) 78%,
+    rgba(15, 20, 25, 0.78) 100%
+  );
+}
+
+/* ── Reduced motion / eco mode: hold a single still frame ───────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .garden-pool,
+  .garden-foliage--left,
+  .garden-foliage--right,
+  .garden-mote {
+    animation: none !important;
+  }
+}

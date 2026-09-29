@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { X, Cpu, Fingerprint, Activity, Database, Zap, ShieldCheck } from 'lucide-react';
 
 interface TechnicalDossierProps {
@@ -60,7 +60,7 @@ export default function TechnicalDossier({ onClose }: TechnicalDossierProps) {
                 <div className="space-y-4">
                    <TechStat label="Architecture" value="Hybrid Multi-Model (Rule + LLM)" />
                    <TechStat label="Primary Logic" value="Rule-Based Botanical Forecast (v1.2)" />
-                   <TechStat label="Fallback" value="Gemini 1.5 Flash (Dossier Escalation)" />
+                   <TechStat label="Fallback" value="Gemini 3.5 Flash (Dossier Escalation)" />
                    <TechStat label="Trigger Threshold" value="Score > 25 (Info) | > 75 (Critical)" />
                 </div>
              </section>

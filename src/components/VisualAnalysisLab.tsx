@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Activity, Camera, Zap } from 'lucide-react';
 
 export default function VisualAnalysisLab() {

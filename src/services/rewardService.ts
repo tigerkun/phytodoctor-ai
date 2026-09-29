@@ -17,6 +17,7 @@ import {
   type RarityReward
 } from '../game/REWARD_CONFIG';
 import { getStreakMultiplier } from './profileUtils';
+import { applySeedDelta } from './seedLedger';
 
 export class RewardService {
   static getUserId(): string {
@@ -140,10 +141,20 @@ export class RewardService {
       });
     }
 
-    // Update user profile
-    const newSeeds = profile.seeds + seedsAwarded;
+    // Credit through the shared ledger path so the grant reaches the server.
+    // This used to write the balance directly, which the next
+    // pullServerProfile overwrote with the stale server value, silently
+    // erasing the reward for cloud users.
+    await applySeedDelta({
+      userId,
+      amount: seedsAwarded,
+      source: 'reward',
+      description: `Reward: ${action.name}`,
+      transactionId: crypto.randomUUID()
+    });
+    const credited = await db.userProfile.get(userId);
+    const newSeeds = credited?.seeds ?? profile.seeds + seedsAwarded;
     const newXP = levelProgress.totalXP + xpAwarded;
-    await db.userProfile.update(userId, { seeds: newSeeds });
 
     // Record reward in history
     const reward: RewardHistory = {
@@ -212,9 +223,17 @@ export class RewardService {
       seedsAwarded = Math.floor(seedsAwarded * levelProgress.permanentMultipliers.seedEarn);
     }
 
-    // Discoveries are burst rewards, bypass daily cap
-    const newSeeds = profile.seeds + seedsAwarded;
-    await db.userProfile.update(userId, { seeds: newSeeds });
+    // Discoveries are burst rewards, bypass daily cap — but still credited
+    // through the shared ledger path so they sync to the server.
+    await applySeedDelta({
+      userId,
+      amount: seedsAwarded,
+      source: 'reward',
+      description: `Discovery: ${species}`,
+      transactionId: crypto.randomUUID()
+    });
+    const credited = await db.userProfile.get(userId);
+    const newSeeds = credited?.seeds ?? profile.seeds + seedsAwarded;
 
     // Record discovery
     const discovery = {

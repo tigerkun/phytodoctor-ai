@@ -25,7 +25,8 @@ import {
   Compass,
   ArrowRight,
   TrendingUp,
-  FileText
+  FileText,
+  Check
 } from 'lucide-react';
 import StreakPopup from '../components/game/StreakPopup';
 import { db } from '../db/database';
@@ -59,6 +60,25 @@ interface Particle {
   scale: number;
 }
 
+/**
+ * Real phases of a scan, in order. The overlay used to cycle four
+ * decorative messages on a 1.5s timer for the whole scan regardless of what
+ * was actually happening, so a fast identification and a two-minute
+ * photo upload looked identical. Each stage below is entered when the work
+ * it names actually begins, and stays until that work finishes.
+ */
+type ScanStage = 'idle' | 'reading' | 'identifying' | 'uploading' | 'saving' | 'rewarding';
+
+const SCAN_STAGES: { id: Exclude<ScanStage, 'idle'>; label: string }[] = [
+  { id: 'reading', label: 'Reading the specimen slide' },
+  { id: 'identifying', label: 'Identifying species and symptoms' },
+  { id: 'uploading', label: 'Storing the photo in your vault' },
+  { id: 'saving', label: 'Adding the specimen to your sanctuary' },
+  { id: 'rewarding', label: 'Awarding seeds and experience' },
+];
+
+const SCAN_STAGE_ORDER: ScanStage[] = SCAN_STAGES.map(s => s.id);
+
 
 
 export default function BotanicalLab() {
@@ -77,7 +97,7 @@ export default function BotanicalLab() {
   
   const [streakPopupData, setStreakPopupData] = useState<{ streak: number, seeds: number } | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadingMessageIndex, setUploadingMessageIndex] = useState(0);
+  const [scanStage, setScanStage] = useState<ScanStage>('idle');
   const [dexImage, setDexImage] = useState<string | null>(null);
   const [dexResult, setDexResult] = useState<any | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -85,22 +105,18 @@ export default function BotanicalLab() {
   const [discoveryBonus, setDiscoveryBonus] = useState(0);
   const [scannedRewards, setScannedRewards] = useState<{ seeds: number; xp: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadingMessages = [
-    'Reading botanical signals...',
-    'Cross-referencing leaf patterns...',
-    'Checking against known symptoms...',
-    'Finalizing the diagnosis...'
-  ];
+  const scanStartRef = useRef<number>(0);
+  const [scanElapsed, setScanElapsed] = useState(0);
 
+  // Elapsed seconds since the scan began. A slow scan is normal on the first
+  // call — the model chain is walked from the top each time — so showing the
+  // clock is more honest than a message that implies progress.
   useEffect(() => {
-    if (!uploading) {
-      setUploadingMessageIndex(0);
-      return;
-    }
-    const interval = window.setInterval(() => {
-      setUploadingMessageIndex(index => (index + 1) % uploadingMessages.length);
-    }, 1500);
-    return () => window.clearInterval(interval);
+    if (!uploading) return;
+    const tick = () => setScanElapsed(Math.floor((Date.now() - scanStartRef.current) / 1000));
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
   }, [uploading]);
 
   const [coins, setCoins] = useState<Particle[]>([]);
@@ -124,7 +140,18 @@ export default function BotanicalLab() {
     return onPlantsChange(setDbPlants);
   }, []);
 
-  const checkins = useLiveQuery(() => db.checkins.toArray()) || [];
+  // Only the sanctuary's own check-ins are read here, so scope the query to
+  // those plant ids. db.checkins.toArray() pulled every user's history on
+  // every write to the table. Keyed on a stable id string so the query only
+  // re-runs when the collection actually changes.
+  const plantIds = useMemo(
+    () => dbPlants.filter(p => !p.isDemo).map(p => p.id).sort().join(','),
+    [dbPlants]
+  );
+  const checkins = useLiveQuery(
+    () => (plantIds ? db.checkins.where('plantId').anyOf(plantIds.split(',')).toArray() : []),
+    [plantIds]
+  ) || [];
 
 
   const { location, city } = useGeolocation();
@@ -159,6 +186,8 @@ export default function BotanicalLab() {
     setDexImage(null);
     setDexResult(null);
     setUploading(false);
+    setScanStage('idle');
+    setScanElapsed(0);
     setIsNewSpecies(false);
     setScannedRewards(null);
     setScanError(null);
@@ -179,20 +208,20 @@ export default function BotanicalLab() {
     const species = target.speciesName || target.scientificName || target.commonName;
     const rarity = getRarityFromSpecies(species);
     let finalPhotoUrl = photo;
-    setIsUplinkingPhoto(true);
-    try {
-      if (photo && photo.startsWith('data:')) {
+    if (photo && photo.startsWith('data:')) {
+      setScanStage('uploading');
+      setIsUplinkingPhoto(true);
+      try {
         const cloudUrl = await StorageService.uploadPlantPhotoFromDataUrl(photo, userId);
         if (cloudUrl) {
           finalPhotoUrl = cloudUrl;
         }
+      } finally {
+        setIsUplinkingPhoto(false);
       }
-    } finally {
-      setIsUplinkingPhoto(false);
     }
 
-
-
+    setScanStage('saving');
     const plant = await GameService.indexScannedPlant({
       photoUrl: finalPhotoUrl,
       species,
@@ -205,7 +234,7 @@ export default function BotanicalLab() {
       temperature: target.temperature,
     }, userId);
 
-
+    setScanStage('rewarding');
     const alreadyDiscovered = profile?.discoveredSpecies?.includes(species);
     let resSeeds = 0;
     if (!alreadyDiscovered) {
@@ -236,13 +265,20 @@ export default function BotanicalLab() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    scanStartRef.current = Date.now();
     setUploading(true);
+    setScanStage('reading');
     setDexResult(null);
     setScanError(null);
     setIsNewSpecies(false);
     setScannedRewards(null);
 
     const reader = new FileReader();
+    reader.onerror = () => {
+      setScanError("Failed to read the selected photo file.");
+      setUploading(false);
+      setScanStage('idle');
+    };
     reader.onloadend = async () => {
       const base64 = reader.result as string;
       setDexImage(base64);
@@ -255,6 +291,7 @@ export default function BotanicalLab() {
             locationCtx = { city };
         }
 
+        setScanStage('identifying');
         const result = await identifyPlant(base64, locationCtx);
         setDexResult(result);
 
@@ -267,6 +304,7 @@ export default function BotanicalLab() {
         setDexImage(null);
       } finally {
         setUploading(false);
+        setScanStage('idle');
       }
     };
     reader.readAsDataURL(file);
@@ -369,13 +407,22 @@ export default function BotanicalLab() {
     resetDexScan();
   };
 
+  // Latest check-in per plant, built once per checkins change. isPlantActive
+  // used to re-filter and re-reduce the entire check-in list for every card
+  // on every render, and the card body repeated the same reduce a second time.
+  const latestCheckinByPlant = useMemo(() => {
+    const latest = new Map<string, (typeof checkins)[number]>();
+    for (const c of checkins) {
+      const prev = latest.get(c.plantId);
+      if (!prev || new Date(c.timestamp) > new Date(prev.timestamp)) latest.set(c.plantId, c);
+    }
+    return latest;
+  }, [checkins]);
+
+  const today = new Date().toDateString();
   const isPlantActive = (plantId: string) => {
-    const plantCheckins = checkins.filter(c => c.plantId === plantId);
-    if (plantCheckins.length === 0) return false;
-    const latest = plantCheckins.reduce((latest, current) => 
-      new Date(current.timestamp) > new Date(latest.timestamp) ? current : latest
-    );
-    return new Date(latest.timestamp).toDateString() === new Date().toDateString();
+    const latest = latestCheckinByPlant.get(plantId);
+    return !!latest && new Date(latest.timestamp).toDateString() === today;
   };
 
   const sanctuaryPlants = useMemo(() => {
@@ -666,10 +713,45 @@ export default function BotanicalLab() {
                         <motion.div
                           animate={{ rotate: 360 }}
                           transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
-                          className="w-10 h-10 border-2 border-moss border-t-transparent rounded-full mb-4"
+                          className="w-10 h-10 border-2 border-moss border-t-transparent rounded-full mb-5"
                         />
-                        <p className="font-serif text-lg font-bold text-text-bark">{uploadingMessages[uploadingMessageIndex]}</p>
-                        <p className="text-xs text-text-muted mt-1">Analyzing specimen data.</p>
+                        <p className="font-serif text-lg font-bold text-text-bark">
+                          {SCAN_STAGES.find(s => s.id === scanStage)?.label || 'Working on your scan'}
+                        </p>
+                        <p className="text-xs text-text-muted mt-1">
+                          {scanElapsed}s elapsed · this can take a minute on a first scan
+                        </p>
+
+                        {/* The stages that belong to this mode, ticked as they complete. */}
+                        <ol className="mt-6 w-full max-w-xs space-y-2">
+                          {SCAN_STAGES
+                            .filter(s => scanMode === 'index' || (s.id !== 'uploading' && s.id !== 'saving' && s.id !== 'rewarding'))
+                            .map(s => {
+                              // The overlay only mounts while uploading, so
+                              // scanStage is never 'idle' here; the -1 is a
+                              // belt-and-braces floor for the comparison.
+                              const done = SCAN_STAGE_ORDER.indexOf(s.id) < SCAN_STAGE_ORDER.indexOf(scanStage);
+                              const active = s.id === scanStage;
+                              return (
+                                <li
+                                  key={s.id}
+                                  className={`flex items-center gap-2.5 text-xs transition-opacity ${
+                                    active ? 'text-text-bark font-semibold' : done ? 'text-moss' : 'text-text-muted/50'
+                                  }`}
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    className={`w-4 h-4 shrink-0 rounded-full border flex items-center justify-center ${
+                                      done ? 'bg-moss border-moss' : active ? 'border-moss border-2' : 'border-current'
+                                    }`}
+                                  >
+                                    {done && <Check size={10} className="text-white" />}
+                                  </span>
+                                  {s.label}
+                                </li>
+                              );
+                            })}
+                        </ol>
                       </div>
                     )}
 
@@ -916,10 +998,7 @@ export default function BotanicalLab() {
               
               {sanctuaryPlants.map((plant) => {
                 const isActive = isPlantActive(plant.id);
-                const plantCheckins = checkins.filter(c => c.plantId === plant.id);
-                const latest = plantCheckins.length
-                  ? plantCheckins.reduce((a, b) => new Date(b.timestamp) > new Date(a.timestamp) ? b : a)
-                  : null;
+                const latest = latestCheckinByPlant.get(plant.id) || null;
                 const healthScore = plant.guardianScore || latest?.guardianScore || 90;
                 const isMissed = !isActive;
                 const moistureLabel = latest?.soilMoisture || (isActive ? 'Moist' : 'Dry');

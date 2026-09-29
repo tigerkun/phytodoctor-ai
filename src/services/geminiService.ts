@@ -46,15 +46,41 @@ export interface LocationContext {
   };
 }
 
+/**
+ * Identify a plant from a photo.
+ *
+ * The server caps each Gemini attempt at 60s and falls through up to four
+ * models, so a scan can legitimately run for minutes on a cold path. Without
+ * a client-side deadline the fetch hung until the browser gave up on its own
+ * schedule and the UI sat on a spinner with no way to tell a slow scan from a
+ * dead one. 120s is comfortably past the worst server-side case, so this only
+ * fires when the connection itself is stuck.
+ */
+const IDENTIFY_TIMEOUT_MS = 120_000;
+
 export async function identifyPlant(base64Image: string, location?: LocationContext): Promise<PlantCare> {
-  const response = await fetch("/api/identify", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem('botanical_guardian_auth_token') || ''}`,
-    },
-    body: JSON.stringify({ image: base64Image, location }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), IDENTIFY_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch("/api/identify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem('botanical_guardian_auth_token') || ''}`,
+      },
+      body: JSON.stringify({ image: base64Image, location }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') {
+      throw new Error('The scan took too long and was cancelled. Check your connection and try again.');
+    }
+    throw new Error('Could not reach the analysis service. Check your connection and try again.');
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (response.ok) {
     return await response.json();

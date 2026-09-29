@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useDayNightTheme } from './useDayNightTheme';
 
 export type TimePeriod = 'dawn' | 'morning' | 'afternoon' | 'dusk' | 'night' | 'late-night';
@@ -57,30 +57,28 @@ export function useTimeOfDay() {
     return () => clearInterval(interval);
   }, [theme]);
 
-  const getGreeting = () => {
+  const greeting = useMemo(() => {
     const raw = localStorage.getItem('botanical_guardian_user_name') || '';
     const name = raw.split(' ')[0] || 'Guardian';
     switch (timePeriod) {
       case 'dawn':
-        return `Good morning, ${name}. Your garden is starting to wake up.`;
       case 'morning':
-        return `Good morning, ${name}. Your garden is soaking up the sun.`;
+        return { salutation: 'Good morning', name, detail: 'Your garden is waking up.' };
       case 'afternoon':
-        return `Good afternoon, ${name}. Perfect time to check on your plants.`;
+        return { salutation: 'Good afternoon', name, detail: 'A good time to check on your plants.' };
       case 'dusk':
-        return `Good evening, ${name}. The evening air is settling in.`;
       case 'night':
-        return `The garden rests, but you're still tending. Beautiful.`;
+        return { salutation: 'Good evening', name, detail: 'The evening air is settling in.' };
       case 'late-night':
-        return `Quiet hours. Your plants are resting under the stars.`;
+        return { salutation: 'Quiet hours', name, detail: 'Your plants are resting under the stars.' };
       default:
-        return `Welcome to your garden sanctuary.`;
+        return { salutation: 'Welcome', name, detail: 'Your garden sanctuary is ready.' };
     }
-  };
+  }, [timePeriod]);
 
   return {
     timeOfDay: timePeriod,
-    greeting: getGreeting(),
+    greeting,
     themeMode: theme
   };
 }

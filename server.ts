@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -9,6 +10,10 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+// The client bundle is ~1.6 MB raw / ~460 KB gzipped; serving it uncompressed
+// makes every first visit pay full transfer cost.
+app.use(compression());
 
 // Behind Render's proxy: derive req.ip from the trusted proxy chain so a
 // client cannot spoof X-Forwarded-For to rotate rate-limit identities.
@@ -356,33 +361,69 @@ app.get('/healthz', (_req, res) => {
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
   httpOptions: {
+    // Caps every attempt: without it a hung Gemini call never resolves and
+    // the Express request hangs until the client gives up. 60s because the
+    // full identify schema can legitimately need more than 30s on the
+    // high-capacity tiers before this falls through to the next model.
+    timeout: 60000,
     headers: {
       'User-Agent': 'aistudio-build',
     }
   }
 });
 
+// Verified against the production key on 2026-09-28: Google retired
+// gemini-2.5-flash/2.0-flash/1.5-flash for new-format keys ("no longer
+// available to new users", 404 with a pointer to gemini-3.8-flash), which
+// made EVERY AI route fail after walking the whole dead chain. Live-verified:
+// 3.8-flash and 3.5-flash answer 200 (intermittently 503 capacity-shed),
+// 3.1-flash-lite answers 200. 2.5-flash stays last for legacy AIza keys.
 async function generateWithRetry(params: any, retries = 1) {
   const envModel = process.env.GEMINI_MODEL;
-  const models = envModel 
-    ? [envModel, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
-    : ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
-  
+  const models = envModel
+    ? [envModel, "gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
+    : ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash"];
+
   for (const modelName of models) {
     for (let i = 0; i <= retries; i++) {
       try {
-        return await ai.models.generateContent({
-          ...params,
-          model: modelName,
-        });
+        const modelParams: any = { ...params, model: modelName };
+        // 2.5+ generation models spend internal "thinking" tokens before
+        // emitting — seconds per call on the scan path. 1.5/2.0 reject the
+        // field, so it is attached to everything else. Callers opt in via
+        // config.disableThinking (stripped here so it never reaches the API).
+        if (params.config?.disableThinking) {
+          modelParams.config = { ...params.config };
+          delete modelParams.config.disableThinking;
+          if (!/^gemini-(1\.5|2\.0)/.test(modelName)) {
+            modelParams.config.thinkingConfig = { thinkingBudget: 0 };
+          }
+        }
+        return await ai.models.generateContent(modelParams);
       } catch (err: any) {
         const isFatal = err?.status === 400 || err?.status === 401 || err?.status === 403;
         if (isFatal) throw err; // Don't delay on authentication or bad request errors
 
-        const isNotFoundOrQuota = err?.status === 429 || err?.status === 404 || err?.message?.includes("not found") || err?.message?.includes("quota");
-        if (isNotFoundOrQuota && modelName !== models[models.length - 1]) {
+        // 404 IS model-specific (retired/renamed model) and keeps its
+        // fallback. 429 is project-level quota — failing fast avoids
+        // repeating the failure against every model with sleeps in between.
+        const isModelMissing = err?.status === 404 || err?.message?.includes("not found");
+        if (isModelMissing && modelName !== models[models.length - 1]) {
           console.warn(`Model ${modelName} unavailable (${err?.status || 'error'}), falling back to next model...`);
           break;
+        }
+        if (err?.status === 429) throw err;
+
+        // Capacity shedding (503 "high demand") and deadline kills (504 /
+        // client abort) will not clear within a 400ms retry — fall through to
+        // the next model immediately instead of burning the same one twice.
+        const isCapacity = err?.status === 503 || err?.status === 504 || /aborted|deadline/i.test(String(err?.message || ''));
+        if (isCapacity) {
+          if (modelName !== models[models.length - 1]) {
+            console.warn(`Model ${modelName} saturated (${err?.status || 'error'}), falling back to next model...`);
+            break;
+          }
+          if (i === retries) throw err;
         }
 
         if (i === retries && modelName === models[models.length - 1]) throw err;
@@ -436,18 +477,18 @@ app.post("/api/identify", express.json({ limit: '11mb' }), aiLimiter, apiGate, t
       }
     }
 
-    const prompt = `You are PhytoDoctor AI, the world's most advanced botanical diagnostician. Perform an exhaustive, clinically precise analysis of the plant in this image.
+    const prompt = `You are PhytoDoctor AI, the world's most advanced botanical diagnostician. Perform a clinically precise analysis of the plant in this image.
 
-REQUIRED — be specific and detailed in every field:
+Be specific in every field; keep each field concise:
 1. Identify the exact species (common name, full scientific name with authority if known).
 2. Visually assess ALL visible symptoms: leaf colour, texture, lesions, spots, wilting, edge burn, yellowing pattern, stem condition, soil surface if visible, pest evidence.
 3. Assign a health status (Healthy / Stressed / Diseased / Infested) and severity 1-5.
 4. Write a thorough diagnosis paragraph — name the exact pathology or deficiency if detectable, not generic phrases.
 5. List 3-4 differential diagnoses with realistic confidence percentages.
-6. Provide a day-by-day treatment timeline (at least 4 milestones).
-7. Write detailed step-by-step treatment instructions (minimum 5 steps, each actionable).
+6. Provide a treatment timeline with 3-4 milestones.
+7. Write step-by-step treatment instructions (3-5 concise, actionable steps).
 8. Give precise care parameters: watering schedule, light requirements, soil type, temperature range.
-9. List 4+ specific care tips tailored to the detected condition.
+9. List 3-4 specific care tips tailored to the detected condition.
 10. Explain vulnerability notes — WHY this specific specimen shows these symptoms.${locationBlock}
 
 LOCATION-AWARE FIELDS (required if location provided):
@@ -473,6 +514,9 @@ LOCATION-AWARE FIELDS (required if location provided):
       config: {
         systemInstruction: "You are PhytoDoctor AI's Chief Botanical Pathologist and Regional Horticulture Specialist. You perform precise, evidence-based visual diagnoses. You always consider the user's local climate, geography, and current weather when giving care advice. Never give generic advice — always be specific to the plant specimen, its visible condition, and the user's location. Return complete, structured JSON according to the schema.",
         temperature: 0.15,
+        // Internal marker consumed by generateWithRetry: skip 2.5 "thinking"
+        // tokens so the scan result arrives as fast as possible.
+        disableThinking: true,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -638,6 +682,7 @@ Score climate, water, light, soil, pest pressure, and seasonal timing independen
         config: {
           systemInstruction: "You are PhytoDoctor AI running a clinical placement simulation. Be honest: hostile climates should score low. Return only JSON.",
           temperature: 0.2,
+          disableThinking: true, // vault assessments are wait-facing; skip 2.5 thinking tokens
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -866,7 +911,19 @@ app.post("/api/economy/seed-sync", express.json({ limit: '16kb' }), apiGate, asy
       p_description: String(description || '').slice(0, 200),
       p_transaction_id: transactionId
     });
-    if (error) return fail(res, 500, "Could not sync seeds.");
+    if (error) {
+      const message = String(error.message || '');
+      // Permanent failures get 4xx so the client outbox drops them instead of
+      // retrying forever; anything else stays a retryable 500.
+      if (message === 'daily seed credit limit') {
+        return fail(res, 422, "Daily seed earning limit reached. Please try again tomorrow.");
+      }
+      if (message === 'insufficient seeds') {
+        return fail(res, 402, "Insufficient seeds.");
+      }
+      console.error("seed-sync rpc:", message);
+      return fail(res, 500, "Could not sync seeds.");
+    }
     res.json({ seeds: next });
   } catch (err: any) {
     console.error("seed-sync error:", err?.message);
@@ -888,10 +945,9 @@ app.post("/api/billing/purchase-with-seeds", express.json({ limit: '8kb' }), api
     if (error) {
       const message = String(error.message || '');
       if (message.includes('already pro')) return fail(res, 409, "You are already a Pro member.");
-      if (message.startsWith('insufficient:')) {
-        const balance = Number(message.split(':')[1]) || 0;
-        return fail(res, 402, `Insufficient seeds. You need ${(PRO_COST_SEEDS - balance).toLocaleString()} more.`);
-      }
+      // The RPC raises 'insufficient seeds' with no balance payload, so the
+      // exact shortfall cannot be computed here.
+      if (message.includes('insufficient')) return fail(res, 402, "Insufficient seeds.");
       console.error("purchase rpc:", message);
       return fail(res, 500, "Purchase failed. Please try again.");
     }
