@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
@@ -529,34 +529,36 @@ export default function GardenMarket() {
   useEffect(() => { localStorage.setItem(TICKET_KEY, JSON.stringify(redeemedTickets)); }, [redeemedTickets]);
   useEffect(() => { localStorage.setItem(REFUNDS_KEY, JSON.stringify(claimedRefunds)); }, [claimedRefunds]);
 
-  // Filter products
-  const getFilteredProducts = () => {
+  // Filter + sort products. The 'drops' tab previously handed MOCK_PRODUCTS
+  // straight to .sort()/.reverse(), which reorder the module-level array in
+  // place — so choosing "price: low" on Drops silently changed the order the
+  // hero carousel and every other tab render from. Copy before sorting, and
+  // memoize so typing in the search box doesn't re-filter the catalogue on
+  // every keystroke.
+  const filteredProducts = useMemo(() => {
     let products = activeTab === 'saved'
       ? MOCK_PRODUCTS.filter(p => wishlist.includes(p.id))
       : activeTab === 'drops'
-        ? MOCK_PRODUCTS
+        ? [...MOCK_PRODUCTS]
         : MOCK_PRODUCTS.filter(p => p.category === activeTab);
 
     if (filters.limitedOnly) products = products.filter(p => p.isLimited);
-    if (filters.search) products = products.filter(p => 
+    if (filters.search) products = products.filter(p =>
       p.name.toLowerCase().includes(filters.search.toLowerCase())
     );
-    if (filters.priceRange) products = products.filter(p => 
+    if (filters.priceRange) products = products.filter(p =>
       p.cashPrice >= filters.priceRange[0] && p.cashPrice <= filters.priceRange[1]
     );
     if (filters.minRating) products = products.filter(p => p.rating >= filters.minRating);
 
-    // Sort
     switch(filters.sort) {
       case 'price-low': return products.sort((a, b) => a.cashPrice - b.cashPrice);
       case 'price-high': return products.sort((a, b) => b.cashPrice - a.cashPrice);
       case 'rating': return products.sort((a, b) => b.rating - a.rating);
-      case 'new': return products.reverse();
+      case 'new': return [...products].reverse();
       default: return products;
     }
-  };
-
-  const filteredProducts = getFilteredProducts();
+  }, [activeTab, wishlist, filters.limitedOnly, filters.search, filters.priceRange, filters.minRating, filters.sort]);
 
   const handleClaim = (id: string, refundValue: number) => {
     const product = MOCK_PRODUCTS.find(p => p.id === id);

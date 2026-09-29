@@ -11,7 +11,9 @@ export default function SanctuaryHub() {
   const { transitionTo } = usePageTransition();
   const { theme } = useDayNightTheme();
 
-  const cards = useLiveQuery(() => db.cards.toArray()) || [];
+  // Only the total is displayed, so let the database count instead of
+  // materialising every card row just to read .length off the array.
+  const cardCount = useLiveQuery(() => db.cards.count()) ?? 0;
   const profile = useLiveQuery(() => GameService.getProfile());
 
   return (
@@ -42,7 +44,7 @@ export default function SanctuaryHub() {
                 <span className="text-[10px] font-black uppercase tracking-[0.22em] text-text-stone">Conservatory Archives & Ledger</span>
               </div>
               <span className="px-3 py-1 bg-moss/10 text-moss text-[10px] font-black uppercase tracking-widest border border-moss/20 rounded-md">
-                {cards.length} specimens registered
+                {cardCount} specimens registered
               </span>
             </div>
 

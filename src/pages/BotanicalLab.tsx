@@ -124,7 +124,18 @@ export default function BotanicalLab() {
     return onPlantsChange(setDbPlants);
   }, []);
 
-  const checkins = useLiveQuery(() => db.checkins.toArray()) || [];
+  // Only the sanctuary's own check-ins are read here, so scope the query to
+  // those plant ids. db.checkins.toArray() pulled every user's history on
+  // every write to the table. Keyed on a stable id string so the query only
+  // re-runs when the collection actually changes.
+  const plantIds = useMemo(
+    () => dbPlants.filter(p => !p.isDemo).map(p => p.id).sort().join(','),
+    [dbPlants]
+  );
+  const checkins = useLiveQuery(
+    () => (plantIds ? db.checkins.where('plantId').anyOf(plantIds.split(',')).toArray() : []),
+    [plantIds]
+  ) || [];
 
 
   const { location, city } = useGeolocation();
@@ -369,13 +380,22 @@ export default function BotanicalLab() {
     resetDexScan();
   };
 
+  // Latest check-in per plant, built once per checkins change. isPlantActive
+  // used to re-filter and re-reduce the entire check-in list for every card
+  // on every render, and the card body repeated the same reduce a second time.
+  const latestCheckinByPlant = useMemo(() => {
+    const latest = new Map<string, (typeof checkins)[number]>();
+    for (const c of checkins) {
+      const prev = latest.get(c.plantId);
+      if (!prev || new Date(c.timestamp) > new Date(prev.timestamp)) latest.set(c.plantId, c);
+    }
+    return latest;
+  }, [checkins]);
+
+  const today = new Date().toDateString();
   const isPlantActive = (plantId: string) => {
-    const plantCheckins = checkins.filter(c => c.plantId === plantId);
-    if (plantCheckins.length === 0) return false;
-    const latest = plantCheckins.reduce((latest, current) => 
-      new Date(current.timestamp) > new Date(latest.timestamp) ? current : latest
-    );
-    return new Date(latest.timestamp).toDateString() === new Date().toDateString();
+    const latest = latestCheckinByPlant.get(plantId);
+    return !!latest && new Date(latest.timestamp).toDateString() === today;
   };
 
   const sanctuaryPlants = useMemo(() => {
@@ -916,10 +936,7 @@ export default function BotanicalLab() {
               
               {sanctuaryPlants.map((plant) => {
                 const isActive = isPlantActive(plant.id);
-                const plantCheckins = checkins.filter(c => c.plantId === plant.id);
-                const latest = plantCheckins.length
-                  ? plantCheckins.reduce((a, b) => new Date(b.timestamp) > new Date(a.timestamp) ? b : a)
-                  : null;
+                const latest = latestCheckinByPlant.get(plant.id) || null;
                 const healthScore = plant.guardianScore || latest?.guardianScore || 90;
                 const isMissed = !isActive;
                 const moistureLabel = latest?.soilMoisture || (isActive ? 'Moist' : 'Dry');
