@@ -4,6 +4,7 @@ import { MessageCircle } from 'lucide-react';
 import { NavigationBar } from './home/NavigationBar';
 import MobileBottomNav from './home/MobileBottomNav';
 import { PageTransitionProvider } from './home/PageTransitionContext';
+import GardenAmbience from './GardenAmbience';
 
 import { supabase } from '../lib/supabase';
 import { GameService } from '../services/gameService';
@@ -77,6 +78,7 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen flex flex-col font-sans relative overflow-x-hidden" id="app-shell" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+      <GardenAmbience />
       <PageTransitionProvider>
         {/* Only show nav when authenticated */}
         {!isAuthPage && hasAuth && (
