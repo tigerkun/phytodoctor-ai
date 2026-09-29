@@ -361,14 +361,27 @@ const REQUIRED_RPCS = [
   { name: 'increment_seeds', args: { p_user_id: NULL_UUID, p_amount: 0, p_source: '', p_description: '' } },
 ] as const;
 
-let rpcCheck: { ok: boolean; missing: string[] } | null = null;
+type RpcProbe = 'present' | 'missing' | 'unauthorized';
+
+let rpcCheck: { ok: boolean; missing: string[]; error?: string } | null = null;
 let rpcCheckedAt = 0;
 const RPC_CHECK_TTL_MS = 60_000;
 
-async function rpcExists(name: string, args: Record<string, unknown>): Promise<boolean> {
+// Three outcomes, not two. Collapsing "the key was rejected" into "the function
+// is there" is what would make this check lie: a bad service key fails every
+// probe with a 401, which matches neither PGRST202 nor the function's own error,
+// and a two-valued test would read that as three healthy RPCs.
+async function probeRpc(name: string, args: Record<string, unknown>): Promise<RpcProbe> {
   const { error } = await supabaseAdmin.rpc(name as never, args as never);
-  if (!error) return true;
-  return !/PGRST202|42883|could not find the function/i.test(`${error.code ?? ''} ${error.message}`);
+  if (!error) return 'present';
+  const text = `${error.code ?? ''} ${error.message}`;
+  if (/PGRST202|42883|could not find the function/i.test(text)) return 'missing';
+  if (/42501|401|403|invalid api key|jwt|unauthorized|permission denied/i.test(text)) {
+    return 'unauthorized';
+  }
+  // Some other error (our own raised exception, a timeout surfacing as a
+  // PostgREST error). The function was reached, which is what we care about.
+  return 'present';
 }
 
 // Health check for Render and deployment diagnostics. Never expose secret values.
@@ -385,10 +398,15 @@ app.get('/healthz', async (_req, res) => {
   if (supabaseAdmin && Date.now() - rpcCheckedAt > RPC_CHECK_TTL_MS) {
     rpcCheckedAt = Date.now();
     try {
-      const results = await Promise.all(REQUIRED_RPCS.map(rpc => rpcExists(rpc.name, rpc.args)));
+      const results = await Promise.all(REQUIRED_RPCS.map(rpc => probeRpc(rpc.name, rpc.args)));
+      const missing = REQUIRED_RPCS.filter((_, i) => results[i] === 'missing').map(rpc => rpc.name);
+      const unauthorized = results.some(r => r === 'unauthorized');
       rpcCheck = {
-        ok: results.every(Boolean),
-        missing: REQUIRED_RPCS.filter((_, i) => !results[i]).map(rpc => rpc.name),
+        ok: missing.length === 0 && !unauthorized,
+        missing,
+        // Names the credential problem without naming the credential. This is
+        // the signal that catches a rotated-but-not-propagated service key.
+        ...(unauthorized ? { error: 'service key rejected by Supabase' } : {}),
       };
     } catch (error: any) {
       // A network failure is not evidence of drift, and reporting it as drift
