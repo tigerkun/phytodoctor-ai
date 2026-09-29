@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Stethoscope, ShoppingBasket, Thermometer, CloudRain, Lightbulb, Sprout, Droplets } from 'lucide-react';
+import { Stethoscope, ShoppingBasket, Thermometer, CloudRain, Lightbulb, Sprout, Droplets, ArrowRight } from 'lucide-react';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
 import { useEcoMode } from '@/hooks/useEcoMode';
 import { triggerHaptic, playAudio } from '@/utils/hapticAudio';
@@ -192,7 +192,7 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-sm text-[10px] font-black uppercase tracking-[0.2em] bg-moss/10 text-moss border border-moss/25 mb-2">
-            🌿 HEAD GARDENER'S DISPATCH
+            HEAD GARDENER'S DISPATCH
           </div>
           <motion.h2
             initial={{ opacity: 0, y: -20 }}
@@ -314,7 +314,7 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
 
             <div className="text-xs font-serif font-bold text-center text-moss uppercase tracking-widest flex items-center justify-center gap-1.5 mt-2">
               <span>Visit Garden Market</span>
-              <span>➜</span>
+              <ArrowRight size={13} aria-hidden="true" />
             </div>
           </motion.div>
 

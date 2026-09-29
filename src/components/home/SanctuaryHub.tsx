@@ -99,7 +99,7 @@ export default function SanctuaryHub() {
                 <span className="text-[10px] font-black uppercase tracking-[0.22em] text-text-stone">Estate Apothecary Desk</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-emerald-500" aria-hidden="true" />
                 <span className="text-[9px] font-mono font-bold uppercase text-moss">Live</span>
               </div>
             </div>

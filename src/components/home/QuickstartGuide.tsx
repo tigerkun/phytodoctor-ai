@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Camera, Activity, Sprout, MessageCircle, CheckCircle2, ChevronRight, BarChart3, MessageSquare } from 'lucide-react';
+import { Sparkles, Camera, Activity, Sprout, MessageCircle, CheckCircle2, ChevronRight, BarChart3, MessageSquare, Gift } from 'lucide-react';
 import { GameService } from '@/services/gameService';
 import { useToast } from '@/components/Toast';
 import { usePageTransition } from './PageTransitionContext';
@@ -90,7 +90,7 @@ export function QuickstartGuide({ onAddPlant, onRefreshProfile }: QuickstartGuid
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className="px-3 py-1 rounded-sm text-[10px] font-black uppercase tracking-[0.2em] bg-moss/10 text-moss border border-moss/25">
-                📖 NURSERY COMPENDIUM · PROTOCOLS
+                NURSERY COMPENDIUM · PROTOCOLS
               </span>
             </div>
             <h2 className="text-3xl font-serif font-bold text-text-bark">
@@ -110,8 +110,8 @@ export function QuickstartGuide({ onAddPlant, onRefreshProfile }: QuickstartGuid
                 : 'bg-gradient-to-r from-amber-500/10 to-amber-600/15 border-amber-500/30'
             }`}
           >
-            <div className="w-10 h-10 rounded-xl bg-gold/20 flex items-center justify-center text-xl border border-gold/30">
-              🎁
+            <div className="w-10 h-10 rounded-xl bg-gold/20 flex items-center justify-center border border-gold/30">
+              <Gift size={20} className="text-gold" strokeWidth={1.75} aria-hidden="true" />
             </div>
             <div>
               <div className="text-[11px] font-serif font-bold uppercase tracking-wider text-text-bark">Estate Starter Grant</div>
