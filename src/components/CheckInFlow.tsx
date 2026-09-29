@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Droplets, Sun, Wind, Check, Camera, ArrowRight, X, Loader2, Sparkles, AlertTriangle, Zap } from 'lucide-react';
 import { db } from '../db/database';

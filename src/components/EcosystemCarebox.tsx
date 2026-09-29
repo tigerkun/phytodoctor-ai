@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import {
   Cloud, Wind, Droplets, Sun, Thermometer, Leaf, Sprout, Zap,
 } from 'lucide-react';

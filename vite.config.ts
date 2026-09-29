@@ -7,6 +7,24 @@ export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
     plugins: [react(), tailwindcss()],
+    build: {
+      rollupOptions: {
+        output: {
+          // Split the heavy, rarely-changing vendor libraries out of the app
+          // entry chunk. They are cached across deploys, so a content change
+          // no longer invalidates all the framework code in every visitor's
+          // cache.
+          manualChunks: {
+            react: ['react', 'react-dom', 'react-router-dom'],
+            motion: ['framer-motion'],
+            dexie: ['dexie', 'dexie-react-hooks'],
+            supabase: ['@supabase/supabase-js'],
+            charts: ['recharts'],
+          },
+        },
+      },
+      chunkSizeWarningLimit: 700,
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),

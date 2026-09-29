@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { X, Cpu, Fingerprint, Activity, Database, Zap, ShieldCheck } from 'lucide-react';
 
 interface TechnicalDossierProps {
