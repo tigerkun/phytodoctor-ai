@@ -106,11 +106,13 @@ function Footer() {
         <MessageCircle size={14} />
         <span>Diagnostic Research Protocol v1.4.0 active</span>
       </div>
-      <div className="flex gap-6">
-        <Link to="/lab">Lab Notes</Link>
-        <Link to="/help">Help &amp; FAQ</Link>
-        <Link to="/privacy">Privacy</Link>
-        <Link to="/terms">Terms</Link>
+      {/* py-3 gives each link a 44px tap height — at 9px type the text box
+          was only 14px tall, well under the touch-target minimum. */}
+      <div className="flex flex-wrap justify-center gap-x-6">
+        <Link to="/lab" className="py-3">Lab Notes</Link>
+        <Link to="/help" className="py-3">Help &amp; FAQ</Link>
+        <Link to="/privacy" className="py-3">Privacy</Link>
+        <Link to="/terms" className="py-3">Terms</Link>
       </div>
     </footer>
   );

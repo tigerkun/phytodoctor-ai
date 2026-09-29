@@ -556,7 +556,7 @@ export default function BotanicalLab() {
                               e.stopPropagation();
                               setMagnification(mag);
                             }}
-                            className={`px-3 py-1 rounded-full text-[10px] font-mono font-black tracking-widest uppercase transition-all ${
+                            className={`px-3 py-2 min-h-[40px] rounded-full text-[10px] font-mono font-black tracking-widest uppercase transition-all ${
                               magnification === mag
                                 ? 'bg-[#b89552] text-white shadow-xs'
                                 : 'text-[#7a602f] dark:text-[#d4af37] hover:bg-[#b89552]/15'
@@ -667,7 +667,7 @@ export default function BotanicalLab() {
 
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-6 sm:px-8 py-3 sm:py-3.5 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 duration-200 font-mono flex items-center justify-center gap-2"
+                      className="px-6 sm:px-8 py-3 sm:py-3.5 min-h-[44px] bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 duration-200 font-mono flex items-center justify-center gap-2"
                     >
                       {scanMode === 'consult' ? '🔬 Open Optical Aperture' : '📚 Load Specimen Slide'}
                     </button>

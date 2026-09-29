@@ -103,7 +103,7 @@ export function NavigationBar() {
           <button
             aria-label="Open profile"
             onClick={() => transitionTo('/profile', 'Profile')}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-moss focus-visible:ring-offset-2"
+            className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-moss focus-visible:ring-offset-2"
             style={{ background: 'var(--moss)' }}
           >
             {profile?.username?.[0]?.toUpperCase() || 'G'}
