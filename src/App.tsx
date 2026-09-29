@@ -18,7 +18,6 @@ import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import { CaseStudy } from './components/CaseStudy';
 import SystemAudit from './components/SystemAudit';
-import Leafify from './components/Leafify';
 import RequireAuth from './components/RequireAuth';
 import ErrorBoundary from './components/ErrorBoundary';
 import OnboardingTour from './components/OnboardingTour';
@@ -40,7 +39,6 @@ export default function App() {
       <ErrorBoundary>
         <ToastProvider>
         <Layout>
-          <Leafify />
           <FloatingAssistant />
           <OnboardingTour />
           <Routes>
