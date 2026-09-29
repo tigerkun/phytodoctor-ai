@@ -4,13 +4,13 @@ import { supabase } from '../lib/supabase';
 
 export default function NotificationOptIn() {
   const [status, setStatus] = useState<'idle' | 'enabled' | 'unsupported' | 'unavailable'>('idle');
+  const key = (import.meta as any).env?.VITE_VAPID_PUBLIC_KEY as string | undefined;
 
   const enable = async () => {
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
       setStatus('unsupported');
       return;
     }
-    const key = (import.meta as any).env?.VITE_VAPID_PUBLIC_KEY as string | undefined;
     if (!key) {
       setStatus('unavailable');
       return;
@@ -45,13 +45,19 @@ export default function NotificationOptIn() {
   };
 
   if (status === 'enabled') return <p className="text-xs text-[#86b98b]">Weather alerts enabled.</p>;
+
+  // Without a VAPID key there is no push service to subscribe to, so the
+  // button could only ever report that it is unavailable. Rendering nothing
+  // is more honest than offering a control that cannot work.
+  if (!key) return null;
+
   return (
     <button onClick={enable} className="inline-flex items-center gap-2 rounded-lg border border-[#c5a059]/30 px-3 py-2 text-xs text-[#d8bc78]">
       <Bell size={14} aria-hidden="true" />
       {status === 'unsupported'
         ? 'Alerts unavailable in this browser'
         : status === 'unavailable'
-          ? 'Alerts need app configuration'
+          ? 'Alerts could not be enabled'
           : 'Enable weather alerts'}
     </button>
   );
