@@ -177,7 +177,17 @@ export default function Auth() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
-    if (!isLogin && (!name || !experienceLevel || !environment)) return;
+    // The Rank and Sanctuary selects are required for a new record. Returning
+    // silently left the button looking broken — it looked enabled, did
+    // nothing, and showed no reason why.
+    if (!isLogin && (!name || !experienceLevel || !environment)) {
+      setAuthError(
+        !name ? 'Please enter your full name.'
+          : !experienceLevel ? 'Please choose your rank.'
+          : 'Please choose your sanctuary.'
+      );
+      return;
+    }
     if (!validateForm()) return;
 
     // Local-path brute-force lockout (Supabase enforces its own server-side).
@@ -527,10 +537,10 @@ export default function Auth() {
             </div>
 
             <motion.button
-              disabled={loading || ((!isLogin || isRecovery) && !pwdValid)}
+              disabled={loading || ((!isLogin || isRecovery) && !pwdValid) || (!isLogin && (!name || !experienceLevel || !environment))}
               type="submit"
-              whileHover={!(loading || ((!isLogin || isRecovery) && !pwdValid)) ? { y: -2, scale: 1.01 } : undefined}
-              whileTap={!(loading || ((!isLogin || isRecovery) && !pwdValid)) ? { y: 0, scale: 0.97 } : undefined}
+              whileHover={!(loading || ((!isLogin || isRecovery) && !pwdValid) || (!isLogin && (!name || !experienceLevel || !environment))) ? { y: -2, scale: 1.01 } : undefined}
+              whileTap={!(loading || ((!isLogin || isRecovery) && !pwdValid) || (!isLogin && (!name || !experienceLevel || !environment))) ? { y: 0, scale: 0.97 } : undefined}
               transition={{ type: 'spring', stiffness: 420, damping: 20 }}
               className={`w-full py-4 mt-6 rounded-xl font-serif font-bold text-sm tracking-wider uppercase flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
                 isRecovery || isLogin ? 'ledger-seal-button focus-visible:ring-[#2e4a34]' : 'ledger-inscribe-button focus-visible:ring-[#a47f3b]'
