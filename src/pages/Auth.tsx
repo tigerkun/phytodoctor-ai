@@ -7,7 +7,6 @@ import { useDayNightTheme } from '../hooks/useDayNightTheme';
 import { GameService } from '../services/gameService';
 import { isValidEmail, evaluatePasswordStrength, generateLocalUserId, hashPassword, verifyPassword, generateSalt, getAuthLockout, recordAuthFailure, clearAuthFailures } from '../services/authUtils';
 import { supabase, supabaseConfigured } from '../lib/supabase';
-import '../styles/animations.css';
 
 function GoogleMark() {
   return (

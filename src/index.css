@@ -129,17 +129,6 @@
   }
 }
 
-/* ── Hummingbird wing: CSS-driven for zero JS overhead ───────── */
-@keyframes hummingbird-wing {
-  0%, 100% { transform: scaleY(1) rotate(0deg); }
-  50% { transform: scaleY(-0.6) rotate(-15deg); }
-}
-
-.wing-beat {
-  animation: hummingbird-wing 0.12s linear infinite;
-  transform-origin: 32px 25px;
-}
-
 @keyframes float {
   0% {
     transform: translateY(0px) rotate(0deg);
