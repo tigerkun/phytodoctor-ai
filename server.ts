@@ -338,21 +338,77 @@ async function grantPro(userId: string, paymentId: string, amount: number, curre
   return data;
 }
 
+// The RPCs the server calls via supabaseAdmin.rpc(). They live in the
+// database, not in this process, so nothing else in the app can tell if they
+// are missing — and this project has no supabase_migrations.schema_migrations
+// table, because its migrations were applied by hand through the dashboard.
+// That is how grant_pro_from_payment went absent while every env-var check
+// stayed green: a payment would have been captured by Razorpay and then thrown
+// away with a 500 the user never sees and no retry.
+const NULL_UUID = '00000000-0000-0000-0000-000000000000';
+
+// Each probe supplies the function's real parameter names with values that the
+// function itself rejects, so it raises before touching any row. The arguments
+// have to be named: PostgREST refuses a zero-argument call to a function that
+// has parameters with PGRST202 — the same code it returns for a function that
+// does not exist — so an unnamed probe cannot tell the two apart.
+//
+// A function that exists therefore raises its own error (or succeeds); one that
+// does not is rejected by PostgREST with PGRST202 before it ever runs.
+const REQUIRED_RPCS = [
+  { name: 'grant_pro_from_payment', args: { p_user_id: NULL_UUID, p_payment_id: '', p_amount: 0, p_currency: '' } },
+  { name: 'purchase_pro_with_seeds', args: { p_user_id: NULL_UUID, p_cost: 0 } },
+  { name: 'increment_seeds', args: { p_user_id: NULL_UUID, p_amount: 0, p_source: '', p_description: '' } },
+] as const;
+
+let rpcCheck: { ok: boolean; missing: string[] } | null = null;
+let rpcCheckedAt = 0;
+const RPC_CHECK_TTL_MS = 60_000;
+
+async function rpcExists(name: string, args: Record<string, unknown>): Promise<boolean> {
+  const { error } = await supabaseAdmin.rpc(name as never, args as never);
+  if (!error) return true;
+  return !/PGRST202|42883|could not find the function/i.test(`${error.code ?? ''} ${error.message}`);
+}
+
 // Health check for Render and deployment diagnostics. Never expose secret values.
-app.get('/healthz', (_req, res) => {
+app.get('/healthz', async (_req, res) => {
   const configured = {
     supabase: Boolean(SUPABASE_URL && SUPABASE_KEY && SUPABASE_SERVICE_KEY),
     gemini: Boolean(process.env.GEMINI_API_KEY),
     razorpay: Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET && RAZORPAY_WEBHOOK_SECRET),
   };
-  
+
+  // Cached so a health check polled every few seconds doesn't become three
+  // database round-trips every few seconds. A stale 'ok' is fine: the failure
+  // this guards against is an unapplied migration, not a transient blip.
+  if (supabaseAdmin && Date.now() - rpcCheckedAt > RPC_CHECK_TTL_MS) {
+    rpcCheckedAt = Date.now();
+    try {
+      const results = await Promise.all(REQUIRED_RPCS.map(rpc => rpcExists(rpc.name, rpc.args)));
+      rpcCheck = {
+        ok: results.every(Boolean),
+        missing: REQUIRED_RPCS.filter((_, i) => !results[i]).map(rpc => rpc.name),
+      };
+    } catch (error: any) {
+      // A network failure is not evidence of drift, and reporting it as drift
+      // would page someone about a database that is merely unreachable.
+      console.error('Health check RPC probe failed:', error?.message || error);
+      rpcCheck = { ok: true, missing: [] };
+    }
+  }
+
   const isMisconfigured = process.env.NODE_ENV === 'production' && !configured.supabase;
   const ready = isMisconfigured ? false : Boolean(supabaseAuthClient && supabaseAdmin) || process.env.NODE_ENV !== 'production';
-  
-  res.status(isMisconfigured ? 503 : 200).json({
-    status: isMisconfigured ? 'degraded' : 'ok',
+  // Only fail the check in production, and only when a probe actually ran and
+  // found something missing.
+  const drift = process.env.NODE_ENV === 'production' && rpcCheck !== null && !rpcCheck.ok;
+
+  res.status(isMisconfigured || drift ? 503 : 200).json({
+    status: isMisconfigured || drift ? 'degraded' : 'ok',
     configured,
     ready,
+    schema: rpcCheck,
   });
 });
 
