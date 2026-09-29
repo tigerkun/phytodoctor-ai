@@ -19,7 +19,9 @@ import {
   ExternalLink,
   Crown,
   Lock,
-  Flame
+  Flame,
+  Ear,
+  TreePine
 } from 'lucide-react';
 import { getPlantPhoto } from '../utils/plantImage';
 import { GameService } from '../services/gameService';
@@ -279,7 +281,7 @@ const BOTANICAL_FACTS = [
     title: "Plants That Eavesdrop",
     fact: "Tomato plants can 'hear' a caterpillar chewing: the vibration alone triggers them to produce more defensive chemicals, even with no chemical signal present.",
     category: "Sensing",
-    icon: "👂"
+    icon: Ear
   },
   {
     title: "Coffee's Caffeine Is a Weapon",
@@ -916,7 +918,7 @@ export default function Library() {
                   animate={{ rotate: [0, -8, 8, 0] }}
                   transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
                 >
-                  {currentFact.icon}
+                  {(() => { const I = currentFact.icon; return <I size={22} aria-hidden="true" />; })()}
                 </motion.span>
                 <div className="min-w-0">
                   <span className="text-[10px] font-sans font-semibold uppercase tracking-[0.08em] text-terracotta block leading-none mb-1">
@@ -1001,8 +1003,8 @@ export default function Library() {
                   />
                 ))}
                 {/* Moss tufts on the pole */}
-                <span className="absolute left-0.5 bottom-[52px] text-[9px] opacity-70 select-none">🌿</span>
-                <span className="absolute right-0.5 bottom-[91px] text-[9px] opacity-70 select-none">🌿</span>
+                <Leaf size={9} className="absolute left-0.5 bottom-[52px] opacity-70 select-none" aria-hidden="true" />
+                <Leaf size={9} className="absolute right-0.5 bottom-[91px] opacity-70 select-none" aria-hidden="true" />
                 {/* Soil floor */}
                 <div className="absolute bottom-0 left-0 right-0 h-2 bg-[#6b4f2e]/70 rounded-b-md" />
                 {/* The climbing sprout */}
@@ -1016,7 +1018,7 @@ export default function Library() {
                   }
                   key={justFell ? 'fell' : `climb-${streak}`}
                 >
-                  {streak >= 10 ? '🌳' : streak >= 5 ? '🪴' : '🌱'}
+                  {streak >= 10 ? <TreePine size={22} aria-hidden="true" /> : streak >= 5 ? <Sprout size={22} aria-hidden="true" /> : <Sprout size={18} aria-hidden="true" />}
                 </motion.div>
                 {/* Leaf-burst on a fresh solve */}
                 {answered && !justFell && selectedAnswer === dailyQuiz.answer && (

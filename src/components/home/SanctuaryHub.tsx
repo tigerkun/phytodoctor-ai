@@ -115,7 +115,7 @@ export default function SanctuaryHub() {
           <div className="flex items-end justify-between border-t border-border-light pt-6 mt-auto">
             <div>
               <span className="text-[9px] font-black uppercase text-text-stone tracking-wider block mb-1">Intelligence Core</span>
-              <span className="text-xs font-bold text-text-bark font-mono">Gemini Pro 1.5</span>
+              <span className="text-xs font-bold text-text-bark font-mono">Gemini 3.8 Flash</span>
             </div>
 
             <motion.div
