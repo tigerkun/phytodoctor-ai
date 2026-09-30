@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion, type TargetAndTransition, type Transition } from 'framer-motion';
 import {
   Sparkles,
   Sprout,
@@ -26,6 +26,15 @@ import CheckoutSummary from '../components/market/CheckoutSummary';
 import { useToast } from '../components/market/ToastNotification';
 import { useDayNightTheme } from '../hooks/useDayNightTheme';
 import PageWrapper from '../components/home/PageWrapper';
+import { SanctuaryService } from '../services/sanctuaryService';
+import {
+  SANCTUARY_ITEMS,
+  SANCTUARY_CATEGORIES,
+  SANCTUARY_THEMES,
+  type SanctuaryItem,
+  type SanctuaryItemId,
+  type SanctuaryTheme
+} from '../game/SANCTUARY_DATA';
 
 // ── MOCK DATA (HIGH-ACCURACY CURATED IMAGES & LINKS) ──
 const MOCK_PRODUCTS = [
@@ -498,11 +507,214 @@ function ProBanner() {
   );
 }
 
+// ── SANCTUARY SHELF ──
+// Everything here is bought with seeds, not money. The bazaar tabs all end in
+// an Amazon redirect and a real currency, which is the wrong register for a
+// game balance; this is the shelf where seeds actually mean something.
+//
+// Each ritual wears the palette of the thing it does, so the shelf reads as a
+// cabinet of curiosities rather than a pricing table: frost is cold and slowly
+// turning, the dove drifts, the season swells, the charm glitters.
+
+/** Idle animation for a ritual's icon, keyed off its theme. */
+function RitualIcon({ icon, motion: kind }: { icon: string; motion: SanctuaryTheme['motion'] }) {
+  const reduced = useReducedMotion();
+  const loop = (animate: TargetAndTransition, transition: Transition) =>
+    reduced ? {} : { animate, transition: { ...transition, repeat: Infinity, ease: 'easeInOut' as const } };
+
+  switch (kind) {
+    case 'rotate':
+      return <motion.span {...loop({ rotate: 360 }, { duration: 14 })} className="inline-block">{icon}</motion.span>;
+    case 'float':
+      return <motion.span {...loop({ y: [0, -5, 0] }, { duration: 3.2 })} className="inline-block">{icon}</motion.span>;
+    case 'pulse':
+      return <motion.span {...loop({ scale: [1, 1.14, 1] }, { duration: 2.6 })} className="inline-block">{icon}</motion.span>;
+    case 'twinkle':
+      return (
+        <motion.span
+          {...loop({ rotate: [-8, 8, -8], scale: [1, 1.16, 1], opacity: [0.75, 1, 0.75] }, { duration: 2.2 })}
+          className="inline-block"
+        >
+          {icon}
+        </motion.span>
+      );
+    case 'sway':
+      return <motion.span {...loop({ rotate: [-7, 7, -7] }, { duration: 3.8 })} className="inline-block">{icon}</motion.span>;
+  }
+}
+
+function SanctuaryShelf({ seeds, userId }: { seeds: number; userId: string }) {
+  const { success, error } = useToast();
+  const reduced = useReducedMotion();
+  const [stock, setStock] = useState<Partial<Record<SanctuaryItemId, number>>>({});
+  const [busy, setBusy] = useState<SanctuaryItemId | null>(null);
+  const [open, setOpen] = useState<SanctuaryItemId | null>(null);
+
+  const refresh = async () => setStock(await SanctuaryService.getStock(userId));
+  useEffect(() => { refresh().catch(() => {}); }, [userId, seeds]);
+
+  const buy = async (item: SanctuaryItem) => {
+    if (busy) return;
+    setBusy(item.id);
+    try {
+      await SanctuaryService.purchase(item.id, userId);
+      await refresh();
+      success(`${item.icon} ${item.name} is yours. ${item.blurb}`);
+    } catch (e: any) {
+      error(e.message || 'The Sanctuary could not take that.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const enter = (i: number) =>
+    reduced ? {} : { initial: { opacity: 0, y: 18 }, animate: { opacity: 1, y: 0 }, transition: { delay: i * 0.06 } };
+
+  return (
+    <div className="space-y-12">
+      <header className="max-w-2xl">
+        <h2 className="font-serif text-3xl font-semibold text-[#3d2a1c]">The Sanctuary</h2>
+        <p className="mt-2 text-sm text-[#7a6a50]">
+          Seeds are the currency of showing up. Spend them on the rituals below — every one of them
+          does something real somewhere else in the app, and nothing here expires on you.
+        </p>
+      </header>
+
+      {SANCTUARY_CATEGORIES.map(cat => {
+        const items = SANCTUARY_ITEMS.filter(i => i.category === cat.id);
+        if (items.length === 0) return null;
+        return (
+          <section key={cat.id}>
+            <div className="flex items-center gap-3 mb-5">
+              <h3 className="font-serif text-xl font-semibold text-[#3d2a1c]">{cat.label}</h3>
+              <span className="text-[11px] text-[#a09070] italic">{cat.blurb}</span>
+              <span className="flex-1 h-px bg-gradient-to-r from-[#d9c4a0] to-transparent" aria-hidden />
+            </div>
+            <div className="grid gap-5 md:grid-cols-2">
+              {items.map((item, i) => {
+                const t = SANCTUARY_THEMES[item.id];
+                const held = stock[item.id] ?? 0;
+                const atCap = item.maxHeld > 0 && held >= item.maxHeld;
+                const shortfall = Math.max(0, item.seedPrice - seeds);
+                const canAfford = shortfall === 0;
+                const expanded = open === item.id;
+                return (
+                  <motion.article
+                    key={item.id}
+                    {...enter(i)}
+                    whileHover={reduced ? undefined : { y: -4 }}
+                    className="relative overflow-hidden border p-5 flex flex-col shadow-[0_2px_10px_rgba(61,42,28,0.06)] hover:shadow-[0_10px_28px_rgba(61,42,28,0.12)] transition-shadow"
+                    style={{
+                      background: t.wash,
+                      borderColor: atCap ? '#3c6b44' : `${t.accent}55`,
+                    }}
+                  >
+                    {/* Ambient glow pooling behind the icon, breathing slowly. */}
+                    <motion.div
+                      aria-hidden
+                      className="absolute -top-12 -right-12 w-44 h-44 rounded-full blur-3xl pointer-events-none"
+                      style={{ background: t.glow }}
+                      {...(reduced ? {} : { animate: { opacity: [0.5, 1, 0.5], scale: [1, 1.12, 1] }, transition: { duration: 6, repeat: Infinity, ease: 'easeInOut' } })}
+                    />
+
+                    <div className="relative flex items-start gap-4">
+                      <motion.div
+                        aria-hidden
+                        whileHover={reduced ? undefined : { scale: 1.08, rotate: -4 }}
+                        className="w-14 h-14 shrink-0 border flex items-center justify-center text-2xl select-none"
+                        style={{ background: t.iconBg, borderColor: `${t.accent}55` }}
+                      >
+                        <RitualIcon icon={item.icon} motion={t.motion} />
+                      </motion.div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-serif text-lg font-semibold text-[#3d2a1c]">{item.name}</h4>
+                          {held > 0 && (
+                            <motion.span
+                              initial={reduced ? false : { scale: 0.6, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              className="shrink-0 text-[10px] font-black uppercase tracking-widest text-white px-2 py-1"
+                              style={{ background: atCap ? '#3c6b44' : t.accent }}
+                            >
+                              {item.unit === 'payouts'
+                                ? `${held} payout${held === 1 ? '' : 's'} doubled`
+                                : `${held} held`}
+                            </motion.span>
+                          )}
+                        </div>
+                        <p className="text-sm text-[#7a6a50]">{item.blurb}</p>
+                      </div>
+                    </div>
+
+                    <p className="relative mt-3 text-[13px] text-[#5c4a36] leading-relaxed">{item.effect}</p>
+
+                    <AnimatePresence>
+                      {expanded && (
+                        <motion.p
+                          initial={reduced ? false : { opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="relative overflow-hidden text-[12px] italic text-[#a09070] pl-3 mt-3"
+                          style={{ borderLeft: `2px solid ${t.accent}66` }}
+                        >
+                          {item.lore}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+
+                    <div className="relative mt-4 pt-3 border-t border-[#3d2a1c]/10 flex items-end justify-between gap-3 mt-auto">
+                      <div>
+                        <div className="font-mono text-sm font-black" style={{ color: t.accent }}>
+                          {item.seedPrice.toLocaleString()}{' '}
+                          <span className="text-[10px] font-black uppercase tracking-widest text-[#7a6a50]">seeds</span>
+                        </div>
+                        {!canAfford && !atCap && (
+                          <div className="text-[11px] text-[#b4552d]">
+                            {shortfall.toLocaleString()} short
+                          </div>
+                        )}
+                        {atCap && (
+                          <div className="text-[11px] text-[#3c6b44]">Carrying the maximum</div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setOpen(expanded ? null : item.id)}
+                          aria-expanded={expanded}
+                          className="min-h-[44px] px-3 text-[10px] font-black uppercase tracking-widest border text-[#6e5843] hover:bg-white/60"
+                          style={{ borderColor: `${t.accent}44` }}
+                        >
+                          {expanded ? 'Less' : 'Details'}
+                        </button>
+                        <motion.button
+                          onClick={() => buy(item)}
+                          disabled={!canAfford || atCap || busy === item.id}
+                          aria-disabled={!canAfford || atCap}
+                          title={atCap ? 'You are carrying the maximum' : canAfford ? undefined : `Need ${shortfall.toLocaleString()} more seeds`}
+                          whileTap={canAfford && !atCap && !reduced ? { scale: 0.94 } : undefined}
+                          className="min-h-[44px] px-4 text-[10px] font-black uppercase tracking-widest text-[#fff8e8] disabled:opacity-40 disabled:cursor-not-allowed"
+                          style={{ background: atCap ? '#3c6b44' : t.accent }}
+                        >
+                          {busy === item.id ? 'Buying…' : atCap ? 'Full' : 'Acquire'}
+                        </motion.button>
+                      </div>
+                    </div>
+                  </motion.article>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── MAIN EXPORT ──
 export default function GardenMarket() {
   const { toasts, success, error, warning, reward } = useToast();
   const { theme } = useDayNightTheme();
-  const [activeTab, setActiveTab] = useState<'drops' | 'home' | 'care' | 'vouchers' | 'saved'>('drops');
+  const [activeTab, setActiveTab] = useState<'sanctuary' | 'drops' | 'home' | 'care' | 'vouchers' | 'saved'>('sanctuary');
   const [claimedItems, setClaimedItems] = useState<string[]>(() => readJson(REFUNDS_KEY, [] as ClaimedRefund[]).map(r => r.id));
   const [claimedRefunds, setClaimedRefunds] = useState<ClaimedRefund[]>(() => readJson(REFUNDS_KEY, [] as ClaimedRefund[]));
   const [cartItems, setCartItems] = useState<any[]>(() => readJson(CART_KEY, []));
@@ -707,6 +919,7 @@ export default function GardenMarket() {
 
         <div className="px-4 md:px-8 py-4 flex gap-2 overflow-x-auto items-center border-b border-[#e8dcc8]" style={{ background: '#f7f0e4' }}>
           {([
+            ['sanctuary', 'Sanctuary'],
             ['drops', 'Open stall'],
             ['home', 'Pots & hangers'],
             ['care', 'Oils & soil'],
@@ -721,26 +934,33 @@ export default function GardenMarket() {
               {label}
             </button>
           ))}
-          <input
-            value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-            placeholder="Search the stall…"
-            className="ml-auto min-w-[10rem] min-h-[44px] px-3 py-2 text-xs border border-[#d9c4a0] bg-[#fff8e8] text-[#3d2a1c] placeholder:text-[#7a6a50]/60"
-          />
-          <select
-            value={filters.sort}
-            onChange={(e) => setFilters({ ...filters, sort: e.target.value })}
-            className="min-h-[44px] px-2 py-2 text-[11px] font-black uppercase tracking-widest border border-[#d9c4a0] bg-[#fff8e8] text-[#3d2a1c]"
-          >
-            <option value="popular">Popular</option>
-            <option value="new">New crate</option>
-            <option value="price-low">₹ low</option>
-            <option value="price-high">₹ high</option>
-            <option value="rating">Rating</option>
-          </select>
-          <button onClick={() => setShowFilters(!showFilters)} className="min-h-[44px] px-3 py-2 text-[11px] font-black uppercase tracking-widest border border-[#d9c4a0] text-[#3d2a1c]">
-            Filter
-          </button>
+          {/* Search, sort and filter all act on `filteredProducts`, which is the
+              physical-goods list. On the seed shelf they would be live controls
+              that quietly do nothing, so they are not rendered there. */}
+          {activeTab !== 'sanctuary' && (
+            <>
+              <input
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                placeholder="Search the stall…"
+                className="ml-auto min-w-[10rem] min-h-[44px] px-3 py-2 text-xs border border-[#d9c4a0] bg-[#fff8e8] text-[#3d2a1c] placeholder:text-[#7a6a50]/60"
+              />
+              <select
+                value={filters.sort}
+                onChange={(e) => setFilters({ ...filters, sort: e.target.value })}
+                className="min-h-[44px] px-2 py-2 text-[11px] font-black uppercase tracking-widest border border-[#d9c4a0] bg-[#fff8e8] text-[#3d2a1c]"
+              >
+                <option value="popular">Popular</option>
+                <option value="new">New crate</option>
+                <option value="price-low">₹ low</option>
+                <option value="price-high">₹ high</option>
+                <option value="rating">Rating</option>
+              </select>
+              <button onClick={() => setShowFilters(!showFilters)} className="min-h-[44px] px-3 py-2 text-[11px] font-black uppercase tracking-widest border border-[#d9c4a0] text-[#3d2a1c]">
+                Filter
+              </button>
+            </>
+          )}
         </div>
 
         {/* ── FILTER PANEL ── */}
@@ -772,6 +992,17 @@ export default function GardenMarket() {
         <div className="px-6 md:px-8 py-12 max-w-full">
           
           <AnimatePresence mode="wait">
+            {activeTab === 'sanctuary' && (
+              <motion.div
+                key="sanctuary-section"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <SanctuaryShelf seeds={seeds} userId={userId} />
+              </motion.div>
+            )}
+
             {activeTab === 'drops' && (
               <motion.div
                 key="drops-section"

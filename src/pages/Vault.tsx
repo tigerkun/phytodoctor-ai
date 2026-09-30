@@ -144,13 +144,32 @@ export default function VaultPage() {
 
   const runAssessment = async () => {
     if (!dossier || !site) return error('Process a species and lock a site first.');
-    if (!isPro && left <= 0) return error(`Daily cap reached (${ASSESSMENTS_PER_DAY} assessments). Come back tomorrow — or upgrade to Pro for unlimited reports.`);
+    if (!isPro && left <= 0) {
+      // Past the daily cap, a Keeper's Eye buys one more reading. Spent only
+      // here, on a deliberate click, and only if one is actually held.
+      const { SanctuaryService } = await import('../services/sanctuaryService');
+      if (await SanctuaryService.getCount('assess') > 0) {
+        return error(`Daily cap reached (${ASSESSMENTS_PER_DAY}). Spend a Keeper's Eye from the Sanctuary to read this site tonight.`);
+      }
+      return error(`Daily cap reached (${ASSESSMENTS_PER_DAY} assessments). Come back tomorrow — or upgrade to Pro for unlimited reports.`);
+    }
     setLoadingReport(true);
     try {
       const result = await assessPlacement(dossier.scientificName || speciesInput, site);
       if (!isPro) {
-        if (!consumeAssessment()) return error('Daily cap reached.');
-        setLeft(assessmentsLeftToday());
+        if (consumeAssessment()) {
+          setLeft(assessmentsLeftToday());
+        } else {
+          // The allowance went while this report was in flight. A Keeper's Eye
+          // covers exactly this case, so settle it here rather than throwing
+          // away a report that already cost a call.
+          const { SanctuaryService } = await import('../services/sanctuaryService');
+          if (!(await SanctuaryService.useAssessmentPass())) {
+            return error('Daily cap reached.');
+          }
+          success("Keeper's Eye spent — that report is on the house.");
+          setLeft(assessmentsLeftToday());
+        }
       }
       setIssuedAt(new Date());
       setReport(result);

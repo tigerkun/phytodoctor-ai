@@ -290,3 +290,20 @@ export interface StreakFreeze {
   tier: 'free' | 'pro';
   lastUsedAt: Date | null;
 }
+
+/**
+ * A consumable bought with seeds from the Sanctuary shelf. Count-based rather
+ * than a stack of instances, so a Keeper holding three freezes has one row
+ * reading 3 instead of three rows to reconcile.
+ *
+ * Local-only by design: `pullServerProfile` overwrites `userProfile` from the
+ * server on every sync, so anything stored there would be silently clobbered.
+ * Seeds are still spent through the server-authoritative ledger, so the balance
+ * stays correct even though the stock of a bonus does not travel with it.
+ */
+export interface SanctuaryStock {
+  userId: string;
+  itemId: string;
+  count: number;
+  updatedAt: number;
+}

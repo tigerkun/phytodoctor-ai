@@ -33,6 +33,8 @@ import { db, type SeedTransaction } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { GameService } from '../services/gameService';
 import { RewardService } from '../services/rewardService';
+import { SanctuaryService } from '../services/sanctuaryService';
+import { RESTORED_STREAK } from '../game/SANCTUARY_DATA';
 import { MigrationService } from '../services/migrationService';
 import PageWrapper from '../components/home/PageWrapper';
 import { usePageTransition } from '../components/home/PageTransitionContext';
@@ -272,6 +274,33 @@ export default function Profile() {
 
   const progression = useMemo(() => calculateLevelProgression(effectiveXP), [effectiveXP]);
   const streakMultiplier = useMemo(() => getStreakMultiplier(currentStreak), [currentStreak]);
+
+  // Quiet Grace: a sanctuary consumable that puts a broken run back on its
+  // feet. Held locally, so it is read once on mount and refreshed on spend.
+  const [graceHeld, setGraceHeld] = useState(0);
+  const [graceBusy, setGraceBusy] = useState(false);
+  useEffect(() => {
+    SanctuaryService.getCount('restore').then(setGraceHeld).catch(() => {});
+  }, []);
+
+  const spendGrace = async () => {
+    setGraceBusy(true);
+    try {
+      if (!(await SanctuaryService.consume('restore'))) {
+        error('No Quiet Grace left to spend.');
+        return;
+      }
+      await RewardService.restoreStreak(RESTORED_STREAK, userId);
+      setGraceHeld(await SanctuaryService.getCount('restore'));
+      // `profile` and `streakRecord` are useLiveQuery over the tables
+      // restoreStreak just wrote, so the stamp re-renders on its own.
+      success(`The run is back on its feet — ${RESTORED_STREAK} days and climbing.`);
+    } catch (e: any) {
+      error(e.message || 'Could not restore the streak.');
+    } finally {
+      setGraceBusy(false);
+    }
+  };
 
   const badges = useMemo(() => evaluateProfileBadges({
     currentStreak,
@@ -730,6 +759,19 @@ export default function Profile() {
                       </span>
                     )}
                   </div>
+
+                  {/* A Quiet Grace bought in the Sanctuary is spent here. It
+                      never lowers a live run, so the button only appears when
+                      doing something would actually help. */}
+                  {graceHeld > 0 && currentStreak < RESTORED_STREAK && (
+                    <button
+                      onClick={spendGrace}
+                      disabled={graceBusy}
+                      className="w-full mt-2 min-h-[44px] px-3 py-2 text-[10px] font-black uppercase tracking-widest border border-[#b85323]/50 text-[#b85323] hover:bg-[#b85323]/10 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {graceBusy ? 'Restoring…' : `🕊 Spend Quiet Grace · restore to ${RESTORED_STREAK} days`}
+                    </button>
+                  )}
                 </div>
               </div>
             </section>

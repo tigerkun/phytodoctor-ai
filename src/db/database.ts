@@ -20,7 +20,8 @@ import {
   StreakRecord,
   RewardHistory,
   DiscoveryRecord,
-  StreakFreeze
+  StreakFreeze,
+  SanctuaryStock
 } from '../types';
 
 export type { 
@@ -96,6 +97,7 @@ class BotanicalDB extends Dexie {
   rewardHistory!: Table<RewardHistory>;
   discoveryRecords!: Table<DiscoveryRecord>;
   streakFreezes!: Table<StreakFreeze>;
+  sanctuaryStock!: Table<SanctuaryStock>;
   seedSyncOutbox!: Table<{
     id: string;
     userId: string;
@@ -231,6 +233,11 @@ class BotanicalDB extends Dexie {
         row.createdAt = row.createdAt ?? Date.now();
       }
     }));
+    // v21: consumables bought with seeds from the Sanctuary shelf. Count-based,
+    // so a Keeper holding three of something has one row reading 3.
+    this.version(21).stores({
+      sanctuaryStock: '[userId+itemId], userId, itemId'
+    });
   }
 }
 

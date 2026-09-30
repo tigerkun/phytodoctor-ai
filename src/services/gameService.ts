@@ -152,8 +152,24 @@ export class GameService {
     if (amount < 0) throw new Error('earnSeeds amount must be non-negative');
     const profile = await this.ensureProfile(userId);
     const multiplier = SEED_MULTIPLIERS[profile.tier || 'free'];
-    const finalAmount = Math.floor(amount * multiplier);
-    await applySeedDelta({ userId, amount: finalAmount, source, description, transactionId });
+
+    // A Long Season doubles this payout and spends itself doing so. Imported
+    // lazily because SanctuaryService reaches back into GameService for
+    // spendSeeds, and a static import here would close that cycle at module
+    // load. Payouts already routed through awardReward/awardDiscovery carry
+    // their own level and streak multipliers, so boosting those as well would
+    // compound; this is the one path that has neither.
+    const { SanctuaryService } = await import('./sanctuaryService');
+    const boost = await SanctuaryService.takeBoost(userId);
+
+    const finalAmount = Math.floor(amount * multiplier * boost);
+    await applySeedDelta({
+      userId,
+      amount: finalAmount,
+      source,
+      description: boost > 1 ? `${description} (long season x${boost})` : description,
+      transactionId
+    });
   }
 
   // BUG-03 evidence: -- select count(*) from profiles; -- result pending user run
@@ -293,7 +309,17 @@ export class GameService {
     const currentStreak = profile.currentStreak;
     const totalStreak = profile.longestStreak;
     
-    const rarity = this.calculateRarity(plant.species, currentStreak, totalStreak);
+    const naturalRarity = this.calculateRarity(plant.species, currentStreak, totalStreak);
+
+    // A Rare Bloom Charm lifts this one card to Epic if it would have rolled
+    // below. Deliberately not applied when the roll already clears the bar, so
+    // a Keeper is never told to save one for a card that did not need it.
+    let rarity = naturalRarity;
+    const { SanctuaryService } = await import('./sanctuaryService');
+    if (await SanctuaryService.useRarityBlessing(naturalRarity, userId)) {
+      rarity = 'epic';
+    }
+
     const stats = this.calculateCardStats(plant, checkIns, rarity);
 
     const card: PhytoCard = {

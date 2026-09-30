@@ -206,7 +206,12 @@ export class RewardService {
       // Check if user has available charge this week
       const chargesUsed = await this.getDiscoveryChargesUsedThisWeek(userId);
       if (chargesUsed >= REWARD_CAPS.DISCOVERY_CHARGES_PER_WEEK) {
-        throw new Error('No discovery charges available. Resets Monday.');
+        // A Field Expedition is bought past the cap, so a Keeper who runs out
+        // of weekly charges is not simply done discovering.
+        const { SanctuaryService } = await import('./sanctuaryService');
+        if (!(await SanctuaryService.hasExpedition(userId))) {
+          throw new Error('No discovery charges available. Resets Monday.');
+        }
       }
       chargeUsed = true;
     }
@@ -402,6 +407,36 @@ export class RewardService {
     if (tier === 'pro') return REWARD_CAPS.STREAK_FREEZE_LEVELS.pro_base || 0;
     if (tier === 'keeper') return REWARD_CAPS.STREAK_FREEZE_LEVELS[14] || 0;
     return REWARD_CAPS.STREAK_FREEZE_LEVELS[6] || 0;
+  }
+
+  /**
+   * Bumps a run back up to `days`, for the Quiet Grace sanctuary item.
+   *
+   * Writes both tables the streak lives in. `GameService.updateStreakOnUpload`
+   * mirrors the authoritative `streakRecords` row into the legacy `userProfile`
+   * columns, and the Botanical Lab header still reads the legacy copy, so
+   * writing only the first would leave the number visibly unchanged there.
+   *
+   * Never lowers an existing run: a Keeper who buys this on a healthy 40-day
+   * streak should not be handed a worse one.
+   */
+  static async restoreStreak(days: number, userId: string = this.getUserId()): Promise<number> {
+    const streak = await this.ensureStreakRecord(userId);
+    const target = Math.max(streak.currentStreak, Math.floor(days));
+
+    streak.currentStreak = target;
+    streak.longestStreak = Math.max(streak.longestStreak, target);
+    streak.streakMultiplier = getStreakMultiplier(target);
+    await db.streakRecords.put(streak);
+
+    const profile = await db.userProfile.get(userId);
+    if (profile) {
+      profile.currentStreak = target;
+      profile.longestStreak = streak.longestStreak;
+      await db.userProfile.put(profile);
+    }
+
+    return target;
   }
 
   /**
