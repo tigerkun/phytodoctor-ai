@@ -185,10 +185,25 @@ if (SUPABASE_URL && SUPABASE_SERVICE_KEY && (globalThis as any).__createSupabase
 }
 
 // RLS-scoped client per request: reads/writes the caller's own economy rows.
+//
+// The caller's access token belongs in the Authorization header, NOT in the
+// apikey slot. createClient's second argument becomes apikey, and the Supabase
+// gateway validates apikey against known keys before PostgREST ever sees the
+// request — so passing a user JWT there is rejected with a bare
+// "Invalid API key". That failure looks like a bad service credential, which is
+// how it got misdiagnosed; the service key was fine and swapping it changed
+// nothing here.
+//
+// Verified against the gateway: apikey=publishable + Authorization=Bearer <jwt>
+// reaches PostgREST's JWT decoder, while apikey=<jwt> is refused outright.
 function userClient(token: string) {
-  return supabaseAdmin
-    ? require('@supabase/supabase-js').createClient(SUPABASE_URL!, token)
-    : null;
+  if (!supabaseAdmin) return null;
+  return require('@supabase/supabase-js').createClient(SUPABASE_URL!, SUPABASE_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    // This client exists for one request's RLS scope. Letting it persist or
+    // auto-refresh a session would write tokens to storage and race the gate.
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
 }
 
 const PRO_COST_SEEDS = 1000;
