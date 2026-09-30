@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 import webpush from "web-push";
 import { randomUUID } from "node:crypto";
 import { createUserScopedClient } from "./src/lib/supabaseUserClient";
+import { clampTo, clampPercent, clampUnit, orderRange } from "./src/lib/scoreGuards";
 
 dotenv.config();
 
@@ -948,6 +949,17 @@ LOCATION-AWARE FIELDS (required if location provided):
       console.error("JSON parse error (response may have been truncated):", parseErr.message, "\nRaw snippet:", cleanedText.slice(0, 200));
       throw new Error("AI response was malformed. Please try again.");
     }
+    // severity drives Clinic's `isQuarantineRequired` (>= 3) and the severity
+    // dots in BotanicalLab, so an off-scale value silently skips quarantine on
+    // a critical finding. The differential confidences render as percentages.
+    if ('severity' in result) result.severity = clampTo(result.severity, 1, 5, 1);
+    if (Array.isArray(result.differentialDiagnosis)) {
+      for (const d of result.differentialDiagnosis) {
+        if (d && typeof d === 'object' && 'confidence' in d) {
+          d.confidence = clampPercent(d.confidence);
+        }
+      }
+    }
     res.json(result);
   } catch (error: any) {
     console.error("Gemini Error:", error?.response?.status || error?.status || '', error?.message || error);
@@ -1003,6 +1015,10 @@ app.post("/api/sandbox", express.json({ limit: '64kb' }), aiLimiter, apiGate, ti
         return fail(res, 422, `"${species.trim()}" does not appear to be a real plant species. Please check the spelling or try a known species (e.g. Monstera deliciosa).`);
       }
       delete result.isRealSpecies;
+      // The client ranges against each bound independently, so an inverted
+      // pair (min above max) charges the penalty twice for one condition.
+      [result.idealTempMin, result.idealTempMax] = orderRange(result.idealTempMin, result.idealTempMax);
+      [result.idealHumidityMin, result.idealHumidityMax] = orderRange(result.idealHumidityMin, result.idealHumidityMax);
       return res.json(result);
     }
 
@@ -1017,10 +1033,10 @@ app.post("/api/sandbox", express.json({ limit: '64kb' }), aiLimiter, apiGate, ti
 SITE:
 ${JSON.stringify(environment, null, 2)}
 
-Score climate, water, light, soil, pest pressure, and seasonal timing independently (0-100). Survival chance is the overall likelihood the plant lives 12 months in these conditions with reasonable amateur care. Give concrete tips and ranked risks.` }]
+Score climate, water, light, soil, pest exposure and seasonal timing independently on a 0-100 suitability scale, where 100 always means "ideal for this plant" and 0 always means "unfavourable for this plant". Every score uses that one direction, including pestScore: score how SAFE the site is from pests, so a site with heavy pest pressure scores LOW, never high. Survival chance is the overall likelihood the plant lives 12 months in these conditions with reasonable amateur care. Give concrete tips and ranked risks.` }]
         }],
         config: {
-          systemInstruction: "You are PhytoDoctor AI running a clinical placement simulation. Be honest: hostile climates should score low. Return only JSON.",
+          systemInstruction: "You are PhytoDoctor AI running a clinical placement simulation. Be honest: hostile climates should score low. Every 0-100 score is suitability for the plant, so higher is always better and pestScore in particular scores pest SAFETY, not pest pressure. Return only JSON.",
           temperature: 0.2,
           disableThinking: true, // vault assessments are wait-facing; skip 2.5 thinking tokens
           responseMimeType: "application/json",
@@ -1045,7 +1061,22 @@ Score climate, water, light, soil, pest pressure, and seasonal timing independen
         }
       });
       const raw = (response.text || "").replace(/```json|```/gi, "").trim();
-      return res.json(JSON.parse(raw));
+      const result = JSON.parse(raw);
+      // These render as A-F grades and 0-100% bars, and the response schema
+      // declares them as bare numbers, so the model can overshoot its own
+      // scale. Clamp before anything downstream reads them.
+      for (const key of [
+        'survivalChance',
+        'climateScore',
+        'waterScore',
+        'lightScore',
+        'soilScore',
+        'pestScore',
+        'seasonalScore',
+      ]) {
+        if (key in result) result[key] = clampPercent(result[key]);
+      }
+      return res.json(result);
     }
 
     return fail(res, 400, "mode must be profile or assess");
@@ -1189,6 +1220,11 @@ app.post("/api/guardian/predict", express.json({ limit: '64kb' }), aiLimiter, ap
     const rawText = response.text || "";
     const cleanedText = rawText.replace(/```json|```/gi, "").trim();
     const result = JSON.parse(cleanedText);
+    // The client picks alert severity by thresholding riskScore (>= 75 is
+    // critical) and renders confidence as `* 100`, so an out-of-scale number
+    // misclassifies the alert instead of merely looking wrong.
+    if ('riskScore' in result) result.riskScore = clampPercent(result.riskScore);
+    if ('confidence' in result) result.confidence = clampUnit(result.confidence);
     res.json(result);
   } catch (error: any) {
     console.error("Prediction Error:", error?.response?.status || error?.status || '', error?.message || error);
