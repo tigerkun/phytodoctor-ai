@@ -18,6 +18,9 @@ interface HeroSectionProps {
   totalPlants: number;
   plantIndex?: number;
   weather?: any;
+  /** Days between waterings for this specimen; the Water tool uses it to
+   *  schedule the next reminder. */
+  wateringIntervalDays?: number | null;
   onAddPlant: () => void;
 }
 
@@ -32,6 +35,7 @@ export function HeroSection({
   totalPlants,
   plantIndex = 0,
   weather,
+  wateringIntervalDays,
   onAddPlant
 }: HeroSectionProps) {
   const { greeting } = useTimeOfDay();
@@ -54,10 +58,20 @@ export function HeroSection({
     if (action === 'water') {
       playAudio('water-drop');
       if (plantId) {
+        // Record a real watering: this button used to bump updatedAt and
+        // nothing else, so last_watered_at stayed NULL forever. The server's
+        // reminder scheduler reads exactly that column, so watering appeared
+        // to work while never changing what the scheduler saw.
+        const now = new Date();
+        const intervalDays = wateringIntervalDays || 7;
         try {
-          await PlantService.updatePlant(plantId, { updatedAt: new Date() });
+          await PlantService.updatePlant(plantId, {
+            lastWateredAt: now,
+            nextWaterDue: new Date(now.getTime() + intervalDays * 86_400_000),
+            wateringIntervalDays: intervalDays,
+          });
         } catch (err) {
-          console.error('Failed to update plant hydration date:', err);
+          console.error('Failed to record watering:', err);
         }
       }
     } else if (action === 'prune') {

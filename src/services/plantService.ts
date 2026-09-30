@@ -29,6 +29,11 @@ export function postgresToPlant(row: any): Plant {
     photoUrl: row.photo_url || '',
     createdAt: row.created_at ? new Date(row.created_at) : new Date(),
     updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
+    wateringIntervalDays: typeof row.watering_interval_days === 'number' ? row.watering_interval_days : 7,
+    lastWateredAt: row.last_watered_at ? new Date(row.last_watered_at) : null,
+    nextWaterDue: row.next_water_due ? new Date(row.next_water_due) : null,
+    coldToleranceC: typeof row.cold_tolerance_c === 'number' ? row.cold_tolerance_c : null,
+    heatToleranceC: typeof row.heat_tolerance_c === 'number' ? row.heat_tolerance_c : null,
     isDemo: Boolean(row.is_demo),
     parentPlantId: row.parent_plant_id ?? null,
     propagationMethod: row.propagation_method ?? null,
@@ -81,6 +86,26 @@ export function plantToPostgres(plant: Partial<Plant>, userId?: string): Record<
       ? plant.updatedAt.toISOString()
       : new Date(plant.updatedAt as any).toISOString();
   }
+
+  if (plant.wateringIntervalDays !== undefined) {
+    payload.watering_interval_days = plant.wateringIntervalDays;
+  }
+  if (plant.lastWateredAt !== undefined) {
+    payload.last_watered_at = plant.lastWateredAt instanceof Date
+      ? plant.lastWateredAt.toISOString()
+      : plant.lastWateredAt
+        ? new Date(plant.lastWateredAt as any).toISOString()
+        : null;
+  }
+  if (plant.nextWaterDue !== undefined) {
+    payload.next_water_due = plant.nextWaterDue instanceof Date
+      ? plant.nextWaterDue.toISOString()
+      : plant.nextWaterDue
+        ? new Date(plant.nextWaterDue as any).toISOString()
+        : null;
+  }
+  if (plant.coldToleranceC !== undefined) payload.cold_tolerance_c = plant.coldToleranceC;
+  if (plant.heatToleranceC !== undefined) payload.heat_tolerance_c = plant.heatToleranceC;
 
   if (plant.isDemo !== undefined) payload.is_demo = Boolean(plant.isDemo);
   if (plant.parentPlantId !== undefined) payload.parent_plant_id = plant.parentPlantId;
@@ -209,6 +234,13 @@ export const PlantService = {
       photoUrl: input.photoUrl || '',
       createdAt: now,
       updatedAt: now,
+      // Seed the schedule up front. A plant with a NULL next_water_due is
+      // invisible to the server's watering-reminder scheduler, so a fresh
+      // specimen would never trigger a reminder until someone manually
+      // watered it through the bench tools.
+      wateringIntervalDays: input.wateringIntervalDays ?? 7,
+      lastWateredAt: input.lastWateredAt ?? null,
+      nextWaterDue: input.nextWaterDue ?? new Date(now.getTime() + (input.wateringIntervalDays ?? 7) * 86_400_000),
       isDemo: Boolean(input.isDemo),
       parentPlantId: input.parentPlantId ?? null,
       propagationMethod: input.propagationMethod ?? null,

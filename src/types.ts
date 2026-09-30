@@ -37,6 +37,14 @@ export interface Plant {
   photoUrl: string;
   createdAt: Date;
   updatedAt: Date;
+  /** Days between waterings. Drives the UI countdown and, more importantly,
+   *  the server's watering-reminder scheduler, which reads this column
+   *  directly out of Postgres. */
+  wateringIntervalDays?: number | null;
+  lastWateredAt?: Date | null;
+  nextWaterDue?: Date | null;
+  coldToleranceC?: number | null;
+  heatToleranceC?: number | null;
   isDemo?: boolean;
   parentPlantId?: string | null;
   propagationMethod?: 'cutting' | 'division' | 'seed' | 'offset' | null;

@@ -346,6 +346,7 @@ export default function HomePage() {
           totalPlants={mappedPlants.length}
           plantIndex={selectedPlantIndex}
           weather={weather}
+          wateringIntervalDays={dbPlants[selectedPlantIndex]?.wateringIntervalDays}
           onAddPlant={() => setIsAddModalOpen(true)}
         />
 
