@@ -551,7 +551,26 @@ const REQUIRED_RPCS = [
 
 type RpcProbe = 'present' | 'missing' | 'unauthorized';
 
-let rpcCheck: { ok: boolean; missing: string[]; error?: string } | null = null;
+// The tables the server writes to. The RPC probe above cannot see these: a
+// function that is present says nothing about whether its table was ever
+// created, and this project's migrations were applied by hand, so a migration
+// file is not evidence that production has it. That gap is not theoretical —
+// public.plants shipped missing nine columns that its migration declared, which
+// broke saving any plant while every health signal stayed green.
+//
+// push/subscribe was unreachable until the RLS header bug was fixed, so its
+// upsert has never actually run against production. Without this the first
+// person to enable notifications would be the one to discover the table is
+// absent, and they would only see "Could not save push subscription."
+const REQUIRED_TABLES = [
+  'plants',
+  'profiles',
+  'seed_transactions',
+  'push_subscriptions',
+  'push_alert_log',
+] as const;
+
+let rpcCheck: { ok: boolean; missing: string[]; missingTables?: string[]; error?: string } | null = null;
 let rpcCheckedAt = 0;
 const RPC_CHECK_TTL_MS = 60_000;
 
@@ -572,6 +591,26 @@ async function probeRpc(name: string, args: Record<string, unknown>): Promise<Rp
   return 'present';
 }
 
+// Same three outcomes as the RPC probe, for the same reason: a table that
+// exists can still raise (RLS, a bad column), and a rejected key must not be
+// reported as a healthy schema. limit(0) fetches no rows, so this stays cheap
+// and touches no data.
+//
+// A table absent from the schema cache surfaces as PGRST205; one that exists in
+// the database but was never exposed to PostgREST surfaces as 42P01.
+async function probeTable(name: string): Promise<RpcProbe> {
+  const { error } = await supabaseAdmin.from(name).select('*').limit(0);
+  if (!error) return 'present';
+  const text = `${error.code ?? ''} ${error.message}`;
+  if (/PGRST205|42P01|could not find the table|not found in the schema cache/i.test(text)) {
+    return 'missing';
+  }
+  if (/42501|401|403|invalid api key|jwt|unauthorized|permission denied/i.test(text)) {
+    return 'unauthorized';
+  }
+  return 'present';
+}
+
 // Health check for Render and deployment diagnostics. Never expose secret values.
 app.get('/healthz', async (_req, res) => {
   const configured = {
@@ -580,18 +619,25 @@ app.get('/healthz', async (_req, res) => {
     razorpay: Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET && RAZORPAY_WEBHOOK_SECRET),
   };
 
-  // Cached so a health check polled every few seconds doesn't become three
+  // Cached so a health check polled every few seconds doesn't become eight
   // database round-trips every few seconds. A stale 'ok' is fine: the failure
   // this guards against is an unapplied migration, not a transient blip.
   if (supabaseAdmin && Date.now() - rpcCheckedAt > RPC_CHECK_TTL_MS) {
     rpcCheckedAt = Date.now();
     try {
-      const results = await Promise.all(REQUIRED_RPCS.map(rpc => probeRpc(rpc.name, rpc.args)));
-      const missing = REQUIRED_RPCS.filter((_, i) => results[i] === 'missing').map(rpc => rpc.name);
-      const unauthorized = results.some(r => r === 'unauthorized');
+      const [rpcResults, tableResults] = await Promise.all([
+        Promise.all(REQUIRED_RPCS.map(rpc => probeRpc(rpc.name, rpc.args))),
+        Promise.all(REQUIRED_TABLES.map(probeTable)),
+      ]);
+      const missing = REQUIRED_RPCS.filter((_, i) => rpcResults[i] === 'missing').map(rpc => rpc.name);
+      const missingTables = REQUIRED_TABLES.filter((_, i) => tableResults[i] === 'missing');
+      const unauthorized = rpcResults.some(r => r === 'unauthorized') || tableResults.some(r => r === 'unauthorized');
       rpcCheck = {
-        ok: missing.length === 0 && !unauthorized,
+        ok: missing.length === 0 && missingTables.length === 0 && !unauthorized,
         missing,
+        // A named table is what an operator needs to go apply the migration.
+        // Reporting only "drift" would leave them guessing which one.
+        ...(missingTables.length ? { missingTables } : {}),
         // Names the credential problem without naming the credential. This is
         // the signal that catches a rotated-but-not-propagated service key.
         ...(unauthorized ? { error: 'service key rejected by Supabase' } : {}),
