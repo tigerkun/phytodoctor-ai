@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import webpush from "web-push";
 import { randomUUID } from "node:crypto";
 import { createUserScopedClient } from "./src/lib/supabaseUserClient";
-import { clampTo, clampPercent, clampUnit, orderRange } from "./src/lib/scoreGuards";
+import { clampTo, clampPercent, clampUnit, hasScore, orderRange } from "./src/lib/scoreGuards";
 
 dotenv.config();
 
@@ -956,7 +956,7 @@ LOCATION-AWARE FIELDS (required if location provided):
     // severity, Clinic falls back to deriving a level from healthStatus, and
     // substituting a number here would suppress that fallback and report an
     // infested plant as mild.
-    if (typeof result.severity === 'number' && Number.isFinite(result.severity)) {
+    if (hasScore(result.severity)) {
       result.severity = clampTo(result.severity, 1, 5, 1);
     }
     if (Array.isArray(result.differentialDiagnosis)) {
@@ -1080,7 +1080,7 @@ Score climate, water, light, soil, pest exposure and seasonal timing independent
         'pestScore',
         'seasonalScore',
       ]) {
-        if (key in result) result[key] = clampPercent(result[key]);
+        if (hasScore(result[key])) result[key] = clampPercent(result[key]);
       }
       return res.json(result);
     }

@@ -42,6 +42,19 @@ export function clampUnit(value: unknown, fallback = 0): number {
 }
 
 /**
+ * True when a score was actually supplied and can be clamped.
+ *
+ * Clamping a field the model omitted would substitute the floor of the scale,
+ * which is a confident wrong answer rather than a visible gap: a missing
+ * survivalChance would read as "0% survivability", and a missing severity as
+ * "mild". Leave those absent so the client can show the omission and its own
+ * fallbacks can engage.
+ */
+export function hasScore(value: unknown): boolean {
+  return toFiniteNumber(value) !== null;
+}
+
+/**
  * Clamps the named keys of a parsed model payload in place, leaving every
  * other field untouched. Returns the same object for chaining.
  */

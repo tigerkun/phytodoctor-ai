@@ -1,5 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { clampTo, clampPercent, clampUnit, clampPercentFields, orderRange } from '../scoreGuards';
+import { clampTo, clampPercent, clampUnit, clampPercentFields, hasScore, orderRange } from '../scoreGuards';
+
+describe('hasScore', () => {
+  it('accepts real numbers and numeric strings', () => {
+    expect(hasScore(0)).toBe(true);
+    expect(hasScore(72.5)).toBe(true);
+    expect(hasScore('72.5')).toBe(true);
+  });
+
+  it('rejects values that are missing rather than zero', () => {
+    // Substituting the floor for an omitted score would print a confident
+    // "0% survivability" instead of a visible gap.
+    expect(hasScore(undefined)).toBe(false);
+    expect(hasScore(null)).toBe(false);
+    expect(hasScore('')).toBe(false);
+    expect(hasScore(NaN)).toBe(false);
+    expect(hasScore('nonsense')).toBe(false);
+  });
+});
 
 describe('clampTo', () => {
   it('clamps a 1-5 severity scale', () => {
