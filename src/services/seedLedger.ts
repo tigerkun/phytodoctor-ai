@@ -3,6 +3,10 @@ import { db, type SeedTransaction } from '../db/database';
 // A 5xx storm (or a broken RPC, which this project has shipped before) used to
 // make every outbox entry retry forever. After this many server failures an
 // entry is parked as dead instead of retrying on every flush.
+//
+// Parking is a brake, not a verdict: flushSeedSyncOutbox requeues dead entries
+// once a delivery succeeds, so an outage that outlives this budget delays the
+// credits instead of discarding them.
 export const MAX_SYNC_ATTEMPTS = 8;
 
 /**
@@ -77,7 +81,8 @@ export async function applySeedDelta(opts: {
  *  - 401/408/425/429→ retrying with the same token right now cannot succeed
  *                     (session expired / timed out / rate limited). Leave the
  *                     entry untouched and stop this pass.
- *  - 5xx            → count the failure; park as dead past MAX_SYNC_ATTEMPTS.
+ *  - 5xx            → count the failure; park as dead past MAX_SYNC_ATTEMPTS,
+ *                     and requeue those entries once a delivery succeeds.
  *  - network error  → stop; the 'online' event and the next flush retry.
  */
 export async function flushSeedSyncOutbox(userId: string): Promise<void> {
@@ -92,6 +97,8 @@ export async function flushSeedSyncOutbox(userId: string): Promise<void> {
     .where('[userId+status]')
     .equals([userId, 'pending'])
     .sortBy('createdAt');
+
+  let delivered = 0;
 
   for (const item of pending) {
     if (item.attempts >= MAX_SYNC_ATTEMPTS) {
@@ -111,6 +118,7 @@ export async function flushSeedSyncOutbox(userId: string): Promise<void> {
 
     if (res.ok) {
       await db.seedSyncOutbox.delete(item.id);
+      delivered++;
       continue;
     }
 
@@ -129,13 +137,41 @@ export async function flushSeedSyncOutbox(userId: string): Promise<void> {
       await db.seedSyncOutbox.update(item.id, { status: 'dead' });
     }
   }
+
+  // Revive anything previously parked, but only after this pass actually
+  // delivered something — proof the server is healthy again. Parking as 'dead'
+  // was meant to stop a broken server from being retried forever, and it did,
+  // but with nothing to undo it the parking became permanent: those deltas
+  // were never retried, so the credits existed only in the local balance and
+  // the server never learned about them. Gating the revival on a successful
+  // delivery keeps the original protection intact, because a server that is
+  // still failing never reaches this line.
+  //
+  // They are requeued rather than sent here, so they go out on the next flush
+  // instead of in a tight loop against a server that just came back.
+  if (delivered > 0) {
+    const dead = await db.seedSyncOutbox.where('[userId+status]').equals([userId, 'dead']).toArray();
+    for (const item of dead) {
+      await db.seedSyncOutbox.update(item.id, { status: 'pending', attempts: 0, lastError: undefined });
+    }
+  }
 }
 
 /**
  * True while deltas are queued. The server balance lags the local one during
  * this window, so pullServerProfile must not overwrite the local balance with
  * the stale server value.
+ *
+ * 'dead' counts. A parked entry is undelivered, not delivered, and its credits
+ * are still only in the local balance. Counting only 'pending' meant that once
+ * MAX_SYNC_ATTEMPTS parked the last entry, the outbox looked empty, the guard
+ * below released, and the stale server balance overwrote seeds the user had
+ * actually earned — silent loss of currency with nothing on screen to explain
+ * it. A row is deleted on successful delivery, so any surviving row of either
+ * status means the server is behind.
  */
 export async function hasPendingSeedSyncs(userId: string): Promise<boolean> {
-  return (await db.seedSyncOutbox.where('[userId+status]').equals([userId, 'pending']).count()) > 0;
+  const pending = await db.seedSyncOutbox.where('[userId+status]').equals([userId, 'pending']).count();
+  if (pending > 0) return true;
+  return (await db.seedSyncOutbox.where('[userId+status]').equals([userId, 'dead']).count()) > 0;
 }
