@@ -52,9 +52,16 @@ export default function Layout({ children }: LayoutProps) {
         // stranded by an outage would sit indefinitely — the pull would keep
         // deferring to a queue that nothing else on this path ever drains,
         // and they'd only move if the user happened to earn something.
-        GameService.flushSeedSyncOutbox(userId).then(() => {
-          GameService.pullServerProfile(userId);
-        });
+        GameService.flushSeedSyncOutbox(userId)
+          .catch((err) => {
+            // A flush that throws must not take the pull down with it. Chaining
+            // straight to .then() would leave the balance unsynced for the whole
+            // session on any IndexedDB hiccup, with nothing on screen to say so.
+            console.error('[Layout] Seed outbox flush failed:', err);
+          })
+          .then(() => {
+            GameService.pullServerProfile(userId);
+          });
       }
     };
 
