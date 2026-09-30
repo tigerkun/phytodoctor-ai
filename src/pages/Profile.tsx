@@ -224,6 +224,11 @@ export default function Profile() {
   const handleSync = async () => {
     setSyncing(true);
     try {
+      // The button promises a ledger sync, so deliver the seed ledger first.
+      // Without this the only thing that moved seeds to the cloud was the
+      // automatic flush on the next earning, leaving a user whose deltas were
+      // stranded by an outage with no way to push them but wait.
+      await GameService.flushSeedSyncOutbox();
       const result = await MigrationService.migratePlantsToCloud();
       if (result.success) {
         if (hapticEnabled) triggerHaptic('medium');

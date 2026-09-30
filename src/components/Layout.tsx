@@ -45,8 +45,16 @@ export default function Layout({ children }: LayoutProps) {
         localStorage.setItem('botanical_guardian_userId', userId);
         localStorage.setItem('botanical_guardian_user_email', u.email ?? '');
         localStorage.setItem('botanical_guardian_onboarded', '1');
-        // Pull the authoritative seeds/tier from the server economy.
-        GameService.pullServerProfile(userId);
+        // Drain anything the outbox still owes the server BEFORE pulling.
+        // Order matters: pullServerProfile deliberately bails while entries
+        // are queued, because it must not overwrite a local balance the
+        // server hasn't caught up with. So without a flush first, deltas
+        // stranded by an outage would sit indefinitely — the pull would keep
+        // deferring to a queue that nothing else on this path ever drains,
+        // and they'd only move if the user happened to earn something.
+        GameService.flushSeedSyncOutbox(userId).then(() => {
+          GameService.pullServerProfile(userId);
+        });
       }
     };
 
