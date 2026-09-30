@@ -987,7 +987,7 @@ app.post("/api/chat", express.json({ limit: '64kb' }), aiLimiter, apiGate, async
       return fail(res, 400, "Conversation is too long. Please start a new chat.");
     }
     for (const m of messages) {
-      if (!m || typeof m.content !== 'string' || m.trim().length === 0) {
+      if (!m || typeof m.content !== 'string' || m.content.trim().length === 0) {
         return fail(res, 400, "Invalid message content.");
       }
     }
@@ -1051,11 +1051,18 @@ RESPONSE FORMAT & PACING (SHORT STANZAS):
       }
     });
 
-    res.json({ content: response.text });
+    res.json({ content: response.text, degraded: false });
   } catch (error: any) {
     console.error("Chat Error:", error?.response?.status || error?.status || '', error?.message || error);
     const latestUserMessage = [...requestedMessages].reverse().find(m => m?.role === 'user')?.content;
-    if (latestUserMessage) return res.json({ content: localBotanicalReply(latestUserMessage) });
+    // The local reply is a genuine safety net for a downed model, but it
+    // returns 200 like a real answer, which makes an outage indistinguishable
+    // from a healthy response. That is how a crash in this handler hid behind
+    // a 40x speedup that turned out to be the fallback, not the model. The
+    // flag lets callers and monitoring tell the two apart.
+    if (latestUserMessage) {
+      return res.json({ content: localBotanicalReply(latestUserMessage), degraded: true });
+    }
     fail(res, 500, AI_GENERIC_ERROR);
   }
 });
