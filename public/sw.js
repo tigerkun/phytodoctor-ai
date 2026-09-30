@@ -1,4 +1,4 @@
-const CACHE_NAME = 'phyto-guard-v1.6';
+const CACHE_NAME = 'phyto-guard-v1.7';
 const ASSETS = [
   '/',
   '/index.html',

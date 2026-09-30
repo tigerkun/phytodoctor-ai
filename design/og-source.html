@@ -1,0 +1,49 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>html,body{margin:0}</style></head><body>
+<script src="/.design-icon.js"></script>
+<script>
+window.renderOG = async () => {
+  await document.fonts.ready;
+  const c = document.createElement('canvas');
+  c.width = 1200; c.height = 630;
+  const x = c.getContext('2d');
+  const bg = x.createLinearGradient(0, 0, 1200, 630);
+  bg.addColorStop(0, '#123a2c'); bg.addColorStop(1, '#0a241a');
+  x.fillStyle = bg; x.fillRect(0, 0, 1200, 630);
+  // faint leaf texture: oversized mark, barely visible, right side
+  const mark = await window.loadImg('/icon-512.png');
+  x.globalAlpha = 0.12;
+  x.drawImage(mark, 640, -140, 760, 760);
+  x.globalAlpha = 1;
+  // icon chip
+  x.save();
+  x.beginPath();
+  x.roundRect(96, 175, 256, 256, 56);
+  x.shadowColor = 'rgba(0,0,0,0.45)'; x.shadowBlur = 30; x.shadowOffsetY = 10;
+  x.clip();
+  x.drawImage(mark, 96, 175, 256, 256);
+  x.restore();
+  // wordmark
+  x.fillStyle = '#f4eee1';
+  x.font = '700 118px "Cormorant Garamond", serif';
+  x.fillText('PhytoDoctor', 400, 285);
+  x.fillStyle = '#9bde8b';
+  x.font = '800 32px Inter, sans-serif';
+  x.letterSpacing = '7px';
+  x.fillText('AI DIAGNOSTIC LAB FOR PLANTS', 404, 345);
+  x.letterSpacing = '0px';
+  // divider
+  x.fillStyle = 'rgba(212,175,55,0.55)';
+  x.fillRect(404, 386, 380, 3);
+  // tagline
+  x.fillStyle = '#e8e2d0';
+  x.font = '400 44px "Cormorant Garamond", serif';
+  x.fillText('Snap a leaf. Save a life.', 400, 466);
+  x.fillStyle = 'rgba(232,226,208,0.6)';
+  x.font = '400 26px Inter, sans-serif';
+  x.fillText('Free diagnosis · streaks & seeds · your plant collection, carded', 402, 516);
+  return c.toDataURL('image/png').split(',')[1];
+};
+window.loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+</script></body></html>

@@ -1,6 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#1b4332"/>
-  <path d="M256 382c-8-75 8-141 61-194 29-29 65-47 108-53-6 43-24 79-53 108-52 53-118 69-193 61Z" fill="#d8bc78"/>
-  <path d="M257 382c-58-7-103-29-135-66-32-37-48-83-48-138 55 0 101 16 138 48 37 32 59 77 66 135Z" fill="#86b98b"/>
-  <path d="M256 382V194" fill="none" stroke="#f4eee1" stroke-linecap="round" stroke-width="18"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1d5643"/>
+      <stop offset="1" stop-color="#0c2b1f"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#9bde8b"/>
+      <stop offset="1" stop-color="#3fa05f"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="130" fill="url(#bg)"/>
+  <path d="M256 48 C 274 48, 300 57, 326 74 C 402 124, 452 200, 444 278 C 434 372, 366 452, 284 462 C 270 464, 258 448, 256 418 C 254 448, 242 464, 228 462 C 146 452, 78 372, 68 278 C 60 200, 110 124, 186 74 C 212 57, 238 48, 256 48 Z" fill="url(#leaf)"/>
+  <g stroke="#0c2b1f" stroke-width="21" stroke-linecap="round" fill="none">
+    <path d="M78 322 L196 266"/>
+    <path d="M96 228 L202 210"/>
+    <path d="M150 132 L226 154"/>
+    <path d="M434 322 L316 266"/>
+    <path d="M416 228 L310 210"/>
+    <path d="M362 132 L286 154"/>
+  </g>
+  <g fill="#0c2b1f">
+    <ellipse cx="212" cy="322" rx="12" ry="21" transform="rotate(-16 212 322)"/>
+    <ellipse cx="300" cy="322" rx="12" ry="21" transform="rotate(16 300 322)"/>
+  </g>
+  <path d="M256 400 L256 92" stroke="#e9f5e4" stroke-width="14" stroke-linecap="round" opacity="0.85" fill="none"/>
+  <path d="M118 380 L210 380 L234 344 L262 394 L282 350 L292 380 L394 380" fill="none" stroke="#f7dfa8" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

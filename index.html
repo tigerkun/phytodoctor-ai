@@ -4,16 +4,94 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#1b4332" />
+    <meta name="theme-color" content="#0c2b1f" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="apple-touch-icon" href="/icon.svg" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="description" content="PhytoDoctor AI — photograph a plant, get an evidence-based diagnosis, and track its recovery." />
+
+    <!-- Share previews: what the link looks like in chats, stories and bios. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PhytoDoctor AI" />
+    <meta property="og:title" content="PhytoDoctor — snap a leaf. Save a life." />
+    <meta property="og:description" content="Free AI plant diagnosis in seconds. Streaks, seeds and a collectible card for every plant you save." />
+    <meta property="og:image" content="https://phytodoctor-ai.onrender.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:url" content="https://phytodoctor-ai.onrender.com/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PhytoDoctor — snap a leaf. Save a life." />
+    <meta name="twitter:description" content="Free AI plant diagnosis in seconds. Streaks, seeds and a collectible card for every plant you save." />
+    <meta name="twitter:image" content="https://phytodoctor-ai.onrender.com/og-image.png" />
+
     <title>PhytoDoctor AI | Botanical Diagnosis Lab</title>
+    <style>
+      /* First-paint splash. Pure HTML/CSS so it shows the instant the HTML
+         arrives — during the JS load and (on cold deploys) the server boot it
+         replaces what would otherwise be a blank white page. React clears
+         #root on mount, which dismisses it. */
+      html, body { margin: 0; }
+      #root { min-height: 100dvh; }
+      .boot-screen {
+        min-height: 100dvh;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 20px;
+        background: radial-gradient(120% 90% at 30% 10%, #1d5643 0%, #0c2b1f 62%, #08211a 100%);
+        font-family: Georgia, 'Times New Roman', serif;
+      }
+      .boot-mark { width: 96px; height: 96px; filter: drop-shadow(0 8px 24px rgba(0,0,0,0.45)); animation: boot-breathe 2.6s ease-in-out infinite; }
+      .boot-word { color: #f4eee1; font-size: 30px; font-weight: 600; letter-spacing: 0.04em; }
+      .boot-word span { color: #9bde8b; }
+      .boot-line { color: rgba(244,238,225,0.55); font-family: Inter, system-ui, sans-serif; font-size: 12.5px; letter-spacing: 0.14em; text-transform: uppercase; }
+      .boot-line::after { content: '…'; animation: boot-dots 1.6s steps(4, end) infinite; }
+      .boot-bar { width: 132px; height: 3px; border-radius: 999px; background: rgba(244,238,225,0.14); overflow: hidden; }
+      .boot-bar i { display: block; height: 100%; width: 40%; border-radius: 999px; background: #d4af37; animation: boot-slide 1.4s ease-in-out infinite; }
+      @keyframes boot-breathe { 0%, 100% { transform: scale(1) rotate(0deg); } 50% { transform: scale(1.05) rotate(-2deg); } }
+      @keyframes boot-dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } 100% { content: ''; } }
+      @keyframes boot-slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(340%); } }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-mark, .boot-line::after, .boot-bar i { animation: none; }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-screen" aria-hidden="true">
+        <svg class="boot-mark" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="bbg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#2a6a52"/><stop offset="1" stop-color="#123a2c"/>
+            </linearGradient>
+            <linearGradient id="bleaf" x1="0.2" y1="0" x2="0.8" y2="1">
+              <stop offset="0" stop-color="#9bde8b"/><stop offset="1" stop-color="#3fa05f"/>
+            </linearGradient>
+          </defs>
+          <rect width="512" height="512" rx="130" fill="url(#bbg)"/>
+          <path d="M256 48 C 274 48, 300 57, 326 74 C 402 124, 452 200, 444 278 C 434 372, 366 452, 284 462 C 270 464, 258 448, 256 418 C 254 448, 242 464, 228 462 C 146 452, 78 372, 68 278 C 60 200, 110 124, 186 74 C 212 57, 238 48, 256 48 Z" fill="url(#bleaf)"/>
+          <g stroke="#0c2b1f" stroke-width="21" stroke-linecap="round" fill="none">
+            <path d="M78 322 L196 266"/><path d="M96 228 L202 210"/><path d="M150 132 L226 154"/>
+            <path d="M434 322 L316 266"/><path d="M416 228 L310 210"/><path d="M362 132 L286 154"/>
+          </g>
+          <g fill="#0c2b1f">
+            <ellipse cx="212" cy="322" rx="12" ry="21" transform="rotate(-16 212 322)"/>
+            <ellipse cx="300" cy="322" rx="12" ry="21" transform="rotate(16 300 322)"/>
+          </g>
+          <path d="M256 400 L256 92" stroke="#e9f5e4" stroke-width="14" stroke-linecap="round" opacity="0.85" fill="none"/>
+          <path d="M118 380 L210 380 L234 344 L262 394 L282 350 L292 380 L394 380" fill="none" stroke="#f7dfa8" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div class="boot-word">Phyto<span>Doctor</span></div>
+        <div class="boot-bar"><i></i></div>
+        <div class="boot-line">waking the greenhouse</div>
+      </div>
+    </div>
+    <noscript>
+      <div style="min-height:100dvh;display:flex;align-items:center;justify-content:center;background:#0c2b1f;color:#f4eee1;font-family:Georgia,serif;font-size:18px;text-align:center;padding:24px">
+        PhytoDoctor needs JavaScript to run the diagnostic lab.<br/>Enable it and reload — your plants are waiting.
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

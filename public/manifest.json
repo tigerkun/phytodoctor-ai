@@ -1,21 +1,43 @@
 {
   "short_name": "PhytoDoctor",
-  "name": "PhytoDoctor AI — Botanical Diagnosis Lab",
+  "name": "PhytoDoctor AI \u2014 Botanical Diagnosis Lab",
   "icons": [
     {
       "src": "/icon.svg",
       "type": "image/svg+xml",
       "sizes": "any",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ],
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "theme_color": "#1A1C19",
-  "background_color": "#F9F9F7",
+  "theme_color": "#0c2b1f",
+  "background_color": "#0c2b1f",
   "description": "Professional-grade AI diagnostic laboratory and digital specimen collection for indoor horticulturalists.",
   "orientation": "portrait",
-  "categories": ["lifestyle", "utilities"],
-  "screenshots": []
+  "categories": [
+    "lifestyle",
+    "utilities"
+  ],
+  "screenshots": [],
+  "id": "/"
 }

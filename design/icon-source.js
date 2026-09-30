@@ -1,0 +1,49 @@
+// PhytoDoctor mark v3: heart-silhouette monstera (widest near the base,
+// tapering to a point), edge slits, oval fenestrations, diagnostic pulse.
+function markSVG(size) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="${size}" height="${size}">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1d5643"/>
+      <stop offset="1" stop-color="#0c2b1f"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#9bde8b"/>
+      <stop offset="1" stop-color="#3fa05f"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="130" fill="url(#bg)"/>
+  <!-- monstera heart: widest near the base, pointed tip, notched at the stem -->
+  <path d="M256 48
+    C 274 48, 300 57, 326 74
+    C 402 124, 452 200, 444 278
+    C 434 372, 366 452, 284 462
+    C 270 464, 258 448, 256 418
+    C 254 448, 242 464, 228 462
+    C 146 452, 78 372, 68 278
+    C 60 200, 110 124, 186 74
+    C 212 57, 238 48, 256 48 Z" fill="url(#leaf)"/>
+  <!-- edge slits: three per side, thinning toward the tip -->
+  <g stroke="#0c2b1f" stroke-width="21" stroke-linecap="round" fill="none">
+    <path d="M78 322 L196 266"/>
+    <path d="M96 228 L202 210"/>
+    <path d="M150 132 L226 154"/>
+    <path d="M434 322 L316 266"/>
+    <path d="M416 228 L310 210"/>
+    <path d="M362 132 L286 154"/>
+  </g>
+  <!-- oval fenestrations near the midrib -->
+  <g fill="#0c2b1f">
+    <ellipse cx="212" cy="322" rx="12" ry="21" transform="rotate(-16 212 322)"/>
+    <ellipse cx="300" cy="322" rx="12" ry="21" transform="rotate(16 300 322)"/>
+  </g>
+  <!-- midrib -->
+  <path d="M256 400 L256 92" stroke="#e9f5e4" stroke-width="14" stroke-linecap="round" opacity="0.85" fill="none"/>
+  <!-- the doctor: diagnostic pulse across the lobes -->
+  <path d="M118 380 L210 380 L234 344 L262 394 L282 350 L292 380 L394 380"
+        fill="none" stroke="#f7dfa8" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+}
+window.markSVG = markSVG;
+const put = (id, size) => document.getElementById(id).innerHTML = markSVG(size);
+put('at512', 512); put('at64', 64); put('at32', 32); put('at16', 16);

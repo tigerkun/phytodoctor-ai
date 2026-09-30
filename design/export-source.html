@@ -1,0 +1,31 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>html,body{margin:0}</style>
+</head><body>
+<script src="icon.js"></script>
+<script>
+window.variants = {
+  fullbleed: () => markSVG(512).replace('rx="130"','rx="0"'),
+  maskable: () => markSVG(512)
+    .replace('rx="130"','rx="0"')
+    .replace('<path id="leafbody"','<path id="leafbody"') // no-op guard
+    .replace('<rect width="512" height="512" rx="0"','<rect width="512" height="512"')
+    .replace(/(<rect width="512" height="512"[^/]*\/>)/, '$1<g transform="translate(256 256) scale(0.72) translate(-256 -256)">')
+    .replace('</svg>','</g></svg>'),
+};
+window.svgToPng = async (svgString, size) => {
+  const blob = new Blob([svgString], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0, size, size);
+  URL.revokeObjectURL(url);
+  return c.toDataURL('image/png').split(',')[1];
+};
+window.loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+</script>
+</body></html>

@@ -1,0 +1,41 @@
+# Render's free tier sleeps the service after ~15 minutes without inbound
+# traffic, and a sleeping service means the next visitor waits 30-90 seconds
+# staring at nothing while the process boots. For an app whose entire pitch is
+# "snap a leaf, get an answer in seconds", a cold start on the first impression
+# is the most expensive possible bug.
+#
+# This workflow pings the health endpoint often enough that the service never
+# idles long enough to sleep. The repo is public, so Actions minutes are free.
+name: Keep alive
+
+on:
+  schedule:
+    # Every 10 minutes. GitHub may delay scheduled runs by a few minutes under
+    # load; Render idles at 15, so even a delayed ping lands in time.
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keep-alive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Warm the service
+        run: |
+          code=$(curl -sS -o /tmp/health.json -w "%{http_code}" --max-time 45 \
+            https://phytodoctor-ai.onrender.com/healthz)
+          cat /tmp/health.json
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::warning::health check returned HTTP $code"
+            exit 1
+          fi
+          grep -q '"ready":true' /tmp/health.json || {
+            echo "::warning::service answered but is not ready"; exit 1; }
