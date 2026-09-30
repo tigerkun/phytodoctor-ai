@@ -211,7 +211,7 @@ function readJson<T>(key: string, fallback: T): T {
 
 
 // ── HERO CAROUSEL ──
-function HeroCarousel({ onClaim }: { onClaim: (id: string, refundValue: number) => void }) {
+function HeroCarousel({ onClaim, seeds }: { onClaim: (id: string, refundValue: number) => void; seeds: number }) {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const heroProducts = MOCK_PRODUCTS.filter(p => p.isLimited).slice(0, 3);
 
@@ -226,6 +226,8 @@ function HeroCarousel({ onClaim }: { onClaim: (id: string, refundValue: number) 
   // Calculate real-world refund logic (e.g., 200 seeds = ₹1)
   const refundValue = Math.floor(product.seedPrice / 200);
   const finalPrice = product.cashPrice - refundValue;
+  const shortfall = Math.max(0, product.seedPrice - seeds);
+  const canAfford = shortfall === 0;
 
   return (
     <motion.div
@@ -321,14 +323,25 @@ function HeroCarousel({ onClaim }: { onClaim: (id: string, refundValue: number) 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={canAfford ? { scale: 1.02 } : undefined}
+              whileTap={canAfford ? { scale: 0.98 } : undefined}
               onClick={() => {
+                if (!canAfford) return;
                 onClaim(product.id, refundValue);
               }}
-              className="flex-1 bg-[#c17f59] hover:bg-[#a85a42] text-white font-black py-4 px-6 rounded-sm transition-all shadow-lg flex items-center justify-center gap-2 uppercase text-xs tracking-[0.16em]"
+              disabled={!canAfford}
+              aria-disabled={!canAfford}
+              title={canAfford ? undefined : `You need ${shortfall.toLocaleString()} more seeds`}
+              className={`flex-1 font-black py-4 px-6 rounded-sm transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-[0.16em] ${
+                canAfford
+                  ? "bg-[#c17f59] hover:bg-[#a85a42] text-white shadow-lg cursor-pointer"
+                  : "bg-white/10 text-[#e8d5b0]/45 cursor-not-allowed"
+              }`}
             >
-              <ShoppingBag size={18} /> Buy at stall · claim refund <ExternalLink size={16} className="ml-1" />
+              <ShoppingBag size={18} />
+              {canAfford
+                ? <>Buy at stall · claim refund <ExternalLink size={16} className="ml-1" /></>
+                : <>Need {shortfall.toLocaleString()} more seeds</>}
             </motion.button>
           </div>
 
@@ -354,9 +367,11 @@ function HeroCarousel({ onClaim }: { onClaim: (id: string, refundValue: number) 
 }
 
 // ── PRODUCT CARD ──
-function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish }: { product: any; onClaim: (id: string, refundValue: number) => void; onAddToCart?: (product: any) => void; wished?: boolean; onToggleWish?: (id: string) => void }) {
+function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish, seeds }: { product: any; onClaim: (id: string, refundValue: number) => void; onAddToCart?: (product: any) => void; wished?: boolean; onToggleWish?: (id: string) => void; seeds: number }) {
   // Calculate real-world refund logic
   const refundValue = Math.floor(product.seedPrice / 200);
+  const shortfall = Math.max(0, product.seedPrice - seeds);
+  const canAfford = shortfall === 0;
 
   const handleAmazonRedirect = () => {
     onClaim(product.id, refundValue);
@@ -425,6 +440,11 @@ function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish }: { 
           </div>
           <p className="text-[10px] text-[#7a6a50] flex items-center gap-1">
             <Leaf size={10} className="text-moss" /> {product.seedPrice.toLocaleString()} seeds at this stall
+            {!canAfford && (
+              <span className="ml-auto text-[#b4552d] font-semibold">
+                {shortfall.toLocaleString()} short
+              </span>
+            )}
           </p>
           <div className="flex gap-2">
             <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => onAddToCart?.(product)}
@@ -760,7 +780,7 @@ export default function GardenMarket() {
                 exit={{ opacity: 0 }}
                 className="space-y-16"
               >
-                <HeroCarousel onClaim={handleClaim} />
+                <HeroCarousel onClaim={handleClaim} seeds={seeds} />
 
                 {/* Featured Section */}
                 <div>
@@ -787,6 +807,7 @@ export default function GardenMarket() {
                         onAddToCart={handleAddToCart}
                         wished={wishlist.includes(product.id)}
                         onToggleWish={toggleWish}
+                        seeds={seeds}
                       />
                     ))}
                   </motion.div>
@@ -826,6 +847,7 @@ export default function GardenMarket() {
                         onAddToCart={handleAddToCart}
                         wished={wishlist.includes(product.id)}
                         onToggleWish={toggleWish}
+                        seeds={seeds}
                       />
                     ))}
                 </motion.div>
@@ -862,6 +884,7 @@ export default function GardenMarket() {
                         onAddToCart={handleAddToCart}
                         wished={wishlist.includes(product.id)}
                         onToggleWish={toggleWish}
+                        seeds={seeds}
                       />
                     ))}
                 </motion.div>
@@ -967,6 +990,7 @@ export default function GardenMarket() {
                       onAddToCart={handleAddToCart}
                       wished={wishlist.includes(product.id)}
                       onToggleWish={toggleWish}
+                      seeds={seeds}
                     />
                   ))}
                 </div>

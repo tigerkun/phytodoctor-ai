@@ -233,12 +233,18 @@ export default function Profile() {
       if (result.success) {
         if (hapticEnabled) triggerHaptic('medium');
         if (audioEnabled) playAudio('success');
-        alert(`Successfully backed up ${result.count} plants to the Sanctuary cloud!`);
+        // A native alert() blocked the whole page mid-flow and read as a
+        // system error rather than the app's own confirmation.
+        success(
+          result.count > 0
+            ? `Backed up ${result.count} ${result.count === 1 ? 'plant' : 'plants'} to the Sanctuary cloud!`
+            : 'Ledger synced — no plants on this device to back up yet.'
+        );
       } else {
-        alert(`Sync failed: ${result.error}`);
+        error(`Sync failed: ${result.error}`);
       }
     } catch (err: any) {
-      alert(`Sync error: ${err?.message || 'Unknown error occurred'}`);
+      error(`Sync error: ${err?.message || 'Unknown error occurred'}`);
     } finally {
       setSyncing(false);
     }
