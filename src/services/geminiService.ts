@@ -58,7 +58,39 @@ export interface LocationContext {
  */
 const IDENTIFY_TIMEOUT_MS = 120_000;
 
-export async function identifyPlant(base64Image: string, location?: LocationContext): Promise<PlantCare> {
+/**
+ * What the scan found before any botany: the subject triage and the photo's
+ * provenance ride along on every plant response, and a non-plant scan swaps
+ * the botanical payload for a route + message instead.
+ */
+export interface IdentifySubject {
+  kind: string;
+  confidence: number;
+  description?: string;
+}
+
+export interface IdentifyProvenance {
+  verdict: 'self_captured' | 'unverified' | 'likely_synthetic';
+  checks: {
+    captureMetadata: 'pass' | 'absent';
+    containerForensics: 'clean' | 'flagged';
+    modelJudgment: 'clean' | 'flagged' | 'absent';
+  };
+  reasons: string[];
+  container: string;
+  resolution: string | null;
+}
+
+export type IdentifyResult = PlantCare & {
+  /** Absent on payloads from before the triage existed; treated as plant. */
+  route?: 'plant' | 'non_living' | 'living_non_plant';
+  subject?: IdentifySubject;
+  provenance?: IdentifyProvenance;
+  /** Human-readable explanation, present on the non-plant routes. */
+  message?: string;
+};
+
+export async function identifyPlant(base64Image: string, location?: LocationContext): Promise<IdentifyResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), IDENTIFY_TIMEOUT_MS);
 

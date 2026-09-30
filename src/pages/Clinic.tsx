@@ -127,6 +127,13 @@ export default function Clinic() {
   const { info, success, error: toastError } = useToast();
   const [images, setImages] = useState<string[]>([]);
   const [identification, setIdentification] = useState<PlantCare | null>(null);
+  // Set when the scan triaged as something other than a plant: the dispenser
+  // has no botanical verdict to show, so it shows what was seen instead.
+  const [subjectNotice, setSubjectNotice] = useState<{ route: string; message: string; description?: string; kind?: string } | null>(null);
+  // The provenance gate's hold on this session's reward, with the one-tap
+  // release. Same policy as the Lab: the verdict is evidence, never a block.
+  const [provenanceHold, setProvenanceHold] = useState<{ verdict: string; withheldSeeds: number } | null>(null);
+  const [attested, setAttested] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [loadingPhase, setLoadingPhase] = useState(0);
@@ -199,31 +206,90 @@ export default function Clinic() {
   const identify = async (base64Image: string) => {
     setLoading(true);
     setError(null);
+    setSubjectNotice(null);
+    setProvenanceHold(null);
+    setAttested(false);
     try {
       const result = await identifyPlant(base64Image);
+
+      // The scan triaged as something other than a plant. No botanical verdict
+      // exists, so nothing is saved and no reward is paid — say what was seen.
+      if (result?.route === 'non_living' || result?.route === 'living_non_plant') {
+        setSubjectNotice({
+          route: result.route,
+          message: result.message || 'PhytoDoctor AI analyses plants only.',
+          description: result.subject?.description,
+          kind: result.subject?.kind,
+        });
+        return;
+      }
+
       setIdentification(result);
-      
-      // Award diagnosis reward
+
+      // Award diagnosis reward, gated by image provenance. Same policy as the
+      // Lab: self-captured pays in full, unverified pays half, likely-synthetic
+      // pays nothing until the attestation. The clawback is its own ledger line
+      // so the withholding is auditable, and payloads that predate the feature
+      // carry no verdict and default to permissive.
+      const verdict: string = result?.provenance?.verdict || 'self_captured';
+      let seeds = 0;
+      let xp = 0;
+      let capExceeded: boolean | undefined;
       try {
         const rewardResult = await COMMON_REWARDS.diagnose('clinic-session');
-        const rewardId = crypto.randomUUID();
-        setNotifications(prev => [...prev, {
-          id: rewardId,
-          xp: rewardResult.xpAwarded,
-          seeds: rewardResult.seedsAwarded,
-          actionName: 'Dispensary Triage Complete',
-          capExceeded: rewardResult.capExceeded
-        }]);
-        setTimeout(() => {
-          setNotifications(prev => prev.filter(n => n.id !== rewardId));
-        }, 4000);
+        seeds = rewardResult.seedsAwarded;
+        xp = rewardResult.xpAwarded;
+        capExceeded = rewardResult.capExceeded;
       } catch (rewardErr) {
         console.error('Reward error:', rewardErr);
       }
+
+      if (verdict !== 'self_captured' && seeds > 0) {
+        const clawback = verdict === 'likely_synthetic' ? seeds : Math.floor(seeds / 2);
+        if (clawback > 0) {
+          try {
+            await GameService.spendSeeds(clawback, 'spend', `Provenance gate (${verdict}): clinic scan`);
+            seeds -= clawback;
+            setProvenanceHold({ verdict, withheldSeeds: clawback });
+          } catch {
+            // A cap-exhausted balance cannot absorb the clawback; let the full
+            // award stand rather than throwing away a completed triage.
+          }
+        }
+      }
+
+      const rewardId = crypto.randomUUID();
+      setNotifications(prev => [...prev, {
+        id: rewardId,
+        xp,
+        seeds,
+        actionName: 'Dispensary Triage Complete',
+        capExceeded,
+      }]);
+      setTimeout(() => {
+        setNotifications(prev => prev.filter(n => n.id !== rewardId));
+      }, 4000);
     } catch (err: any) {
       setError(err?.message || 'Please try again with a clearer leaf photo.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  /** Releases exactly what the provenance gate withheld, once attested. */
+  const attestSelfCaptured = async () => {
+    if (!provenanceHold) return;
+    try {
+      await GameService.earnSeeds(
+        provenanceHold.withheldSeeds,
+        'bonus',
+        'Attested self-captured: clinic reward released'
+      );
+      success(`${provenanceHold.withheldSeeds} seeds returned — thank you for confirming.`);
+      setProvenanceHold(null);
+      setAttested(true);
+    } catch (e: any) {
+      toastError(e?.message || 'Could not release the withheld reward.');
     }
   };
 
@@ -288,7 +354,7 @@ export default function Clinic() {
   const isQuarantineRequired = severityLevel >= 3;
 
   const HealthPill = () => {
-    const healthStatus = (identification as any)?.healthStatus as string | undefined;
+    const healthStatus = identification?.healthStatus as string | undefined;
     const label = healthStatus || 'Vigorous';
     const isHealthy = label.toLowerCase().includes('healthy');
     const isSevere = label.toLowerCase().includes('infest') || label.toLowerCase().includes('diseas');
@@ -602,6 +668,54 @@ export default function Clinic() {
                           </div>
                         )}
                       </div>
+
+                      {/* Non-plant triage: no botanical verdict exists for this
+                          image, so the dispenser says what it saw instead. */}
+                      {subjectNotice && (
+                        <div className="p-4 rounded-xl bg-[#1c130b]/60 border border-[#b89542]/40 text-center space-y-2" role="status">
+                          <div className="flex items-center justify-center gap-2 font-mono font-black uppercase text-[11px] text-amber-300">
+                            <span aria-hidden>{subjectNotice.route === 'non_living' ? '⚖' : '🌿'}</span>
+                            <span>{subjectNotice.route === 'non_living' ? 'Not a living specimen' : 'Alive — but not a plant'}</span>
+                          </div>
+                          {subjectNotice.description && (
+                            <p className="text-xs text-[var(--text-stone)] leading-relaxed">{subjectNotice.description}</p>
+                          )}
+                          <p className="text-[11px] leading-relaxed text-[var(--text-stone)]/80">{subjectNotice.message}</p>
+                          <p className="text-[9px] font-mono uppercase tracking-widest text-[var(--text-stone)]/50">
+                            Subject read as {subjectNotice.kind || 'uncertain'} · no seeds awarded
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Provenance hold: the reward was gated, never the
+                          diagnosis. One tap releases it if the photo was the
+                          Keeper's own. */}
+                      {provenanceHold && !attested && (
+                        <div className={`p-3.5 rounded-xl border ${provenanceHold.verdict === 'likely_synthetic' ? 'bg-red-950/30 border-red-500/40' : 'bg-amber-950/30 border-amber-500/40'}`} role="alert">
+                          <div className="flex items-center gap-2 font-mono font-bold uppercase text-[11px] text-amber-300 mb-1">
+                            <AlertTriangle size={13} className="shrink-0" />
+                            <span>Provenance unverified — reward held</span>
+                          </div>
+                          <p className="text-[11px] leading-relaxed text-[var(--text-stone)] mb-2.5">
+                            {provenanceHold.verdict === 'likely_synthetic'
+                              ? 'This photo carries signs it was generated or taken from the web, so the triage reward is being held. The diagnosis itself was never affected.'
+                              : 'This photo carried no camera metadata, so half the triage reward is held.'}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={attestSelfCaptured}
+                            className="w-full py-2.5 rounded-lg bg-[#b89542]/20 hover:bg-[#b89542]/30 border border-[#b89542]/50 text-[var(--text-bark)] text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+                          >
+                            🤝 I took this photo myself — release {provenanceHold.withheldSeeds} seeds
+                          </button>
+                        </div>
+                      )}
+                      {attested && (
+                        <div className="p-2.5 rounded-xl bg-[#5f7161]/15 border border-[#5f7161]/30 flex items-center justify-center gap-2 text-[#5f7161] dark:text-[#9caf88]">
+                          <ShieldCheck size={14} />
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider">Origin confirmed by you · reward released</span>
+                        </div>
+                      )}
 
                       {/* Quarantine Directive Alert Box */}
                       {identification && isQuarantineRequired && (

@@ -479,6 +479,18 @@ export default function BotanicalLab() {
         const plant = await db.plants.get(targetPlantId);
         if (!plant) throw new Error("Specimen record not found in Sanctuary.");
 
+        // The new photo must show the same specimen. A photo of something else
+        // (or of nothing alive) is not a check-in for this plant, so neither
+        // the photo, the seeds nor the streak move.
+        if (result?.route === 'non_living') {
+          setScanError(result.message || 'Only living specimens are analysed — this photo does not update the record.');
+          return;
+        }
+        if (result?.route === 'living_non_plant') {
+          setScanError(`That photo shows ${result.subject?.kind || 'something living'}, not the registered plant. Photo not updated.`);
+          return;
+        }
+
         const resultSpecies = result.speciesName || result.commonName;
         const oldGenus = (plant.species || '').split(' ')[0].toLowerCase();
         const newGenus = (resultSpecies || '').split(' ')[0].toLowerCase();
