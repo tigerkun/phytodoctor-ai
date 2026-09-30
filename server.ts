@@ -952,7 +952,13 @@ LOCATION-AWARE FIELDS (required if location provided):
     // severity drives Clinic's `isQuarantineRequired` (>= 3) and the severity
     // dots in BotanicalLab, so an off-scale value silently skips quarantine on
     // a critical finding. The differential confidences render as percentages.
-    if ('severity' in result) result.severity = clampTo(result.severity, 1, 5, 1);
+    // Only clamp values that are actually present: when the model omits
+    // severity, Clinic falls back to deriving a level from healthStatus, and
+    // substituting a number here would suppress that fallback and report an
+    // infested plant as mild.
+    if (typeof result.severity === 'number' && Number.isFinite(result.severity)) {
+      result.severity = clampTo(result.severity, 1, 5, 1);
+    }
     if (Array.isArray(result.differentialDiagnosis)) {
       for (const d of result.differentialDiagnosis) {
         if (d && typeof d === 'object' && 'confidence' in d) {
