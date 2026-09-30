@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll, afterAll } from 'vitest';
 import { createUserScopedClient } from '../supabaseUserClient';
 
 const URL = 'https://project.supabase.co';
@@ -6,6 +6,53 @@ const PUBLISHABLE = 'sb_publishable_test_key';
 const USER_TOKEN = 'user.access.token.jwt';
 
 const realFetch = globalThis.fetch;
+const realWebSocket = (globalThis as any).WebSocket;
+
+/**
+ * `createClient` builds a Realtime client, and that resolves a WebSocket
+ * constructor during construction and throws when the runtime has none. Node
+ * only gained a global WebSocket in 22, so this test fails outright on Node 20
+ * with "Node.js detected but native WebSocket not found" — a runtime mismatch
+ * that says nothing about the header contract it exists to pin.
+ *
+ * Production runs node:22-alpine and this test never opens a socket: only the
+ * PostgREST request matters. A no-op constructor satisfies the lookup on
+ * runtimes that lack one, and the real one is left alone where it exists, so
+ * the test stops depending on which Node version happens to run it.
+ */
+class NoopWebSocket {
+  static CONNECTING = 0;
+  static OPEN = 1;
+  static CLOSING = 2;
+  static CLOSED = 3;
+  readyState = 0;
+  binaryType = 'blob';
+  bufferedAmount = 0;
+  extensions = '';
+  protocol = '';
+  onopen: any = null;
+  onclose: any = null;
+  onerror: any = null;
+  onmessage: any = null;
+  constructor(_url: string, _protocols?: string | string[]) {}
+  send() {}
+  close() {}
+  addEventListener() {}
+  removeEventListener() {}
+  dispatchEvent() {
+    return false;
+  }
+}
+
+beforeAll(() => {
+  if (typeof (globalThis as any).WebSocket === 'undefined') {
+    (globalThis as any).WebSocket = NoopWebSocket;
+  }
+});
+
+afterAll(() => {
+  (globalThis as any).WebSocket = realWebSocket;
+});
 
 afterEach(() => {
   globalThis.fetch = realFetch;

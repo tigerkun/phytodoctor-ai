@@ -12,7 +12,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Must match the Dockerfile's node:22-alpine, which is what Render
+          # builds. Node 20 has no global WebSocket, so createClient throws
+          # during construction there — a runtime mismatch that reddened CI
+          # while saying nothing about the code under test.
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npx tsc --noEmit
