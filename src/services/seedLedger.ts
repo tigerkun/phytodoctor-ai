@@ -165,10 +165,10 @@ export async function flushSeedSyncOutbox(userId: string): Promise<void> {
  * 'dead' counts. A parked entry is undelivered, not delivered, and its credits
  * are still only in the local balance. Counting only 'pending' meant that once
  * MAX_SYNC_ATTEMPTS parked the last entry, the outbox looked empty, the guard
- * below released, and the stale server balance overwrote seeds the user had
- * actually earned — silent loss of currency with nothing on screen to explain
- * it. A row is deleted on successful delivery, so any surviving row of either
- * status means the server is behind.
+ * in pullServerProfile released, and the stale server balance overwrote seeds
+ * the user had actually earned — silent loss of currency with nothing on
+ * screen to explain it. A row is deleted on successful delivery, so any
+ * surviving row of either status means the server is behind.
  */
 export async function hasPendingSeedSyncs(userId: string): Promise<boolean> {
   const pending = await db.seedSyncOutbox.where('[userId+status]').equals([userId, 'pending']).count();
