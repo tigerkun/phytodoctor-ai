@@ -60,10 +60,15 @@ export default function PlantDetail() {
   const [forecastLoading, setForecastLoading] = useState(false);
 
   const [plant, setPlant] = useState<Plant | undefined>();
+  const [plantLoading, setPlantLoading] = useState(true);
 
   useEffect(() => {
-    if (!id) return;
-    PlantService.getPlant(id).then(p => setPlant(p || undefined));
+    if (!id) {
+      setPlantLoading(false);
+      return;
+    }
+    setPlantLoading(true);
+    PlantService.getPlant(id).then(p => setPlant(p || undefined)).finally(() => setPlantLoading(false));
     return onPlantsChange(() => {
       PlantService.getPlant(id).then(p => setPlant(p || undefined));
     });
@@ -87,7 +92,9 @@ export default function PlantDetail() {
 
   const latestCheckIn = history?.[history.length - 1];
   const driftStatus = latestCheckIn?.driftStatus === 'alert' ? 'critical' : latestCheckIn?.driftStatus === 'watching' ? 'declining' : 'stable';
-  const children = lineage?.filter(candidate => candidate.parentPlantId === plant.id) || [];
+  // Runs before the `!plant` guard below, so it must tolerate an unresolved plant:
+// once `lineage` resolves to an array, `plant.id` would throw on a bad id.
+const children = lineage?.filter(candidate => candidate.parentPlantId === plant?.id) || [];
   const generateVoice = async () => {
     if (!latestCheckIn || voiceLoading) return;
     setVoiceLoading(true);
@@ -126,7 +133,29 @@ export default function PlantDetail() {
     }
   };
 
-  if (!plant) return <div className="p-20 text-center font-serif text-2xl">Loading specimen dossier...</div>;
+  // An unknown id used to render the loading copy forever, because `plant` stays
+// undefined both while the read is in flight and when the row does not exist —
+// so a stale or hand-edited link left the user on a dead page with no way out.
+if (!plant) {
+  if (plantLoading) {
+    return <div className="p-20 text-center font-serif text-2xl">Loading specimen dossier...</div>;
+  }
+  return (
+    <div className="p-20 text-center space-y-4">
+      <h1 className="font-serif text-3xl">Specimen not found</h1>
+      <p className="text-sm opacity-70 max-w-md mx-auto">
+        This dossier is no longer in your conservatory. It may have been removed on
+        another device, or the link may belong to a different account.
+      </p>
+      <a
+        href="/"
+        className="inline-block font-black text-xs uppercase tracking-[0.16em] px-6 py-3 border border-current rounded-sm"
+      >
+        Return to the sanctuary
+      </a>
+    </div>
+  );
+}
 
   const handleSynthesizeArt = async () => {
     if (!card) return;
