@@ -8,6 +8,7 @@ import webpush from "web-push";
 import { randomUUID } from "node:crypto";
 import { createUserScopedClient } from "./src/lib/supabaseUserClient";
 import { clampTo, clampPercent, clampUnit, hasScore, orderRange } from "./src/lib/scoreGuards";
+import { cooldownFor, selectModels as chooseModels } from "./src/lib/modelCooldown";
 
 dotenv.config();
 
@@ -713,17 +714,43 @@ const ai = new GoogleGenAI({
   }
 });
 
+// Wait-facing routes get a shorter per-attempt budget. The 60s cap exists so a
+// hung call eventually resolves, but paying 60s before falling back is itself
+// the defect: a production /api/sandbox assess measured ~105s wall clock, which
+// is 60s of dead time on the first model plus a fast answer from the fallback.
+const aiFast = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    timeout: 25000,
+    headers: { 'User-Agent': 'aistudio-build' },
+  }
+});
+
+const MODEL_CHAIN = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash"];
+
 // Verified against the production key on 2026-09-28: Google retired
 // gemini-2.5-flash/2.0-flash/1.5-flash for new-format keys ("no longer
 // available to new users", 404 with a pointer to gemini-3.8-flash), which
 // made EVERY AI route fail after walking the whole dead chain. Live-verified:
 // 3.8-flash and 3.5-flash answer 200 (intermittently 503 capacity-shed),
 // 3.1-flash-lite answers 200. 2.5-flash stays last for legacy AIza keys.
-async function generateWithRetry(params: any, retries = 1) {
-  const envModel = process.env.GEMINI_MODEL;
-  const models = envModel
-    ? [envModel, "gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
-    : ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash"];
+
+// A model that just timed out or was capacity-shed is overwhelmingly likely to
+// do it again on the very next request, and the chain is walked in order — so
+// without a cooldown the slowest model taxes every user request. Parking it
+// briefly turns "every call is 105s" into "one call is 105s, the rest are fast".
+const modelCooldownUntil = new Map<string, number>();
+
+function noteModelFailure(model: string, missing = false) {
+  modelCooldownUntil.set(model, cooldownFor(missing));
+}
+
+function selectModels() {
+  return chooseModels(Date.now(), modelCooldownUntil, process.env.GEMINI_MODEL);
+}
+
+async function generateWithRetry(params: any, retries = 1, client: GoogleGenAI = aiFast) {
+  const models = selectModels();
 
   for (const modelName of models) {
     for (let i = 0; i <= retries; i++) {
@@ -740,7 +767,7 @@ async function generateWithRetry(params: any, retries = 1) {
             modelParams.config.thinkingConfig = { thinkingBudget: 0 };
           }
         }
-        return await ai.models.generateContent(modelParams);
+        return await client.models.generateContent(modelParams);
       } catch (err: any) {
         const isFatal = err?.status === 400 || err?.status === 401 || err?.status === 403;
         if (isFatal) throw err; // Don't delay on authentication or bad request errors
@@ -749,6 +776,7 @@ async function generateWithRetry(params: any, retries = 1) {
         // fallback. 429 is project-level quota — failing fast avoids
         // repeating the failure against every model with sleeps in between.
         const isModelMissing = err?.status === 404 || err?.message?.includes("not found");
+        if (isModelMissing) noteModelFailure(modelName, true);
         if (isModelMissing && modelName !== models[models.length - 1]) {
           console.warn(`Model ${modelName} unavailable (${err?.status || 'error'}), falling back to next model...`);
           break;
@@ -760,6 +788,7 @@ async function generateWithRetry(params: any, retries = 1) {
         // the next model immediately instead of burning the same one twice.
         const isCapacity = err?.status === 503 || err?.status === 504 || /aborted|deadline/i.test(String(err?.message || ''));
         if (isCapacity) {
+          noteModelFailure(modelName);
           if (modelName !== models[models.length - 1]) {
             console.warn(`Model ${modelName} saturated (${err?.status || 'error'}), falling back to next model...`);
             break;
@@ -938,7 +967,11 @@ LOCATION-AWARE FIELDS (required if location provided):
           }
         }
       }
-    });
+    },
+    // Identify keeps the full 60s budget: the vision schema is far larger than
+    // the text routes and legitimately needs more than the fast client's 25s.
+    1,
+    ai);
 
     const rawText = response.text || "";
     const cleanedText = rawText.replace(/```json|```/gi, "").trim();
