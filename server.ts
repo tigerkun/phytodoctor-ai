@@ -421,6 +421,13 @@ async function runWateringReminders() {
         .update({ last_sent_at: new Date(now).toISOString() }).eq('id', sub.id);
       // Only the oldest plant is linked in the notification, but every plant
       // in the batch is recorded as alerted so none resurfaces tomorrow.
+      //
+      // This is a plain insert, not the upsert the migration's comment
+      // describes, and the index backing it is not unique — so a retry after
+      // a crash does write a second row for the same plant. That is currently
+      // harmless: nothing reads this table. Suppression comes from
+      // last_sent_at above. If something ever starts reading it to decide what
+      // to skip, it needs a real unique constraint and an upsert first.
       await supabaseAdmin.from('push_alert_log').insert(
         due.map(p => ({ user_id: sub.user_id, plant_id: p.id, kind: 'watering' }))
       );
