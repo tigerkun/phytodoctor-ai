@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import { createUserScopedClient } from "./src/lib/supabaseUserClient";
 import { clampTo, clampPercent, clampUnit, hasScore, orderRange } from "./src/lib/scoreGuards";
 import { cooldownFor, selectModels as chooseModels } from "./src/lib/modelCooldown";
+import { readImageSignals, assessProvenance } from "./src/lib/imageProvenance";
 
 dotenv.config();
 
@@ -849,6 +850,14 @@ app.post("/api/identify", express.json({ limit: '11mb' }), aiLimiter, apiGate, t
 
     const prompt = `You are PhytoDoctor AI, the world's most advanced botanical diagnostician. Perform a clinically precise analysis of the plant in this image.
 
+BEFORE ANYTHING ELSE, triage the subject of this image:
+- subjectKind: "plant" if the main subject is a plant, tree, flower, moss or other botanical specimen; "fungus" for mushrooms and moulds; "animal" for any animal; "human" for a person; "other_living" for any other living organism; "non_living" for objects, products, food, rooms, screenshots, artwork, landscapes without a clear subject, or text. If the subject genuinely cannot be determined, use "uncertain".
+- subjectConfidence: your confidence in that classification, 0 to 1.
+- subjectDescription: one or two sentences on what the image actually shows.
+If the subject is NOT a plant, do not invent plant findings: fill the botanical fields with honest placeholders (commonName "Not a plant", diagnosis summarising what is actually visible) and say so in subjectDescription. Only a confident, clearly botanical subject gets a full clinical analysis.
+
+ALSO, judge the image's provenance (provenanceJudgment): from the visual evidence alone — rendering artefacts, uncanny texture regularity, impossible detail, studio-perfect lighting, watermark style — say whether this looks like an AI-generated image or a genuine photograph, and how confident you are. Judge only the image, not the user.
+
 Be specific in every field; keep each field concise:
 1. Identify the exact species (common name, full scientific name with authority if known).
 2. Visually assess ALL visible symptoms: leaf colour, texture, lesions, spots, wilting, edge burn, yellowing pattern, stem condition, soil surface if visible, pest evidence.
@@ -890,8 +899,31 @@ LOCATION-AWARE FIELDS (required if location provided):
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
-          required: ["commonName", "scientificName", "healthStatus", "severity", "diagnosis", "differentialDiagnosis", "treatmentTimeline", "treatmentInstructions", "watering", "light", "soil", "temperature", "careTips", "vulnerabilityNotes"],
+          required: ["subject", "provenanceJudgment", "commonName", "scientificName", "healthStatus", "severity", "diagnosis", "differentialDiagnosis", "treatmentTimeline", "treatmentInstructions", "watering", "light", "soil", "temperature", "careTips", "vulnerabilityNotes"],
           properties: {
+            subject: {
+              type: Type.OBJECT,
+              required: ["subjectKind", "subjectConfidence", "subjectDescription"],
+              description: "Triage of what the image actually shows, decided before any botanical analysis.",
+              properties: {
+                subjectKind: {
+                  type: Type.STRING,
+                  description: "One of: plant, fungus, animal, human, other_living, non_living, uncertain."
+                },
+                subjectConfidence: { type: Type.NUMBER, description: "Confidence in subjectKind, 0 to 1." },
+                subjectDescription: { type: Type.STRING, description: "What the image actually shows, in one or two sentences." }
+              }
+            },
+            provenanceJudgment: {
+              type: Type.OBJECT,
+              required: ["appearsAiGenerated", "confidence", "visualClues"],
+              description: "The model's own visual judgment of whether the image is AI-generated. Independent of file metadata.",
+              properties: {
+                appearsAiGenerated: { type: Type.BOOLEAN },
+                confidence: { type: Type.NUMBER, description: "Confidence in that judgment, 0 to 1." },
+                visualClues: { type: Type.STRING, description: "The visual evidence, in one sentence." }
+              }
+            },
             commonName: { type: Type.STRING },
             scientificName: { type: Type.STRING },
             healthStatus: {
@@ -999,6 +1031,60 @@ LOCATION-AWARE FIELDS (required if location provided):
         }
       }
     }
+
+    // ── subject triage ──
+    // The three-way split the scanner flow needs. Only a CONFIDENT non-plant
+    // diverts; `uncertain` and low-confidence non-plants fall through to the
+    // plant flow, because a misrouted fern is worse than an odd routing for a
+    // marginal photo.
+    const subject = result.subject || {};
+    const kind = String(subject.subjectKind || 'uncertain').toLowerCase();
+    const subjectConfidence = clampUnit(Number(subject.subjectConfidence ?? 0));
+    const subjectDescription = strLimit(subject.subjectDescription, 400) || '';
+    const LIVING_NON_PLANT = new Set(['fungus', 'animal', 'human', 'other_living']);
+
+    // ── provenance: checks 1 and 2 run on the raw bytes, check 3 came back in the payload ──
+    const imageBuffer = Buffer.from(base64Data, 'base64');
+    const signals = readImageSignals(new Uint8Array(imageBuffer));
+    const rawJudgment = result.provenanceJudgment;
+    const modelJudgment = rawJudgment && typeof rawJudgment === 'object' ? {
+      appearsAiGenerated: Boolean(rawJudgment.appearsAiGenerated),
+      confidence: clampUnit(Number(rawJudgment.confidence ?? 0)),
+      visualClues: strLimit(rawJudgment.visualClues, 300) || undefined,
+    } : null;
+    const provenance = assessProvenance(signals, modelJudgment);
+
+    if (kind === 'non_living' && subjectConfidence >= 0.6) {
+      return res.json({
+        route: 'non_living',
+        subject: { kind, confidence: subjectConfidence, description: subjectDescription },
+        message: 'Only living specimens are analysed. PhytoDoctor AI diagnoses plants — point the lens at a plant, leaf, flower or tree and scan again.',
+      });
+    }
+    if (LIVING_NON_PLANT.has(kind) && subjectConfidence >= 0.6) {
+      const names: Record<string, string> = {
+        fungus: 'a fungus',
+        animal: 'an animal',
+        human: 'a person',
+        other_living: 'a living thing, but not a plant',
+      };
+      return res.json({
+        route: 'living_non_plant',
+        subject: { kind, confidence: subjectConfidence, description: subjectDescription },
+        message: `That looks like ${names[kind]}. PhytoDoctor AI diagnoses plants only, so there is no botanical verdict here — but the Sanctuary is always open for a plant scan.`,
+      });
+    }
+
+    // Plain plant flow: provenance rides along so the client can gate the seed
+    // reward without blocking the diagnosis.
+    result.route = 'plant';
+    result.provenance = {
+      verdict: provenance.verdict,
+      checks: provenance.checks,
+      reasons: provenance.reasons.slice(0, 4),
+      container: signals.container,
+      resolution: signals.width && signals.height ? `${signals.width}x${signals.height}` : null,
+    };
     res.json(result);
   } catch (error: any) {
     console.error("Gemini Error:", error?.response?.status || error?.status || '', error?.message || error);

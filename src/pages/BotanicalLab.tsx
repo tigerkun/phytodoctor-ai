@@ -42,6 +42,7 @@ import PageWrapper from '../components/home/PageWrapper';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { fetchWeather } from '../utils/weatherIntegration';
 import { updateUploadStreak } from '../game/rewardUtils';
+import { useToast } from '../components/Toast';
 
 // Rarity mapping helper
 function getRarityFromSpecies(species: string): 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' {
@@ -79,9 +80,93 @@ const SCAN_STAGES: { id: Exclude<ScanStage, 'idle'>; label: string }[] = [
 
 const SCAN_STAGE_ORDER: ScanStage[] = SCAN_STAGES.map(s => s.id);
 
+/**
+ * The non-plant branch of the scan. The scanner's contract has always been
+ * "point it at a plant", and pointing it at a mug or a dog used to produce a
+ * confident-looking diagnosis of the mug. The model now triages first; this is
+ * the page those scans land on instead.
+ *
+ * Two flavours with different copy: `non_living` is a polite refusal (the
+ * product only analyses living things); `living_non_plant` is a friendly
+ * deflection (something alive was seen, but there is no botanical verdict for
+ * it). Neither awards seeds, and neither saves a specimen.
+ */
+function NonPlantResult({ result, onScanAgain }: { result: any; onScanAgain: () => void }) {
+  const isNonLiving = result?.route === 'non_living';
+  const subject = result?.subject || {};
+  const headline = isNonLiving ? 'That is not a living specimen' : 'That is alive — but not a plant';
+  const glyph = isNonLiving ? '⚖' : subject.kind === 'animal' ? '🐾' : subject.kind === 'human' ? '🙂' : subject.kind === 'fungus' ? '🍄' : '🌿';
+
+  return (
+    <div className="rounded-2xl border border-[#b4a58c]/40 bg-bg-secondary p-6 sm:p-8 text-center">
+      <div className="mx-auto w-16 h-16 rounded-full bg-moss/10 border border-moss/20 flex items-center justify-center text-3xl mb-4" aria-hidden>
+        {glyph}
+      </div>
+      <h2 className="text-2xl font-serif font-black text-text-bark">{headline}</h2>
+      {subject.description && (
+        <p className="mt-3 text-sm text-text-stone leading-relaxed max-w-md mx-auto">
+          {subject.description}
+        </p>
+      )}
+      <p className="mt-4 text-xs text-text-muted leading-relaxed max-w-md mx-auto">
+        {result?.message}
+      </p>
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <button
+          onClick={onScanAgain}
+          className="px-6 py-3 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-md active:scale-95"
+        >
+          📷 Scan a Plant
+        </button>
+      </div>
+      <p className="mt-5 text-[10px] font-mono uppercase tracking-widest text-text-muted/70">
+        Subject read as {subject.kind || 'uncertain'} · confidence {Math.round((subject.confidence || 0) * 100)}% · no seeds awarded
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The three-check provenance readout for a plant scan. Shown compactly so it
+ * reads as provenance of the photo, not a warning about the plant.
+ */
+function ProvenanceBadge({ provenance }: { provenance: any }) {
+  if (!provenance?.verdict) return null;
+  const isCaptured = provenance.verdict === 'self_captured';
+  const isSynthetic = provenance.verdict === 'likely_synthetic';
+  const chip = isCaptured
+    ? 'bg-emerald-100/80 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+    : isSynthetic
+      ? 'bg-rose-100/80 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+      : 'bg-amber-100/80 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800';
+  const label = isCaptured ? '📷 Self-captured' : isSynthetic ? '⚠ Likely AI/web image' : '❔ Origin unverified';
+
+  const checks = provenance.checks || {};
+  const checkLine = [
+    checks.captureMetadata === 'pass' ? 'camera metadata ✓' : 'camera metadata ✗',
+    checks.containerForensics === 'clean' ? 'file forensics clean ✓' : 'file forensics flagged ✗',
+    checks.modelJudgment === 'clean' ? 'visual check ✓' : checks.modelJudgment === 'flagged' ? 'visual check ✗' : 'visual check —',
+  ].join(' · ');
+
+  return (
+    <div className="group relative inline-block">
+      <span className={`px-2.5 py-1 border rounded-md text-[10px] font-black uppercase tracking-wider font-mono cursor-help ${chip}`}>
+        {label}
+      </span>
+      <div className="absolute z-20 left-0 top-full mt-2 w-72 p-3 rounded-lg bg-bg-primary border border-border-medium shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
+        <p className="text-[10px] font-mono uppercase tracking-wider text-text-muted mb-1.5">{checkLine}</p>
+        {(provenance.reasons || []).map((r: string, i: number) => (
+          <p key={i} className="text-[11px] text-text-stone leading-snug">· {r}</p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 
 
 export default function BotanicalLab() {
+  const { success, error } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') === 'sanctuary' ? 'sanctuary' : 'dex';
 
@@ -104,6 +189,11 @@ export default function BotanicalLab() {
   const [isNewSpecies, setIsNewSpecies] = useState(false);
   const [discoveryBonus, setDiscoveryBonus] = useState(0);
   const [scannedRewards, setScannedRewards] = useState<{ seeds: number; xp: number } | null>(null);
+  // The provenance gate's hold on this scan's reward, if any. `attested` is
+  // set once the Keeper confirms the photo was their own.
+  const [provenanceHold, setProvenanceHold] = useState<{ verdict: string; withheldSeeds: number } | null>(null);
+  const [attested, setAttested] = useState(false);
+  const [attesting, setAttesting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scanStartRef = useRef<number>(0);
   const [scanElapsed, setScanElapsed] = useState(0);
@@ -190,6 +280,8 @@ export default function BotanicalLab() {
     setScanElapsed(0);
     setIsNewSpecies(false);
     setScannedRewards(null);
+    setProvenanceHold(null);
+    setAttested(false);
     setScanError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -237,6 +329,7 @@ export default function BotanicalLab() {
     setScanStage('rewarding');
     const alreadyDiscovered = profile?.discoveredSpecies?.includes(species);
     let resSeeds = 0;
+    let resXp = 0;
     if (!alreadyDiscovered) {
       setIsNewSpecies(true);
       triggerCoinBurst();
@@ -245,20 +338,72 @@ export default function BotanicalLab() {
       if (streakRes.continuedToday) {
         setStreakPopupData({ streak: streakRes.currentStreak, seeds: res.seedsAwarded });
       }
-      setScannedRewards({ seeds: res.seedsAwarded, xp: res.xpAwarded });
       resSeeds = res.seedsAwarded;
+      resXp = res.xpAwarded;
     } else {
       const res = await GameService.awardRewardForAction('diagnosis_upload');
       const streakRes = await updateUploadStreak(userId);
       if (streakRes.continuedToday) {
         setStreakPopupData({ streak: streakRes.currentStreak, seeds: res.seedsAwarded });
       }
-      setScannedRewards({ seeds: res.seedsAwarded, xp: res.xpAwarded });
+      resSeeds = res.seedsAwarded;
+      resXp = res.xpAwarded;
       triggerCoinBurst();
     }
 
+    // ── Provenance gate ──
+    // The diagnosis is never withheld: only the currency is. An image with no
+    // capture metadata pays half; one carrying generator evidence pays nothing
+    // until the Keeper attests. The clawback is a separate ledger line rather
+    // than a silent scale-down, so the trail shows exactly what was withheld
+    // and why. Payloads from before the feature carried no verdict at all and
+    // default to permissive — the gate must never punish what it cannot see.
+    const verdict: string = target.provenance?.verdict || 'self_captured';
+    if (verdict !== 'self_captured' && resSeeds > 0) {
+      const clawback = verdict === 'likely_synthetic' ? resSeeds : Math.floor(resSeeds / 2);
+      if (clawback > 0) {
+        try {
+          await GameService.spendSeeds(clawback, 'spend', `Provenance gate (${verdict}): ${species}`);
+          setProvenanceHold({ verdict, withheldSeeds: clawback });
+          resSeeds -= clawback;
+        } catch {
+          // A cap-exhausted balance cannot absorb the clawback; let the full
+          // award stand rather than throwing away a completed scan.
+        }
+      }
+    }
+    setScannedRewards({ seeds: resSeeds, xp: resXp });
+
     await GameService.generateCardForPlant(plant.id, userId);
     if (!alreadyDiscovered) setDiscoveryBonus(resSeeds);
+  };
+
+  /**
+   * One-tap fail-safe: the metadata check is evidence, not a verdict, and it
+   * can be wrong about a photo the Keeper actually took. Attesting releases
+   * exactly what the gate withheld, through the ledger so the reversal is
+   * visible too.
+   */
+  const attestSelfCaptured = async () => {
+    if (!provenanceHold || attesting) return;
+    setAttesting(true);
+    try {
+      await GameService.earnSeeds(
+        provenanceHold.withheldSeeds,
+        'bonus',
+        'Attested self-captured: provenance reward released'
+      );
+      success(`${provenanceHold.withheldSeeds} seeds returned — thank you for confirming.`);
+      setScannedRewards(prev => prev
+        ? { ...prev, seeds: prev.seeds + provenanceHold.withheldSeeds }
+        : prev);
+      setProvenanceHold(null);
+      setAttested(true);
+    } catch (e: any) {
+      error(e.message || 'Could not release the withheld reward.');
+    } finally {
+      setAttesting(false);
+    }
   };
 
   const handleDexUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -272,6 +417,8 @@ export default function BotanicalLab() {
     setScanError(null);
     setIsNewSpecies(false);
     setScannedRewards(null);
+    setProvenanceHold(null);
+    setAttested(false);
 
     const reader = new FileReader();
     reader.onerror = () => {
@@ -774,6 +921,10 @@ export default function BotanicalLab() {
 
                       {/* Right: Botanical Index Card Board */}
                       <div className="lg:col-span-7 flex flex-col justify-between">
+                        {dexResult?.route && dexResult.route !== 'plant' ? (
+                          <NonPlantResult result={dexResult} onScanAgain={() => resetDexScan(true)} />
+                        ) : (
+                        <>
                         <div>
                           <div className="flex flex-wrap items-center gap-2 mb-3">
                             <span className="px-2.5 py-1 bg-moss/10 text-moss border border-moss/20 rounded-md text-[10px] font-black uppercase tracking-wider font-mono">
@@ -785,6 +936,9 @@ export default function BotanicalLab() {
                                 🌟 New Species Discovered: +{discoveryBonus} Seeds!
                               </span>
                             )}
+
+                            {/* Where the photo came from. Hover for the three checks. */}
+                            <ProvenanceBadge provenance={dexResult?.provenance} />
                           </div>
 
                           <h2 className="text-3xl font-serif font-black text-text-bark">
@@ -866,6 +1020,31 @@ export default function BotanicalLab() {
                                   <span className="block text-xs font-mono font-black text-moss">+{scannedRewards.seeds} Seeds</span>
                                   <span className="block text-[10px] font-mono font-bold text-text-stone">+{scannedRewards.xp} XP</span>
                                 </div>
+                              </div>
+                            )}
+
+                            {/* Provenance hold: the fail-safe release. The reward
+                                was gated, never the diagnosis; this is the
+                                Keeper's one-tap word against the metadata. */}
+                            {provenanceHold && (
+                              <div className={`p-4 rounded-2xl border ${attested ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/40 bg-amber-500/5'}`}>
+                                <h4 className="text-[11px] font-black text-text-bark uppercase tracking-wider font-mono mb-1.5">
+                                  {attested ? '✓ Origin confirmed by you' : '⚠ Provenance unverified — reward held'}
+                                </h4>
+                                <p className="text-xs text-text-stone leading-relaxed">
+                                  {provenanceHold.verdict === 'likely_synthetic'
+                                    ? 'This photo carries signs it was generated or taken from the web, so its seed reward is being held. If you took it yourself, say so below and the full reward is released — the diagnosis itself was never affected.'
+                                    : 'This photo carried no camera metadata (common for screenshots and images sent through messaging apps), so half the seed reward is held. If you took it yourself, say so below.'}
+                                </p>
+                                {!attested && (
+                                  <button
+                                    onClick={attestSelfCaptured}
+                                    disabled={attesting}
+                                    className="mt-3 w-full py-2.5 bg-gold/20 hover:bg-gold/30 text-text-bark border border-gold/40 font-black uppercase tracking-widest text-[11px] rounded-xl transition-all active:scale-95 disabled:opacity-50 font-mono"
+                                  >
+                                    {attesting ? 'Releasing…' : `🤝 I took this photo myself — release ${provenanceHold.withheldSeeds} seeds`}
+                                  </button>
+                                )}
                               </div>
                             )}
 
@@ -966,6 +1145,8 @@ export default function BotanicalLab() {
                             💬 Consult Assistant
                           </button>
                         </div>
+                        </>
+                        )}
                       </div>
                     </div>
                   </motion.div>
