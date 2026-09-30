@@ -562,15 +562,33 @@ type RpcProbe = 'present' | 'missing' | 'unauthorized';
 // upsert has never actually run against production. Without this the first
 // person to enable notifications would be the one to discover the table is
 // absent, and they would only see "Could not save push subscription."
+//
+// Split by consequence. A missing core table means the app is broken, so it
+// degrades the status. A missing push table means one optional feature is
+// broken while everything else works, and flipping the whole service to 503
+// for it would page someone about a healthy site — the same class of mistake as
+// reporting an unreachable database as schema drift. Both are still reported,
+// so nothing is hidden; only the severity differs.
 const REQUIRED_TABLES = [
   'plants',
   'profiles',
   'seed_transactions',
+] as const;
+
+const OPTIONAL_TABLES = [
   'push_subscriptions',
   'push_alert_log',
 ] as const;
 
-let rpcCheck: { ok: boolean; missing: string[]; missingTables?: string[]; error?: string } | null = null;
+const ALL_TABLES = [...REQUIRED_TABLES, ...OPTIONAL_TABLES] as const;
+
+let rpcCheck: {
+  ok: boolean;
+  missing: string[];
+  missingTables?: string[];
+  missingOptionalTables?: string[];
+  error?: string;
+} | null = null;
 let rpcCheckedAt = 0;
 const RPC_CHECK_TTL_MS = 60_000;
 
@@ -627,10 +645,15 @@ app.get('/healthz', async (_req, res) => {
     try {
       const [rpcResults, tableResults] = await Promise.all([
         Promise.all(REQUIRED_RPCS.map(rpc => probeRpc(rpc.name, rpc.args))),
-        Promise.all(REQUIRED_TABLES.map(probeTable)),
+        Promise.all(ALL_TABLES.map(probeTable)),
       ]);
       const missing = REQUIRED_RPCS.filter((_, i) => rpcResults[i] === 'missing').map(rpc => rpc.name);
+      const absent = ALL_TABLES.filter((_, i) => tableResults[i] === 'missing');
+      // Only a core table degrades the status. See the note on the two lists.
       const missingTables = REQUIRED_TABLES.filter((_, i) => tableResults[i] === 'missing');
+      const missingOptionalTables = OPTIONAL_TABLES.filter(
+        (_, i) => tableResults[REQUIRED_TABLES.length + i] === 'missing'
+      );
       const unauthorized = rpcResults.some(r => r === 'unauthorized') || tableResults.some(r => r === 'unauthorized');
       rpcCheck = {
         ok: missing.length === 0 && missingTables.length === 0 && !unauthorized,
@@ -638,6 +661,8 @@ app.get('/healthz', async (_req, res) => {
         // A named table is what an operator needs to go apply the migration.
         // Reporting only "drift" would leave them guessing which one.
         ...(missingTables.length ? { missingTables } : {}),
+        // Reported, but not counted against readiness.
+        ...(missingOptionalTables.length ? { missingOptionalTables } : {}),
         // Names the credential problem without naming the credential. This is
         // the signal that catches a rotated-but-not-propagated service key.
         ...(unauthorized ? { error: 'service key rejected by Supabase' } : {}),
