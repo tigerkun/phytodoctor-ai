@@ -987,7 +987,7 @@ app.post("/api/chat", express.json({ limit: '64kb' }), aiLimiter, apiGate, async
       return fail(res, 400, "Conversation is too long. Please start a new chat.");
     }
     for (const m of messages) {
-      if (!m || typeof m.content !== 'string' || m.content.trim().length === 0 || m.content.length > 4000) {
+      if (!m || typeof m.content !== 'string' || m.trim().length === 0) {
         return fail(res, 400, "Invalid message content.");
       }
     }
@@ -1007,13 +1007,27 @@ RESPONSE FORMAT & PACING (SHORT STANZAS):
 - Use clear bullet points and bold key parameters (e.g., **Lighting**, **Watering Schedule**, **Treatment**).
 - Avoid long rambling essays; keep it crisp, insightful, and immediately actionable so the user can easily digest and apply the advice.`;
 
+    // Older turns are clamped rather than rejected. A single oversized message
+    // used to fail the whole batch, which meant one long paste (or one runaway
+    // generation) locked the user out of the assistant permanently — every
+    // later send replayed that message and hit the same 400. Only the live
+    // message needs a hard ceiling; history is trimmed from the front so the
+    // most recent context survives.
+    const MAX_TURN_CHARS = 4000;
+    const clamp = (text: string, limit: number) =>
+      text.length > limit ? text.slice(text.length - limit) : text;
+
     let formattedContents = messages
       .filter(m => m && typeof m.content === 'string' && m.content.trim().length > 0)
       .slice(-20) // cap: keep only last 20 messages to prevent cost abuse
-      .map(m => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        parts: [{ text: m.content }]
-      }));
+      .map((m, i, arr) => {
+        const isLatestUserTurn = m.role === 'user' && i === arr.length - 1;
+        const text = isLatestUserTurn ? m.content.slice(0, MAX_TURN_CHARS) : clamp(m.content, MAX_TURN_CHARS);
+        return {
+          role: m.role === 'user' ? 'user' : 'model',
+          parts: [{ text }]
+        };
+      });
 
     // Gemini multi-turn conversation requires the first turn to be from 'user'
     while (formattedContents.length > 0 && formattedContents[0].role === 'model') {
@@ -1029,6 +1043,11 @@ RESPONSE FORMAT & PACING (SHORT STANZAS):
       config: {
         systemInstruction: systemPrompt,
         temperature: 0.3,
+        // Care advice is retrieval-and-format work, not multi-step reasoning:
+        // thinking tokens buy nothing here and cost seconds on every message.
+        // Measured 15-35s per reply before this, most of it spent thinking.
+        // The scan path already opts out for the same reason.
+        disableThinking: true,
       }
     });
 

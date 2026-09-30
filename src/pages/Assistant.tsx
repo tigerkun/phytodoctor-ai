@@ -12,6 +12,9 @@ import PageWrapper from '../components/home/PageWrapper';
 const STORAGE_KEY = 'phytodoctor_assistant_history';
 const SAVED_NOTES_KEY = 'phytodoctor_assistant_saved_notes';
 
+/** Per-turn ceiling enforced by /api/chat. Kept in step with the server. */
+const MAX_MESSAGE_CHARS = 4000;
+
 const safeDecode = (val: string | null | undefined): string => {
   if (!val) return '';
   try {
@@ -182,8 +185,13 @@ export default function Assistant() {
   };
 
   const handleSend = async (textToSend?: string) => {
-    const messageText = (textToSend || input).trim();
-    if (!messageText || loading) return;
+    const raw = (textToSend || input).trim();
+    if (!raw || loading) return;
+
+    // Matches the server's per-turn ceiling. Truncating here means the user
+    // sees the trimmed text in their own transcript rather than discovering
+    // mid-conversation that the server silently dropped it.
+    const messageText = raw.length > MAX_MESSAGE_CHARS ? raw.slice(0, MAX_MESSAGE_CHARS) : raw;
 
     triggerHaptic('medium');
     playAudio('chime');
@@ -199,7 +207,12 @@ export default function Assistant() {
       setMessages(prev => [...prev, { role: 'model', content: response }]);
       playAudio('leaf-rustle');
       triggerHaptic('light');
-    } catch (_err: any) {
+    } catch (err: any) {
+      // The generic reply the user sees stays as-is, but the underlying reason
+      // goes to the console. Swallowing it entirely meant a real, permanent
+      // failure (a poisoned history, a rejected payload) was indistinguishable
+      // from a transient network blip.
+      console.error('[Assistant] Botanist inquiry failed:', err);
       setMessages(prev => [...prev, {
         role: 'model',
         content: "I am having difficulty retrieving botanical pathology records right now. Please try transmitting your inquiry again in a moment."
@@ -490,7 +503,7 @@ export default function Assistant() {
               <input
                 type="text"
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => setInput(e.target.value.slice(0, MAX_MESSAGE_CHARS))}
                 placeholder="Transmit inquiry on plant symptoms, watering, chemistry, light, or pests..."
                 className="flex-grow pl-4 pr-24 py-3 bg-[#fbf8f1] dark:bg-[#1c241e] border border-[#a89476]/50 dark:border-[#38533e] rounded-xl text-xs sm:text-sm text-text-bark dark:text-[#f0f6f0] placeholder:text-text-muted focus:outline-none focus:border-[#d4af37] focus:ring-2 focus:ring-[#d4af37]/20 transition-all shadow-inner"
               />
