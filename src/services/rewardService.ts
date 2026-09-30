@@ -323,25 +323,37 @@ export class RewardService {
 
   // ============ STREAK SYSTEM ============
 
-  static async updateStreakOnUpload(userId: string = this.getUserId()): Promise<{ currentStreak: number, continuedToday: boolean }> {
+  static async updateStreakOnUpload(userId: string = this.getUserId()): Promise<{ currentStreak: number, continuedToday: boolean, freezeUsed: boolean }> {
     const streak = await this.ensureStreakRecord(userId);
     const today = this.getTodayDateStr();
     const yesterday = this.getYesterdayDateStr();
 
-    if (streak.lastLoginDate === today) {
+    // A freshly created record is stamped with today's date but a streak of 0,
+    // so the first-ever upload used to match the "already logged in today" branch
+    // and leave a brand-new keeper sitting on a 0-day streak all day.
+    const isFirstActivity = streak.currentStreak === 0;
+
+    if (streak.lastLoginDate === today && !isFirstActivity) {
       // Already logged in today
-      return { currentStreak: streak.currentStreak, continuedToday: false };
+      return { currentStreak: streak.currentStreak, continuedToday: false, freezeUsed: false };
     }
 
     let continuedToday = false;
+    let freezeUsed = false;
 
     if (streak.lastLoginDate === yesterday) {
       // Streak continues
       streak.currentStreak += 1;
       continuedToday = true;
-    } else {
-      // Streak broken (unless using freeze)
+    } else if (isFirstActivity) {
       streak.currentStreak = 1;
+    } else {
+      // A gap. This is the only place a freeze can do any work, so it is the
+      // only place one is spent: the freeze covers the missed day and the run
+      // carries on rather than collapsing back to 1.
+      freezeUsed = await this.consumeStreakFreeze(userId);
+      streak.currentStreak = freezeUsed ? streak.currentStreak + 1 : 1;
+      continuedToday = freezeUsed;
     }
 
     streak.longestStreak = Math.max(streak.longestStreak, streak.currentStreak);
@@ -352,30 +364,27 @@ export class RewardService {
     streak.streakMultiplier = getStreakMultiplier(streak.currentStreak);
 
     await db.streakRecords.put(streak);
-    return { currentStreak: streak.currentStreak, continuedToday };
+    return { currentStreak: streak.currentStreak, continuedToday, freezeUsed };
   }
 
   static async useStreakFreeze(userId: string = this.getUserId()): Promise<boolean> {
-    const monthYear = this.getCurrentMonthYearStr();
-    let freeze = await db.streakFreezes.get([userId, monthYear]);
-
-    const profile = await db.userProfile.get(userId);
-    if (!profile) throw new Error(`User not found: ${userId}`);
-
-    const freezeLimit = REWARD_CAPS.STREAK_FREEZE_LEVELS[profile.tier === 'pro' ? 'pro_base' : 6] || 0;
-
-    if (!freeze) {
-      freeze = {
-        id: crypto.randomUUID(),
-        userId,
-        monthYear,
-        freezesRemaining: freezeLimit,
-        freezesUsed: 0,
-        tier: profile.tier,
-        lastUsedAt: null
-      };
-      await db.streakFreezes.add(freeze);
+    const consumed = await this.consumeStreakFreeze(userId);
+    if (consumed) {
+      const record = await this.ensureStreakRecord(userId);
+      record.freezesUsedThisMonth += 1;
+      await db.streakRecords.put(record);
     }
+    return consumed;
+  }
+
+  /**
+   * Spends one freeze from this month's allowance. Callers that decide a freeze
+   * is *owed* (the streak-break path) use this directly; `useStreakFreeze` is
+   * the manual/burn path that also mirrors the count onto the streak record.
+   */
+  private static async consumeStreakFreeze(userId: string): Promise<boolean> {
+    const freeze = await this.ensureFreezeRecord(userId);
+    if (!freeze) return false;
 
     if (freeze.freezesRemaining > 0) {
       freeze.freezesRemaining -= 1;
@@ -386,6 +395,75 @@ export class RewardService {
     }
 
     return false;
+  }
+
+  /** Tier-granted freezes for the current month. Purchased freezes sit on top. */
+  static tierFreezeAllowance(tier: string): number {
+    if (tier === 'pro') return REWARD_CAPS.STREAK_FREEZE_LEVELS.pro_base || 0;
+    if (tier === 'keeper') return REWARD_CAPS.STREAK_FREEZE_LEVELS[14] || 0;
+    return REWARD_CAPS.STREAK_FREEZE_LEVELS[6] || 0;
+  }
+
+  /**
+   * The current month's freeze row, created and refreshed as needed.
+   *
+   * The row is written lazily rather than at signup because a keeper's first
+   * upload never reaches the gap path, so nothing else would create it and the
+   * balance would read 0 to the newest users in the app.
+   */
+  private static async ensureFreezeRecord(userId: string): Promise<StreakFreeze | null> {
+    const monthYear = this.getCurrentMonthYearStr();
+    let freeze = await db.streakFreezes.get([userId, monthYear]);
+
+    const profile = await db.userProfile.get(userId);
+    if (!profile) return null;
+
+    const freezeLimit = this.tierFreezeAllowance(profile.tier);
+    const isNew = !freeze;
+
+    if (isNew) {
+      freeze = {
+        id: crypto.randomUUID(),
+        userId,
+        monthYear,
+        freezesRemaining: freezeLimit,
+        freezesUsed: 0,
+        tier: profile.tier,
+        lastUsedAt: null
+      };
+    } else if (freeze!.tier !== profile.tier) {
+      // A month can roll over while a keeper still holds yesterday's row, and a
+      // tier upgrade should not leave them on the old allowance. Either way,
+      // refresh rather than honour a stale exhausted balance.
+      freeze!.tier = profile.tier;
+      freeze!.freezesRemaining = Math.max(freeze!.freezesRemaining, freezeLimit);
+    } else {
+      return freeze;
+    }
+
+    if (isNew) await db.streakFreezes.add(freeze);
+    else await db.streakFreezes.put(freeze);
+    return freeze;
+  }
+
+  static async getFreezeBalance(userId: string = this.getUserId()): Promise<number> {
+    const freeze = await this.ensureFreezeRecord(userId);
+    if (!freeze) return 0;
+    return Math.max(0, freeze.freezesRemaining);
+  }
+
+  /**
+   * Adds purchased freezes. These are explicitly allowed to exceed the tier
+   * allowance — otherwise buying one would be a no-op for anyone already at cap,
+   * which is most established keepers and exactly the people most likely to buy.
+   */
+  static async grantFreezes(userId: string, count: number): Promise<number> {
+    if (count <= 0) return this.getFreezeBalance(userId);
+    const freeze = await this.ensureFreezeRecord(userId);
+    if (!freeze) throw new Error(`User not found: ${userId}`);
+    freeze.freezesRemaining += count;
+    await db.streakFreezes.put(freeze);
+    return freeze.freezesRemaining;
   }
 
   // ============ UTILITY HELPERS ============
