@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Calendar, ShieldCheck, Activity, AlertCircle, Droplets, Sun, TrendingUp, Sparkles, Box, Camera, Clock, Star, Sprout, Crown, Zap, Plus, Loader2, Book, Bookmark, Send } from 'lucide-react';
+import { ChevronLeft, Calendar, ShieldCheck, Activity, AlertCircle, Droplets, Sun, TrendingUp, Sparkles, Box, Camera, Clock, Star, Sprout, Crown, Zap, Plus, Loader2, Book, Bookmark, Send, Share2 } from 'lucide-react';
 import { db, type PlantNote } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
 import GuardianScoreRing from '../components/GuardianScoreRing';
@@ -18,6 +18,8 @@ import { generatePlantVoice, type PlantVoice } from '../services/plantVoiceServi
 import GrowthForecastCard from '../components/GrowthForecastCard';
 import { forecastGrowth, type GrowthForecast } from '../services/growthForecastService';
 import NotificationOptIn from '../components/NotificationOptIn';
+import { renderShareCard, shareCaption } from '../lib/cardShareImage';
+import { shareCard } from '../lib/share';
 
 
 const containerVariants = {
@@ -61,6 +63,7 @@ export default function PlantDetail() {
 
   const [plant, setPlant] = useState<Plant | undefined>();
   const [plantLoading, setPlantLoading] = useState(true);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -110,6 +113,45 @@ const children = lineage?.filter(candidate => candidate.parentPlantId === plant?
       error(err instanceof Error ? err.message : 'Could not hear from the plant.');
     } finally {
       setVoiceLoading(false);
+    }
+  };
+
+  // ── Share loop ──
+  // Renders this specimen as a story-sized card and hands it to the native
+  // share sheet. This is the app's growth loop: a card posted to a story or
+  // group chat is an invitation that carries proof (rarity, streak, score)
+  // instead of an ad.
+  const shareThisPlant = async () => {
+    if (!plant || sharing) return;
+    setSharing(true);
+    try {
+      const daysAlive = card?.daysAlive
+        ?? Math.max(1, Math.floor((Date.now() - new Date(plant.acquiredAt).getTime()) / 86_400_000));
+      const data = {
+        name: plant.name,
+        species: plant.species,
+        rarity: card?.rarity ?? ('common' as const),
+        photoUrl: plant.photoUrl,
+        daysAlive,
+        checkIns: card?.checkInsTotal ?? history?.length ?? 0,
+        guardianScore: plant.guardianScore ?? 0,
+        streak: card?.currentStreak ?? profile?.currentStreak ?? 0,
+      };
+      const blob = await renderShareCard(data);
+      const slug = plant.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'plant';
+      const outcome = await shareCard({
+        blob,
+        fileName: `phytodoctor-${slug}.png`,
+        caption: shareCaption(data),
+        url: 'https://phytodoctor-ai.onrender.com',
+      });
+      if (outcome === 'shared') success('Card sent to your share sheet — post it! 🌿');
+      else if (outcome === 'shared-link') success('Share sheet opened.');
+      else success('Link copied and card saved — ready to post.');
+    } catch (err) {
+      error(err instanceof Error ? err.message : 'Could not share this plant.');
+    } finally {
+      setSharing(false);
     }
   };
   const generateForecast = async () => {
@@ -376,6 +418,18 @@ if (!plant) {
                   <p className="text-xl sm:text-2xl text-[#6b5843] italic font-serif">
                     {plant.species}
                   </p>
+
+                  {/* The growth loop: this card is the invitation. */}
+                  <button
+                    onClick={shareThisPlant}
+                    disabled={sharing}
+                    className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 min-h-[44px] rounded-xl bg-[#244b2f] hover:bg-[#2d5c3a] text-[#f4eee1] text-[11px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95 disabled:opacity-60"
+                  >
+                    {sharing
+                      ? <Loader2 size={14} className="animate-spin" />
+                      : <Share2 size={14} />}
+                    {sharing ? 'Growing your card…' : 'Share this find'}
+                  </button>
                 </div>
 
                 {/* Score & Status Plate */}
