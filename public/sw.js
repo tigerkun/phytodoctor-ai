@@ -60,21 +60,43 @@ self.addEventListener('fetch', (event) => {
         // Fallback for offline access
         return caches.match('/index.html');
       });
+    })
+  );
+});
 
-      self.addEventListener('push', (event) => {
-        const data = event.data?.json() || {};
-        event.waitUntil(self.registration.showNotification(data.title || 'PhytoDoctor alert', {
-          body: data.body || 'A specimen needs your attention.',
-          icon: '/manifest.json',
-          tag: data.tag || 'plant-alert',
-          data: { url: data.url || '/' }
-        }));
-      });
+// These have to be registered at the top level of the worker script. They used
+// to sit inside the fetch handler above, which meant they were only registered
+// as a side effect of a page fetch and were re-registered on every one — a push
+// arriving before any fetch would find no listener at all, so the notification
+// was silently dropped.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (error) {
+    // A push with a non-JSON body is still worth showing; fall back to the
+    // text payload rather than dropping the notification entirely.
+    data = { body: event.data ? event.data.text() : '' };
+  }
+  event.waitUntil(self.registration.showNotification(data.title || 'PhytoDoctor alert', {
+    body: data.body || 'A specimen needs your attention.',
+    icon: '/manifest.json',
+    tag: data.tag || 'plant-alert',
+    data: { url: data.url || '/' }
+  }));
+});
 
-      self.addEventListener('notificationclick', (event) => {
-        event.notification.close();
-        event.waitUntil(clients.openWindow(event.notification.data?.url || '/'));
-      });
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = event.notification.data?.url || '/';
+  event.waitUntil(
+    // Prefer reusing an open tab so tapping a notification does not pile up
+    // duplicate copies of the app.
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      for (const win of windows) {
+        if ('focus' in win) return win.focus();
+      }
+      return clients.openWindow(target);
     })
   );
 });

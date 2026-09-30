@@ -4,6 +4,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import webpush from "web-push";
 import { randomUUID } from "node:crypto";
 
 dotenv.config();
@@ -306,7 +307,129 @@ app.post("/api/predict-growth", express.json({ limit: '16kb' }), aiLimiter, apiG
   }
 });
 
+// ── Web push ───────────────────────────────────────────────────────────────
+// push_subscriptions was write-only for its whole life: the client could
+// register an endpoint and nothing ever sent to it. Everything below exists to
+// make the delivery half real.
+//
+// A subscription goes stale the moment the browser rotates it, and the push
+// service answers 404/410 for those. Left alone they accumulate forever, so a
+// send that fails that way deletes the row.
+const PUSH_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:alerts@phytodoctor.ai';
+const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || '';
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
+const pushEnabled = Boolean(VAPID_PUBLIC && VAPID_PRIVATE && supabaseAdmin);
+
+if (VAPID_PUBLIC && VAPID_PRIVATE) {
+  webpush.setVapidDetails(PUSH_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+  console.log('Web push sender configured.');
+} else if (VAPID_PUBLIC || VAPID_PRIVATE) {
+  // Half a keypair cannot sign, and silently disabling would hide the mistake.
+  console.warn('Web push disabled: VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must both be set.');
+}
+
+type PushRow = { id: string; user_id: string; endpoint: string; p256dh: string; auth_key: string; last_sent_at: string | null };
+
+function toSubscription(row: PushRow) {
+  return { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth_key } };
+}
+
+async function dropSubscription(id: string, reason: string) {
+  const { error } = await supabaseAdmin.from('push_subscriptions').delete().eq('id', id);
+  if (error) console.error(`Could not remove stale push subscription ${id}:`, error.message);
+  else console.log(`Removed stale push subscription ${id} (${reason}).`);
+}
+
+/** Send one payload. Returns 'sent', 'stale' (endpoint gone) or 'failed'. */
+async function deliver(row: PushRow, payload: Record<string, string>): Promise<'sent' | 'stale' | 'failed'> {
+  try {
+    await webpush.sendNotification(toSubscription(row), JSON.stringify(payload), { TTL: 60 * 60 });
+    return 'sent';
+  } catch (error: any) {
+    // 404/410 are the documented "this subscription is gone" responses.
+    if (error?.statusCode === 404 || error?.statusCode === 410) {
+      await dropSubscription(row.id, `status ${error.statusCode}`);
+      return 'stale';
+    }
+    console.error(`Push delivery failed for ${row.id}:`, error?.message || error);
+    return 'failed';
+  }
+}
+
+/**
+ * A plant is due when next_water_due has passed, or — when that column was
+ * never set — when last_watered_at plus the watering interval has passed.
+ */
+function isDue(
+  plant: { next_water_due: string | null; last_watered_at: string | null; watering_interval_days: number | null },
+  now: number
+): boolean {
+  if (plant.next_water_due) return Date.parse(plant.next_water_due) <= now;
+  if (!plant.last_watered_at) return false; // Never watered: no baseline to be "due" against.
+  const interval = plant.watering_interval_days || 7;
+  return Date.parse(plant.last_watered_at) + interval * 86_400_000 <= now;
+}
+
+/**
+ * Send one summary push per subscribed user covering whatever is due, then
+ * record it so a plant that stays overdue does not notify again for a day.
+ */
+async function runWateringReminders() {
+  if (!pushEnabled) return { skipped: 'push not configured' };
+  const now = Date.now();
+  const since = new Date(now - 86_400_000).toISOString();
+
+  const [subsResult, plantsResult] = await Promise.all([
+    supabaseAdmin.from('push_subscriptions').select('id,user_id,endpoint,p256dh,auth_key,last_sent_at'),
+    supabaseAdmin.from('plants').select('id,user_id,name,next_water_due,last_watered_at,watering_interval_days'),
+  ]);
+  if (subsResult.error) throw new Error(subsResult.error.message);
+  if (plantsResult.error) throw new Error(plantsResult.error.message);
+  const subs = (subsResult.data || []) as PushRow[];
+  const plants = (plantsResult.data || []) as any[];
+  if (!subs.length) return { sent: 0, usersDue: 0 };
+
+  const byUser = new Map<string, any[]>();
+  for (const plant of plants) {
+    if (!plant.user_id || !isDue(plant, now)) continue;
+    if (!byUser.has(plant.user_id)) byUser.set(plant.user_id, []);
+    byUser.get(plant.user_id)!.push(plant);
+  }
+
+  let sent = 0;
+  for (const sub of subs) {
+    const due = byUser.get(sub.user_id) || [];
+    // Throttle: a device already told today is not told again today.
+    if (sub.last_sent_at && sub.last_sent_at > since) continue;
+    if (!due.length) continue;
+
+    const first = due[0];
+    const body = due.length === 1
+      ? `${first.name} is due for water.`
+      : `${due.length} plants are due for water, starting with ${first.name}.`;
+    const result = await deliver(sub, {
+      title: 'Time to water',
+      body,
+      tag: 'watering-reminder',
+      url: `/plant/${first.id}`,
+    });
+    if (result === 'sent') {
+      sent++;
+      await supabaseAdmin.from('push_subscriptions')
+        .update({ last_sent_at: new Date(now).toISOString() }).eq('id', sub.id);
+      // Only the oldest plant is linked in the notification, but every plant
+      // in the batch is recorded as alerted so none resurfaces tomorrow.
+      await supabaseAdmin.from('push_alert_log').insert(
+        due.map(p => ({ user_id: sub.user_id, plant_id: p.id, kind: 'watering' }))
+      );
+    }
+  }
+  console.log(`Watering reminders: ${sent} sent, ${byUser.size} user(s) with due plants.`);
+  return { sent, usersDue: byUser.size };
+}
+
 app.post("/api/push/subscribe", express.json({ limit: '16kb' }), apiGate, async (req, res) => {
+  if (!pushEnabled) return fail(res, 503, "Weather alerts are not configured on this server.");
   try {
     const userId = (req as any).authUserId;
     const client = userClient((req as any).authToken);
@@ -326,6 +449,69 @@ app.post("/api/push/subscribe", express.json({ limit: '16kb' }), apiGate, async 
     fail(res, 500, "Could not save push subscription.");
   }
 });
+
+// Without this there is no way back out once a device has opted in.
+app.post("/api/push/unsubscribe", express.json({ limit: '4kb' }), apiGate, async (req, res) => {
+  try {
+    const userId = (req as any).authUserId;
+    const client = userClient((req as any).authToken);
+    const endpoint = req.body?.endpoint;
+    if (!userId || !client || typeof endpoint !== 'string') {
+      return fail(res, 400, "Invalid push subscription.");
+    }
+    const { error } = await client.from('push_subscriptions').delete()
+      .eq('user_id', userId).eq('endpoint', endpoint);
+    if (error) return fail(res, 500, "Could not remove push subscription.");
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error("Push unsubscribe error:", error?.message || error);
+    fail(res, 500, "Could not remove push subscription.");
+  }
+});
+
+// Lets a user confirm alerts actually reach their device instead of trusting a
+// green tick, and is the hook used to verify delivery end to end.
+app.post("/api/push/test", express.json({ limit: '2kb' }), apiGate, async (req, res) => {
+  if (!pushEnabled) return fail(res, 503, "Weather alerts are not configured on this server.");
+  try {
+    const userId = (req as any).authUserId;
+    const { data, error } = await supabaseAdmin
+      .from('push_subscriptions').select('id,user_id,endpoint,p256dh,auth_key,last_sent_at')
+      .eq('user_id', userId);
+    if (error) throw new Error(error.message);
+    if (!data?.length) return fail(res, 404, "No alerts are enabled on this device yet.");
+    const result = await deliver(data[0] as PushRow, {
+      title: 'PhytoDoctor',
+      body: 'Weather alerts are switched on for this device.',
+      tag: 'test-alert',
+      url: '/',
+    });
+    if (result === 'stale') return fail(res, 410, "This device's subscription has expired. Please switch alerts off and on again.");
+    if (result === 'failed') return fail(res, 502, "The alert could not be delivered. Please try again.");
+    await supabaseAdmin.from('push_alert_log').insert({ user_id: userId, kind: 'test' });
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error("Push test error:", error?.message || error);
+    fail(res, 500, "The test alert could not be sent.");
+  }
+});
+
+// Watering reminders. The per-day throttle inside runWateringReminders keeps a
+// still-due plant to one push. Render's free tier sleeps an idle web service,
+// so this fires on wake rather than on a fixed wall clock — good enough for a
+// reminder, and the work is skipped entirely when nobody is using the app.
+const PUSH_INTERVAL_MIN = Number(process.env.PUSH_REMINDER_INTERVAL_MINUTES) || 360;
+function scheduleWateringReminders() {
+  if (!pushEnabled) return;
+  const tick = () => {
+    supabaseAdminPromise
+      ?.then(() => runWateringReminders())
+      .catch((err) => console.error('Watering reminder run failed:', err?.message || err));
+  };
+  setTimeout(tick, 15_000).unref();
+  setInterval(tick, PUSH_INTERVAL_MIN * 60_000).unref();
+  console.log(`Watering reminders scheduled every ${PUSH_INTERVAL_MIN} min.`);
+}
 
 async function grantPro(userId: string, paymentId: string, amount: number, currency: string) {
   const { data, error } = await supabaseAdmin.rpc('grant_pro_from_payment', {
@@ -1156,6 +1342,8 @@ async function startServer() {
       console.warn('Supabase admin init timed out or failed, continuing boot');
     }
   }
+
+  scheduleWateringReminders();
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);

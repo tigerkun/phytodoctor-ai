@@ -16,8 +16,13 @@ WORKDIR /app
 # authenticated by its own env var, which is read at runtime and worked fine.
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
+# Same reason as above: the push opt-in button hides itself when this is
+# absent, so leaving it out of the build would silently remove the control
+# even with a fully working VAPID keypair configured at runtime.
+ARG VITE_VAPID_PUBLIC_KEY
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+ENV VITE_VAPID_PUBLIC_KEY=$VITE_VAPID_PUBLIC_KEY
 
 # Copy package files
 COPY package.json package-lock.json ./
