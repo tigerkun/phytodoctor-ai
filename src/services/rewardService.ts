@@ -153,7 +153,16 @@ export class RewardService {
       transactionId: crypto.randomUUID()
     });
     const credited = await db.userProfile.get(userId);
-    const newSeeds = credited?.seeds ?? profile.seeds + seedsAwarded;
+    // The `??` here used to fabricate a balance for the user: reaching this
+    // line with a null read means the write above did not land, and guessing
+    // `profile.seeds + seedsAwarded` turns a failed award into an award the
+    // server never recorded. Throw instead -- the caller already treats a
+    // failure as a failure, and `applySeedDelta` has already thrown if the
+    // profile was missing entirely.
+    if (!credited) {
+      throw new Error('Reward could not be recorded: the balance did not update.');
+    }
+    const newSeeds = credited.seeds;
     const newXP = levelProgress.totalXP + xpAwarded;
 
     // Record reward in history
@@ -238,7 +247,13 @@ export class RewardService {
       transactionId: crypto.randomUUID()
     });
     const credited = await db.userProfile.get(userId);
-    const newSeeds = credited?.seeds ?? profile.seeds + seedsAwarded;
+    // Same reasoning as awardReward: a null read here means the ledger write
+    // did not land, and inventing the balance would record a discovery against
+    // a number the server never agreed to.
+    if (!credited) {
+      throw new Error('Discovery reward could not be recorded: the balance did not update.');
+    }
+    const newSeeds = credited.seeds;
 
     // Record discovery
     const discovery = {

@@ -37,6 +37,12 @@ export interface SiteEnvironment {
   soilType: string;
   soilPh: number;
   weather: string;
+  /**
+   * True when the numbers below are a biome estimate rather than a live
+   * reading. The weather service is allowed to fail; the report just has to
+   * admit that it no longer describes this Keeper's actual sky.
+   */
+  estimated?: boolean;
 }
 
 export interface PlacementReport {
@@ -211,25 +217,38 @@ export async function assessPlacement(species: string, environment: SiteEnvironm
   }
 }
 
+/**
+ * Resolve a typed place to coordinates.
+ *
+ * This used to return New York's coordinates for *any* failure — unknown
+ * place, offline, Nominatim rate limit — while labelling the result with the
+ * user's own query. The site report then described New York's climate under
+ * the heading "Mumbai", with nothing on screen to say it was estimated.
+ *
+ * A Keeper making a horticultural decision deserves to know when the ground
+ * under the report is soft. So this throws, and the caller (which already
+ * surfaces the message) tells them to try again.
+ */
 export async function geocodeCity(query: string) {
+  let res: Response;
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`);
-    if (!res.ok) throw new Error(`Geocoding HTTP ${res.status}`);
-    const rows = await res.json();
-    if (!rows?.[0]) throw new Error('Could not find that place.');
-    return {
-      lat: Number(rows[0].lat),
-      lon: Number(rows[0].lon),
-      label: rows[0].display_name as string,
-    };
-  } catch (err: any) {
-    console.warn('Geocoding query failed, utilizing query label:', err);
-    return {
-      lat: 40.7128,
-      lon: -74.0060,
-      label: query.trim(),
-    };
+    res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`);
+  } catch {
+    throw new Error('Could not reach the place lookup. Check your connection and try again.');
   }
+  if (!res.ok) {
+    // Nominatim throttles by IP; 429 is the common case for a heavy user.
+    throw new Error(res.status === 429
+      ? 'The place lookup is busy right now. Try again in a minute.'
+      : `The place lookup failed (status ${res.status}). Try again.`);
+  }
+  const rows = await res.json();
+  if (!rows?.[0]) throw new Error(`Could not find "${query.trim()}". Try a larger nearby town.`);
+  return {
+    lat: Number(rows[0].lat),
+    lon: Number(rows[0].lon),
+    label: rows[0].display_name as string,
+  };
 }
 
 export async function fetchSiteClimate(lat: number, lon: number, city: string): Promise<SiteEnvironment> {
@@ -264,13 +283,16 @@ export async function fetchSiteClimate(lat: number, lon: number, city: string): 
       weather: weatherLabel(weatherCode),
     };
   } catch (err) {
-    console.warn('Weather fetch failed, utilizing estimated regional climate:', err);
+    // The service being down is fine; passing the estimate off as a live
+    // reading for this Keeper's city is not. Flag it so the UI can say so.
+    console.warn('Weather fetch failed, falling back to an estimated climate:', err);
     const fallback = simulateBiome('temperate', new Date(), false);
     return {
       ...fallback,
       label: city,
       mode: 'location',
       city,
+      estimated: true,
     };
   }
 }

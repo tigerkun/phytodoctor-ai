@@ -112,19 +112,13 @@ export function formatSeeds(amount: number): string {
 }
 
 /**
- * Check if user has hit daily cap
+ * A daily cap check used to live here and returned a hardcoded
+ * `{ remaining: 150, capReached: false }` regardless of what the user had
+ * done. Nothing referenced it, so the honest move was to delete it rather than
+ * leave a plausible-looking number waiting to be wired into a reward path. The
+ * real cap is enforced server-side; reintroduce a client-side check only when
+ * it can read a real figure.
  */
-export async function checkDailyCapStatus(userId?: string): Promise<{ remaining: number; capReached: boolean }> {
-  try {
-    const cap = await GameService.getProfile(userId);
-    // In a real implementation, query the dailyRewardCaps table
-    // For now, this is a placeholder
-    return { remaining: 150, capReached: false };
-  } catch (error) {
-    console.error('Failed to check daily cap:', error);
-    return { remaining: 0, capReached: true };
-  }
-}
 
 /**
  * Get level info for display
@@ -190,7 +184,6 @@ export default {
   getRewardMessage,
   getActionEmoji,
   formatSeeds,
-  checkDailyCapStatus,
   getLevelInfo,
   getStreakInfo,
   COMMON_REWARDS

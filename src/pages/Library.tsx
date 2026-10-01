@@ -763,8 +763,22 @@ export default function Library() {
         setBestStreak(newStreak);
         localStorage.setItem('botanical_quiz_best_streak', String(newStreak));
       }
-      await GameService.earnSeeds(25, 'bonus', 'Library Puzzle Solved');
-      setQuizMessage(`✅ Correct! +25 seeds · the sprout climbed ${PACES_PER_SOLVE} paces. ${dailyQuiz.explanation}`);
+      // The ledger write sits between the correct-answer feedback and the result
+      // message. If it throws -- a user-scoped client that is not ready, a
+      // network failure on the outbox flush -- the rejection escaped a
+      // fire-and-forget click handler, so the Keeper got the chime and no
+      // message at all, and had already spent the day's attempt. Credit first,
+      // report either way.
+      let credited = true;
+      try {
+        await GameService.earnSeeds(25, 'bonus', 'Library Puzzle Solved');
+      } catch (err) {
+        credited = false;
+        console.error('Quiz reward could not be credited', err);
+      }
+      setQuizMessage(credited
+        ? `✅ Correct! +25 seeds · the sprout climbed ${PACES_PER_SOLVE} paces. ${dailyQuiz.explanation}`
+        : `✅ Correct! — the sprout climbed ${PACES_PER_SOLVE} paces, but the +25 seeds could not be credited. They will not be lost; try again tomorrow. ${dailyQuiz.explanation}`);
     } else {
       // Streak snapped: sprout tumbles back to the compost.
       setStreak(0);

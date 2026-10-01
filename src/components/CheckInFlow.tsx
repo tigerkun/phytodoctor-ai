@@ -23,6 +23,9 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
   const [loading, setLoading] = useState(false);
   const [driftResult, setDriftResult] = useState<DriftResult | null>(null);
   const [completion, setCompletion] = useState<{ animate: 'levelup' | 'idle'; cardId: string } | null>(null);
+  // A save that fails must say so. The flow stays on its current step so the
+  // Keeper can retry with their answers intact.
+  const [saveError, setSaveError] = useState<string | null>(null);
   const completionCard = useLiveQuery(
     () => completion ? db.cards.get(completion.cardId) : undefined,
     [completion?.cardId]
@@ -94,6 +97,7 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
 
   const saveCheckIn = async () => {
     setLoading(true);
+    setSaveError(null);
     try {
       const randomFactor = Math.floor(Math.random() * 15);
       const hasPhoto = !!data.photoBlob;
@@ -173,7 +177,7 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
         await GameService.generateCardForPlant(plantId);
         const outcome = await GameService.updateCardFromCheckIn(plantId, finalCheckIn);
         const updatedCard = await db.cards.where('plantId').equals(plantId).first();
-        if (updatedCard && (outcome.leveledUp || outcome.stageChanged)) {
+        if (updatedCard && outcome && (outcome.leveledUp || outcome.stageChanged)) {
           setCompletion({ animate: 'levelup', cardId: updatedCard.id });
           await runGuardianDossier(plantId);
           return;
@@ -186,6 +190,9 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
       onComplete();
     } catch (error) {
       console.error('Failed to save check-in', error);
+      // Swallowing this left the modal sitting on step 4 forever with only a
+      // console trace — the Keeper had no idea whether their check-in landed.
+      setSaveError('The check-in could not be saved. Your answers are still here — try again.');
     } finally {
       setLoading(false);
     }
@@ -431,8 +438,15 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
                 Back
               </button>
             ) : <div />}
-            
-            <button 
+
+            {saveError && (
+              <div role="alert" className="flex items-start gap-2 mb-4 text-xs text-garden-coral">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                <span>{saveError}</span>
+              </div>
+            )}
+
+            <button
               disabled={!isStepValid() || loading}
               onClick={step === 4 ? saveCheckIn : nextStep}
               className="px-10 py-5 bg-garden-earth text-white rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center gap-3 hover:bg-garden-sage transition-all disabled:opacity-20 shadow-xl shadow-garden-earth/10 group active:scale-95"

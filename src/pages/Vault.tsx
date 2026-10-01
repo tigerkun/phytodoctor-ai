@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   Thermometer, Droplets, Sun, Wind, MapPin, FlaskConical,
-  Sparkles, ArrowRight, RotateCcw, FileText, Printer, Leaf
+  Sparkles, ArrowRight, RotateCcw, FileText, Printer, Leaf, AlertTriangle
 } from 'lucide-react';
 import { db } from '../db/database';
 import { GameService } from '../services/gameService';
@@ -434,6 +434,16 @@ export default function VaultPage() {
                 <p className="text-xs text-text-stone mt-1">
                   Condition: {site.weather} · Epoch: {new Date(site.datetime).toLocaleString()}
                 </p>
+                {site.estimated && (
+                  <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
+                    <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                    <span>
+                      The live weather service did not respond, so these dials are a temperate
+                      regional estimate — not a reading for this site. Re-run the site scan to
+                      measure it.
+                    </span>
+                  </p>
+                )}
 
                 {/* Hermetic Terrarium Calibrated Brass Dials */}
                 <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">

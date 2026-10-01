@@ -415,6 +415,24 @@ export default function BotanicalLab() {
   };
 
   /**
+   * The button path into indexing. `handleIndexSpecimen` throws for real
+   * reasons -- a photo that will not upload, a weekly discovery cap that is
+   * already spent -- and the button called it bare, so a failure became an
+   * unhandled rejection: no toast, no error on the bench, a button that simply
+   * re-enabled. The Keeper would lose a paid scan to a silent no-op. The
+   * scan-from-file path already had a catch around this call.
+   */
+  const indexSpecimen = async () => {
+    try {
+      await handleIndexSpecimen();
+    } catch (err: any) {
+      setScanStage('idle');
+      setIsUplinkingPhoto(false);
+      error(err?.message || 'Could not index this specimen.');
+    }
+  };
+
+  /**
    * One-tap fail-safe: the metadata check is evidence, not a verdict, and it
    * can be wrong about a photo the Keeper actually took. Attesting releases
    * exactly what the gate withheld, through the ledger so the reversal is
@@ -1229,7 +1247,7 @@ export default function BotanicalLab() {
                             </button>
                           ) : scanMode === 'consult' ? (
                             <button
-                              onClick={() => handleIndexSpecimen()}
+                              onClick={() => indexSpecimen()}
                               disabled={isUplinkingPhoto}
                               className="flex-1 py-3 bg-gold/20 hover:bg-gold/30 text-text-bark border border-gold/40 font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95 font-mono disabled:opacity-50"
                             >

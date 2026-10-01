@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Calendar, ShieldCheck, Activity, AlertCircle, Droplets, Sun, TrendingUp, Sparkles, Box, Camera, Clock, Star, Sprout, Crown, Zap, Plus, Loader2, Book, Bookmark, Send, Share2 } from 'lucide-react';
+import { ChevronLeft, Calendar, ShieldCheck, Activity, AlertCircle, Droplets, Sun, TrendingUp, Box, Camera, Clock, Star, Sprout, Crown, Zap, Plus, Loader2, Book, Bookmark, Send, Share2 } from 'lucide-react';
 import { db, type PlantNote } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
 import GuardianScoreRing from '../components/GuardianScoreRing';
@@ -45,8 +45,6 @@ export default function PlantDetail() {
   const { success, error } = useToast();
   const [activeTab, setActiveTab] = useState<'timeline' | 'journal' | 'alerts' | 'notebook'>('timeline');
   const [propagating, setPropagating] = useState(false);
-  const [synthesizing, setSynthesizing] = useState(false);
-  const [artStyle, setArtStyle] = useState<'neo' | 'cyber' | 'ink' | 'soft'>('neo');
   const [useHybrid, setUseHybrid] = useState(false);
   const [propCount, setPropCount] = useState(0);
   const [newNote, setNewNote] = useState('');
@@ -199,29 +197,7 @@ if (!plant) {
   );
 }
 
-  const handleSynthesizeArt = async () => {
-    if (!card) return;
-    setSynthesizing(true);
-    
-    // Simulate AI synthesis by applying a high-quality stylized filter seed based on selected style
-    setTimeout(async () => {
-       try {
-          const styleSeeds = {
-            neo: 'vibrant_botanical',
-            cyber: 'neon_glitch_plant',
-            ink: 'da_vinci_sketch',
-            soft: 'ethereal_glow'
-          };
-          await db.cards.update(card.id, { 
-             altArt: `https://picsum.photos/seed/${card.id}_${styleSeeds[artStyle]}/800/1000?blur=1` 
-          });
-          success(`AI ${artStyle.toUpperCase()} Synthesis Complete: Genetic profile re-mapped into consistent stylized art.`);
-       } finally {
-          setSynthesizing(false);
-       }
-    }, 2000);
-  };
-
+  
   const handleAddNote = async () => {
     if (!newNote.trim() || !id) return;
     
@@ -464,44 +440,15 @@ if (!plant) {
                   <DetailStat icon={<Clock size={16} />} label="Intake Cycle" value="Daily Review" />
                 </div>
 
-                {/* Art Synthesis Station */}
-                <div className="p-6 bg-[#f4ece0] rounded-2xl border border-[#cfbe9f] relative overflow-hidden shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-[#3d2d1d] flex items-center gap-2">
-                      <Sparkles size={14} className="text-[#c5a059]" /> Botanical Camera Lucida (Art Synthesis)
-                    </h4>
-                    <span className="text-[9px] font-mono text-[#7a654c] uppercase tracking-wider">
-                      Neural Stylization
-                    </span>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-3 items-center">
-                    <div className="flex bg-[#e8decc] p-1 rounded-xl border border-[#cfbe9f]">
-                      {(['neo', 'cyber', 'ink', 'soft'] as const).map(s => (
-                        <button
-                          key={s}
-                          onClick={() => setArtStyle(s)}
-                          className={`px-3 py-1.5 rounded-lg text-[9px] font-mono font-bold uppercase tracking-widest transition-all ${
-                            artStyle === s 
-                              ? 'bg-[#3d2d1d] text-[#f7f0e4] shadow-sm' 
-                              : 'text-[#6b5843] hover:bg-black/5'
-                          }`}
-                        >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-
-                    <button 
-                      onClick={handleSynthesizeArt}
-                      disabled={synthesizing || !card}
-                      className="px-5 py-2.5 bg-[#3d2d1d] text-[#f7f0e4] rounded-xl font-mono font-bold uppercase tracking-widest text-[10px] shadow hover:bg-[#5a422e] transition-all flex items-center gap-2 disabled:opacity-40"
-                    >
-                      {synthesizing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} className="text-[#c5a059]" />}
-                      <span>{card?.altArt ? 'Re-Synthesize Plate' : 'Synthesize Card Art'}</span>
-                    </button>
-                  </div>
-                </div>
+                {/* Art Synthesis Station
+                    Removed: this station had no image model behind it. It wrote a
+                    blurred picsum.photos URL into card.altArt and told the Keeper
+                    "Neural Stylization" and "Genetic profile re-mapped into
+                    consistent stylized art" -- a random photo, permanently, in the
+                    user's own collection, described as generated art. PhytoCard falls
+                    back to the plant's real photo when altArt is null, which is the
+                    honest default. Reinstate this station only when a real
+                    generation call is wired behind it. */}
 
                 {/* Genetic Propagation Bench */}
                 <div className="p-6 bg-[#eef4ee] rounded-2xl border border-[#b8d5b8] relative overflow-hidden shadow-sm">

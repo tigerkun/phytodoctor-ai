@@ -141,7 +141,13 @@ function WelcomeLanding({ onGetStarted, onSignIn, onTryScan }: { onGetStarted: (
           </div>
         </section>
 
-        {/* Guest Register Endorsement */}
+        {/* What this is, said plainly.
+            This used to be a named testimonial -- "Priya Sharma, Conservator,
+            23 PhytoCards" -- with a quote nobody wrote. It sat here while the
+            landing page was unreachable to signed-out visitors, which made it
+            harmless. It is the front page now, so invented social proof is
+            live on a public site. A real Keeper quote goes here instead, the
+            moment there is one to use. */}
         <motion.section
           className="max-w-2xl mx-auto text-center"
           initial={{ opacity: 0 }}
@@ -149,17 +155,18 @@ function WelcomeLanding({ onGetStarted, onSignIn, onTryScan }: { onGetStarted: (
           viewport={{ once: true }}
         >
           <div className="rounded-2xl p-8 border border-[#D2C7B5]/70 dark:border-[#3D3830] bg-[#FAF7F2]/90 dark:bg-[#1A1714]/90 shadow-sm relative">
-            <p className="font-serif text-xl italic leading-relaxed mb-4 text-[#2C2419] dark:text-[#F5F0E8]">
-              "The diagnostic precision and potting reminders brought my conservatory back to life. A proper heritage tool for any true plant lover."
+            <p className="font-serif text-xl italic leading-relaxed mb-5 text-[#2C2419] dark:text-[#F5F0E8]">
+              Photograph a leaf. In about fifteen seconds you get the species, what is
+              actually wrong with it, and what to do about it — in order of what matters.
             </p>
-            <div className="flex items-center justify-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-[#5A7D5A] text-white flex items-center justify-center font-serif font-bold text-xs">
-                P
-              </div>
-              <div className="text-left">
-                <p className="font-bold text-xs text-[#2C2419] dark:text-[#F5F0E8]">Priya Sharma</p>
-                <p className="text-[10px] uppercase font-mono tracking-wider text-[#9C8E80]">Conservator · 23 PhytoCards</p>
-              </div>
+            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[10px] uppercase font-mono tracking-wider text-[#9C8E80]">
+              <span>Gemini vision diagnosis</span>
+              <span>·</span>
+              <span>Care instructions you can follow</span>
+              <span>·</span>
+              <span>Weather-aware watering</span>
+              <span>·</span>
+              <span>Your collection stays on your device</span>
             </div>
           </div>
         </motion.section>

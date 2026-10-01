@@ -53,12 +53,24 @@ export default function Profile() {
   const { transitionTo } = usePageTransition();
   const { success, error } = useToast();
   const userId = GameService.getUserId();
+  // Set when the records below could not be created, so the loading guard can
+  // say so instead of spinning forever.
+  const [setupError, setSetupError] = useState<string | null>(null);
 
-  // Ensure user profile, level progress, and streak records exist
+  // Ensure user profile, level progress, and streak records exist.
+  // These are Dexie writes and they were fired bare. If any rejects --
+  // DatabaseClosedError, a blocked upgrade, a quota error -- no profile row is
+  // ever created and the guard below renders its spinner forever with no error
+  // and no retry. A Keeper would be soft-bricked on their own profile page.
   useEffect(() => {
-    GameService.ensureProfile(userId);
-    RewardService.ensureLevelProgress(userId);
-    RewardService.ensureStreakRecord(userId);
+    Promise.all([
+      GameService.ensureProfile(userId),
+      RewardService.ensureLevelProgress(userId),
+      RewardService.ensureStreakRecord(userId),
+    ]).catch((err) => {
+      console.error('Failed to prepare profile records', err);
+      setSetupError('Your dossier could not be opened. This is usually temporary — reload to try again.');
+    });
   }, [userId]);
 
   // Reactive DB queries (pure reads with explicit userId deps)
@@ -196,14 +208,30 @@ export default function Profile() {
             theme: { color: '#1b4332' },
             modal: { ondismiss: () => reject(new Error('Payment cancelled.')) },
             handler: async () => {
+              // The payment succeeded in Razorpay's eyes; the entitlement
+              // arrives by webhook and may lag or fail. Poll for it, then
+              // report what is actually true. Claiming Pro on timeout would
+              // tell a paying Keeper they have something they do not, and the
+              // next profile pull would silently take it back.
+              let granted = false;
               for (let i = 0; i < 10; i++) {
                 await new Promise(r2 => setTimeout(r2, 1500));
-                await GameService.pullServerProfile(userId);
+                try {
+                  await GameService.pullServerProfile(userId);
+                } catch {
+                  // A pending outbox makes the pull a no-op; keep waiting.
+                }
                 const p = await GameService.getProfile(userId);
-                if (p?.tier === 'pro') break;
+                if (p?.tier === 'pro') { granted = true; break; }
               }
-              success('Pro Commission active — welcome!');
-              resolve();
+              if (granted) {
+                success('Pro Commission active — welcome!');
+                resolve();
+              } else {
+                reject(new Error(
+                  'Payment received, but your Pro commission has not activated yet. It usually takes under a minute — reopen this page and it will be there. If it does not arrive, contact support with your order id.'
+                ));
+              }
             }
           }).open();
         };
@@ -313,16 +341,31 @@ export default function Profile() {
   if (!profile) {
     return (
       <PageWrapper className="min-h-screen skin-identity flex items-center justify-center">
-        <div className="text-center p-8 bg-[#faf6ec] rounded-2xl border-2 border-[#d8ccb8] shadow-xl">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-            className="inline-block text-3xl mb-3"
-          >
-            🌿
-          </motion.div>
-          <p className="font-serif text-lg font-bold text-[#3a2818]">Unsealing Guild Dossier & Field Folio…</p>
-          <p className="font-mono text-xs uppercase tracking-widest text-[#8a7258] mt-1">Societas Botanica District IV</p>
+        <div className="text-center p-8 bg-[#faf6ec] rounded-2xl border-2 border-[#d8ccb8] shadow-xl max-w-md">
+          {setupError ? (
+            <>
+              <div className="text-3xl mb-3">🥀</div>
+              <p className="font-serif text-lg font-bold text-[#3a2818]">{setupError}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-4 px-5 py-2.5 rounded-xl bg-[#3d2d1d] text-[#f7f0e4] font-mono font-bold uppercase tracking-widest text-[10px] hover:bg-[#5a422e] transition-colors"
+              >
+                Reload
+              </button>
+            </>
+          ) : (
+            <>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                className="inline-block text-3xl mb-3"
+              >
+                🌿
+              </motion.div>
+              <p className="font-serif text-lg font-bold text-[#3a2818]">Unsealing Guild Dossier & Field Folio…</p>
+              <p className="font-mono text-xs uppercase tracking-widest text-[#8a7258] mt-1">Societas Botanica District IV</p>
+            </>
+          )}
         </div>
       </PageWrapper>
     );
