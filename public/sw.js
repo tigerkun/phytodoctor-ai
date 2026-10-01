@@ -1,17 +1,32 @@
-const CACHE_NAME = 'phyto-guard-v1.7';
+const CACHE_NAME = 'phyto-guard-v1.8';
 const ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  'https://www.transparenttextures.com/patterns/leaves.png',
   'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Inter:wght@100..900&display=swap'
 ];
 
+// Added one at a time, and a failure is logged rather than thrown.
+//
+// cache.addAll() is atomic: one rejected entry rejects the whole install, and a
+// rejected install means the worker never activates. That is not theoretical
+// here -- the precache list used to include a transparenttextures.com texture
+// that now returns 404, which silently killed every install. Nothing in the UI
+// referenced that texture, and the cost was total: no offline shell, and no
+// `push` listener, so alerts a user had subscribed to were never delivered.
+//
+// A missing background image is not worth losing the worker over.
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS);
-    })
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.allSettled(
+        ASSETS.map((url) =>
+          cache.add(new Request(url, { cache: 'reload' })).catch((error) => {
+            console.warn('[sw] precache skipped', url, error);
+          })
+        )
+      )
+    )
   );
   self.skipWaiting();
 });
@@ -50,10 +65,15 @@ self.addEventListener('fetch', (event) => {
       if (cachedResponse) return cachedResponse;
 
       return fetch(event.request).then((networkResponse) => {
-        // Cache new assets if they are from the same origin or specific CDNs
-        if (event.request.url.includes('transparenttextures') || event.request.url.includes('fonts.googleapis')) {
-            const cacheCopy = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cacheCopy));
+        // Runtime-cache the stylesheet we depend on. Only same-origin and the
+        // font CDN: caching an arbitrary cross-origin response would store a
+        // 404 the page then serves forever.
+        const url = event.request.url;
+        const cacheable =
+          url.startsWith(self.location.origin) || url.includes('fonts.googleapis');
+        if (cacheable && networkResponse.ok) {
+          const cacheCopy = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cacheCopy));
         }
         return networkResponse;
       }).catch(() => {
@@ -80,7 +100,11 @@ self.addEventListener('push', (event) => {
   }
   event.waitUntil(self.registration.showNotification(data.title || 'PhytoDoctor alert', {
     body: data.body || 'A specimen needs your attention.',
-    icon: '/manifest.json',
+    // An icon has to be an image the notifier can decode. This used to point at
+    // /manifest.json, which is JSON -- every alert rendered with a blank or
+    // broken icon, and no error surfaced to explain why.
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     tag: data.tag || 'plant-alert',
     data: { url: data.url || '/' }
   }));
@@ -94,7 +118,17 @@ self.addEventListener('notificationclick', (event) => {
     // duplicate copies of the app.
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
       for (const win of windows) {
-        if ('focus' in win) return win.focus();
+        if ('focus' in win) {
+          // Focusing alone is not enough. The alert names a plant, and
+          // reusing a tab that is sitting on some unrelated page left the
+          // tap looking like it did nothing at all.
+          return win.focus().then((focused) => {
+            if (focused && typeof focused.navigate === 'function') {
+              return focused.navigate(target).catch(() => {});
+            }
+            return focused;
+          });
+        }
       }
       return clients.openWindow(target);
     })
