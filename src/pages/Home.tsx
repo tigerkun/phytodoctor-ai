@@ -31,7 +31,7 @@ import { usePageTransition } from '@/components/home/PageTransitionContext';
 const ONBOARD_KEY = 'botanical_guardian_onboarded';
 
 const FEATURES = [
-  { icon: Leaf, title: 'AI Plant Doctor', desc: 'Snap a photo and get an instant diagnosis powered by Gemini AI — species ID, disease detection, and tailored care plans.', color: '#5A7A5A' },
+  { icon: Leaf, title: 'AI Plant Doctor', desc: 'Snap a photo and get a diagnosis in about half a minute, powered by Gemini AI — species ID, disease detection, and tailored care plans.', color: '#5A7A5A' },
   { icon: Shield, title: 'PhytoCards', desc: 'Every plant earns a collectible card that levels up as you care for it. Track rarity, stats, and growth stages.', color: '#C17F59' },
   { icon: Swords, title: 'Care-Off Arena', desc: 'Challenge other guardians to head-to-head care battles. Prove your green thumb and climb the leaderboard.', color: '#B8860B' },
   { icon: Bell, title: 'Smart Alerts', desc: 'Weather-aware watering reminders, drift detection, and predictive health forecasts — so no plant gets forgotten.', color: '#6B8E6B' },
@@ -155,8 +155,12 @@ function WelcomeLanding({ onGetStarted, onSignIn, onTryScan }: { onGetStarted: (
           viewport={{ once: true }}
         >
           <div className="rounded-2xl p-8 border border-[#D2C7B5]/70 dark:border-[#3D3830] bg-[#FAF7F2]/90 dark:bg-[#1A1714]/90 shadow-sm relative">
+            {/* "About half a minute" is measured, not aspirational: a real
+            diseased-leaf photo identified in 29.6s cold and 17.1s warm. The
+            Lab shows live elapsed time, so the promise here has to be one the
+            app can actually keep. */}
             <p className="font-serif text-xl italic leading-relaxed mb-5 text-[#2C2419] dark:text-[#F5F0E8]">
-              Photograph a leaf. In about fifteen seconds you get the species, what is
+              Photograph a leaf. In about half a minute you get the species, what is
               actually wrong with it, and what to do about it — in order of what matters.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[10px] uppercase font-mono tracking-wider text-[#9C8E80]">

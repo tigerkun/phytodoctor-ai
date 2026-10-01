@@ -81,7 +81,7 @@ const FAQS: FaqCategory[] = [
       },
       {
         q: 'The scan is taking a long time. Is that normal?',
-        a: 'A typical scan finishes in several seconds. During periods of very high AI demand it can take longer; the app automatically retries across multiple AI models before giving up. If it fails, wait a moment and scan again — your photo is not lost.',
+        a: 'Expect 15–30 seconds for a scan; the Lab shows the elapsed time counting up while it works, so you can see it is moving. During periods of very high AI demand it can take longer; the app automatically retries across multiple AI models before giving up. If it fails, wait a moment and scan again — your photo is not lost.',
       },
       {
         q: 'The AI said my plant is something unlikely, or failed to identify it.',
