@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 
 interface RequireAuthProps {
   children: React.ReactNode;
@@ -13,32 +13,15 @@ interface RequireAuthProps {
  */
 export default function RequireAuth({ children }: RequireAuthProps) {
   const location = useLocation();
+  const isAuthenticated = useIsAuthenticated();
   const [checking, setChecking] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return Boolean(localStorage.getItem('botanical_guardian_auth_token'));
-  });
 
+  // The hook knows the answer synchronously from the local token, but the
+  // Supabase session check is async; give it one tick before bouncing a
+  // visitor who is actually signed in with a session the token field missed.
   useEffect(() => {
-    let isMounted = true;
-    const verifyAuth = async () => {
-      if (supabase) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (isMounted) {
-          setIsAuthenticated(Boolean(session));
-          setChecking(false);
-        }
-      } else {
-        const token = localStorage.getItem('botanical_guardian_auth_token');
-        if (isMounted) {
-          setIsAuthenticated(Boolean(token));
-          setChecking(false);
-        }
-      }
-    };
-    verifyAuth();
-    return () => {
-      isMounted = false;
-    };
+    const t = setTimeout(() => setChecking(false), 350);
+    return () => clearTimeout(t);
   }, []);
 
   if (!isAuthenticated && !checking) {

@@ -10,6 +10,7 @@ import { createUserScopedClient } from "./src/lib/supabaseUserClient";
 import { clampTo, clampPercent, clampUnit, hasScore, orderRange } from "./src/lib/scoreGuards";
 import { cooldownFor, selectModels as chooseModels } from "./src/lib/modelCooldown";
 import { readImageSignals, assessProvenance } from "./src/lib/imageProvenance";
+import { GuestQuota } from "./src/lib/guestQuota";
 
 dotenv.config();
 
@@ -59,15 +60,21 @@ const AI_RATE_LIMIT = 15;
 const generalRateCounts = new Map<string, { count: number; resetAt: number }>();
 const aiRateCounts = new Map<string, { count: number; resetAt: number }>();
 
+/**
+ * Rightmost X-Forwarded-For entry: the trusted proxy (Render) appends the
+ * real client address after any client-supplied entries, so the last value
+ * is the only one an attacker cannot spoof. Falls back to req.ip / socket
+ * address for direct (non-proxied) connections.
+ */
+function clientIpOf(req: express.Request): string {
+  const xff = req.headers['x-forwarded-for'];
+  const entries = typeof xff === 'string' ? xff.split(',').map(s => s.trim()).filter(Boolean) : [];
+  return entries.length > 0 ? entries[entries.length - 1] : (req.ip || req.socket.remoteAddress || 'unknown');
+}
+
 function makeLimiter(limit: number, map: Map<string, { count: number; resetAt: number }>) {
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    // Rightmost X-Forwarded-For entry: the trusted proxy (Render) appends the
-    // real client address after any client-supplied entries, so the last value
-    // is the only one an attacker cannot spoof. Falls back to req.ip /
-    // socket address for direct (non-proxied) connections.
-    const xff = req.headers['x-forwarded-for'];
-    const entries = typeof xff === 'string' ? xff.split(',').map(s => s.trim()).filter(Boolean) : [];
-    const ip = (entries.length > 0 ? entries[entries.length - 1] : (req.ip || req.socket.remoteAddress || 'unknown'));
+    const ip = clientIpOf(req);
     const now = Date.now();
     const entry = map.get(ip);
     if (!entry || now > entry.resetAt) {
@@ -173,6 +180,36 @@ function apiGate(req: express.Request, res: express.Response, next: express.Next
       next();
     })
     .catch(() => fail(res, 401, 'Your session has expired. Please sign in again.'));
+}
+
+/**
+ * THE GUEST LANE (identify only).
+ *
+ * The scanner is the product, and until now a visitor had to create an account
+ * before seeing a single screen of it. This gate lets a signed-out visitor
+ * through to /api/identify with a strict per-IP daily cap, so the first scan
+ * happens before the sign-up, and the conversion ask arrives with a diagnosis
+ * already on screen.
+ *
+ * Any request carrying a Bearer token goes through the full apiGate instead,
+ * so nothing else changes for signed-in users. tierGate stays in the chain
+ * after this; for guests (no authUserId) it already short-circuits open.
+ */
+const GUEST_IDENTIFY_LIMIT = 2;
+const guestQuota = new GuestQuota(GUEST_IDENTIFY_LIMIT);
+
+function apiOrGuestGate(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (token || !SUPABASE_URL || !SUPABASE_KEY) return apiGate(req, res, next);
+
+  const day = new Date().toISOString().slice(0, 10);
+  const quota = guestQuota.take(clientIpOf(req), day, 'identify');
+  if (!quota.allowed) {
+    return fail(res, 401, 'Your free guest scans are used up for today. Create a free account for 3 scans a day.');
+  }
+  (req as any).isGuest = true;
+  next();
 }
 
 // ── Game economy (server-authoritative when Supabase is configured) ────────
@@ -806,7 +843,7 @@ async function generateWithRetry(params: any, retries = 1, client: GoogleGenAI =
   throw new Error("Gemini API generateContent failed across all models");
 }
 
-app.post("/api/identify", express.json({ limit: '11mb' }), aiLimiter, apiGate, tierGate("identify"), async (req, res) => {
+app.post("/api/identify", express.json({ limit: '11mb' }), aiLimiter, apiOrGuestGate, tierGate("identify"), async (req, res) => {
   try {
     const { image, location } = req.body;
     if (!image || typeof image !== 'string') {

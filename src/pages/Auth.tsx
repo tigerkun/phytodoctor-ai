@@ -7,6 +7,7 @@ import { useDayNightTheme } from '../hooks/useDayNightTheme';
 import { GameService } from '../services/gameService';
 import { isValidEmail, evaluatePasswordStrength, generateLocalUserId, hashPassword, verifyPassword, isCurrentHashScheme, getAuthLockout, recordAuthFailure, clearAuthFailures } from '../services/authUtils';
 import { supabase, supabaseConfigured } from '../lib/supabase';
+import { consumeAuthReturn } from '../lib/guestHandoff';
 
 function GoogleMark() {
   return (
@@ -88,7 +89,7 @@ export default function Auth() {
       const userId = `sb_${u.id}`;
       const displayName = u.user_metadata?.full_name || u.user_metadata?.name || u.email?.split('@')[0] || 'Naturalist';
       await persistSession(userId, u.email ?? '', displayName, session.access_token);
-      navigate('/');
+      navigate(consumeAuthReturn('/'));
     });
     return () => subscription.unsubscribe();
   }, [navigate, isRecovery]);
@@ -153,7 +154,7 @@ export default function Auth() {
           const displayName = data.user.user_metadata?.full_name || data.user.email?.split('@')[0] || 'Naturalist';
           await persistSession(userId, data.user.email ?? '', displayName, (await supabase.auth.getSession()).data.session?.access_token);
           window.history.replaceState(null, '', window.location.pathname);
-          navigate('/');
+          navigate(consumeAuthReturn('/'));
         }
       }
     } catch (err: any) {
@@ -216,7 +217,7 @@ export default function Auth() {
             const userId = `sb_${data.user.id}`;
             const displayName = data.user.user_metadata?.full_name || data.user.email?.split('@')[0] || name;
             await persistSession(userId, data.user.email ?? email, displayName, data.session?.access_token);
-            navigate('/');
+            navigate(consumeAuthReturn('/'));
           }
         } else {
           const { data, error } = await supabase.auth.signUp({
@@ -245,7 +246,7 @@ export default function Auth() {
               setLoading(false);
               return;
             }
-            navigate('/');
+            navigate(consumeAuthReturn('/'));
           }
         }
       } else {
@@ -295,7 +296,7 @@ export default function Auth() {
             passwordHash: hash,
           } as any);
         }
-        navigate('/');
+        navigate(consumeAuthReturn('/'));
       }
     } catch (err: any) {
       setAuthError(err.message || 'Authentication failed. Please try again.');

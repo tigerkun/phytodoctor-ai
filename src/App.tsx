@@ -108,8 +108,10 @@ function RoutedContent() {
             {/* Specimen Archives */}
             <Route path="/collection" element={<RequireAuth><Vault /></RequireAuth>} />
 
-            {/* Diagnosis & Treatment */}
-            <Route path="/lab" element={<RequireAuth><BotanicalLab /></RequireAuth>} />
+            {/* Diagnosis & Treatment. The Lab is deliberately public: the scan
+                is the product, and a visitor gets one before the sign-up. The
+                conversion ask lives at the save moment inside BotanicalLab. */}
+            <Route path="/lab" element={<BotanicalLab />} />
             <Route path="/clinic" element={<RequireAuth><Clinic /></RequireAuth>} />
             <Route path="/clinic/case-study" element={<RequireAuth><CaseStudy /></RequireAuth>} />
             <Route path="/assistant" element={<RequireAuth><Assistant /></RequireAuth>} />

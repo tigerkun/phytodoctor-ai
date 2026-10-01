@@ -43,6 +43,9 @@ import { useGeolocation } from '../hooks/useGeolocation';
 import { fetchWeather } from '../utils/weatherIntegration';
 import { updateUploadStreak } from '../game/rewardUtils';
 import { useToast } from '../components/Toast';
+import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
+import { triggerHaptic } from '../utils/hapticAudio';
+import { rememberAuthReturn, stashPendingScan, takePendingScan, clearPendingScan } from '../lib/guestHandoff';
 
 // Rarity mapping helper
 function getRarityFromSpecies(species: string): 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' {
@@ -194,6 +197,11 @@ export default function BotanicalLab() {
   const [provenanceHold, setProvenanceHold] = useState<{ verdict: string; withheldSeeds: number } | null>(null);
   const [attested, setAttested] = useState(false);
   const [attesting, setAttesting] = useState(false);
+  // Guest lane. A visitor may scan without an account; the save is where the
+  // account is asked for, and `guestHoldout` holds the panel open until they
+  // either leave for sign-up or go back to scanning.
+  const isAuthed = useIsAuthenticated();
+  const [guestHoldout, setGuestHoldout] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scanStartRef = useRef<number>(0);
   const [scanElapsed, setScanElapsed] = useState(0);
@@ -228,6 +236,17 @@ export default function BotanicalLab() {
   useEffect(() => {
     PlantService.fetchPlants().then(setDbPlants);
     return onPlantsChange(setDbPlants);
+  }, []);
+
+  // Coming back from sign-up: put the guest's diagnosis back on the bench
+  // instead of making them spend a scan to find out what they already learned.
+  useEffect(() => {
+    const pending = takePendingScan();
+    if (!pending) return;
+    setDexImage(pending.image);
+    setDexResult(pending.result);
+    setScanMode('consult');
+    success('Your diagnosis was waiting for you — index it to keep it.');
   }, []);
 
   // Only the sanctuary's own check-ins are read here, so scope the query to
@@ -282,6 +301,8 @@ export default function BotanicalLab() {
     setScannedRewards(null);
     setProvenanceHold(null);
     setAttested(false);
+    setGuestHoldout(false);
+    clearPendingScan();
     setScanError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -297,6 +318,21 @@ export default function BotanicalLab() {
     const target = resultToUse || dexResult;
     const photo = photoUrl || dexImage;
     if (!target || !photo) return;
+
+    // The conversion moment. A guest just saw the product work -- the save is
+    // where an account starts to matter, so this is where the ask happens,
+    // with the diagnosis still on screen and the seeds promised on the other
+    // side of sign-up. Nothing is saved or awarded for a guest: the local
+    // economy is the signed-in Keeper's game.
+    if (!isAuthed) {
+      setGuestHoldout(true);
+      triggerHaptic();
+      // Carry the diagnosis across the sign-up wall so coming back does not
+      // cost the visitor a second scan.
+      rememberAuthReturn('/lab?tab=dex');
+      stashPendingScan(photo, target);
+      return;
+    }
     const species = target.speciesName || target.scientificName || target.commonName;
     const rarity = getRarityFromSpecies(species);
     let finalPhotoUrl = photo;
@@ -617,6 +653,16 @@ export default function BotanicalLab() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12 relative z-10">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8 sm:mb-12 border-b border-border-light pb-6 sm:pb-8 w-full">
           <div className="flex-grow min-w-0 max-w-2xl">
+            {/* A guest has no nav bar to click, so the way back to the
+                landing page has to live here. */}
+            {!isAuthed && (
+              <button
+                onClick={() => transitionTo('/', 'Estate')}
+                className="mb-3 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-text-stone hover:text-moss transition-colors font-mono"
+              >
+                ← Back to the Estate
+              </button>
+            )}
             <p className="lab-kicker mb-2">Expedition Wet Lab · Microscope Bench № 02</p>
             <h1 className="text-3xl sm:text-4xl font-serif font-black text-text-bark flex items-center gap-3">
               Botanical Lab <span className="text-moss">🔬</span>
@@ -652,6 +698,25 @@ export default function BotanicalLab() {
             </motion.button>
           </div>
         </div>
+
+        {/* Guest strip. The Lab is public now, so a visitor needs to know the
+            rules and what an account buys -- stated plainly, once, without
+            getting in the way of the scan. */}
+        {!isAuthed && (
+          <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 rounded-2xl border border-gold/30 bg-gold/5">
+            <p className="text-xs text-text-stone leading-relaxed">
+              <span className="font-black text-text-bark uppercase tracking-wider font-mono text-[11px]">Guest bench</span>
+              {' — '}2 free diagnoses a day. A free account raises that to 3, and keeps your specimens,
+              streak and seeds.
+            </p>
+            <button
+              onClick={() => { rememberAuthReturn('/lab?tab=dex'); transitionTo('/auth', 'Sign up'); }}
+              className="shrink-0 px-4 py-2 rounded-full bg-moss hover:brightness-110 text-white font-black uppercase tracking-widest text-[11px] transition-all active:scale-95 font-mono whitespace-nowrap"
+            >
+              Sign up free
+            </button>
+          </div>
+        )}
 
         {activeTab === 'dex' && (
           <div className="grid grid-cols-1 gap-8 relative">
@@ -1057,6 +1122,34 @@ export default function BotanicalLab() {
                                     {attesting ? 'Releasing…' : `🤝 I took this photo myself — release ${provenanceHold.withheldSeeds} seeds`}
                                   </button>
                                 )}
+                              </div>
+                            )}
+
+                            {/* The conversion moment. Shown only to a guest who
+                                pressed "Index to Sanctuary": the diagnosis stays
+                                on screen, and the account is asked for here —
+                                at the instant the result becomes worth keeping. */}
+                            {guestHoldout && (
+                              <div className="p-4 sm:p-5 rounded-2xl border border-gold/40 bg-gold/10">
+                                <h4 className="text-[11px] font-black text-text-bark uppercase tracking-wider font-mono mb-1.5">
+                                  🔖 Keep this specimen
+                                </h4>
+                                <p className="text-xs text-text-stone leading-relaxed">
+                                  Sanctuaries are where the streak, the seeds and the collection live. A
+                                  free account keeps this diagnosis — 3 scans a day, versus 2 as a guest.
+                                </p>
+                                <button
+                                  onClick={() => { rememberAuthReturn('/lab?tab=dex'); transitionTo('/auth', 'Sign up'); }}
+                                  className="mt-3 w-full py-2.5 bg-moss hover:brightness-110 text-white font-black uppercase tracking-widest text-[11px] rounded-xl transition-all active:scale-95 font-mono"
+                                >
+                                  Create free account — 20 seconds
+                                </button>
+                                <button
+                                  onClick={() => { setGuestHoldout(false); resetDexScan(true); }}
+                                  className="mt-2 w-full py-2 text-[11px] font-bold uppercase tracking-widest text-text-muted hover:text-text-stone transition-colors font-mono"
+                                >
+                                  Not now — scan another
+                                </button>
                               </div>
                             )}
 

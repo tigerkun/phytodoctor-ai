@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/database';
 import { GameService } from '@/services/gameService';
-import { ArrowRight, Leaf, Shield, Swords, Bell } from 'lucide-react';
+import { ArrowRight, Leaf, Shield, Swords, Bell, Camera } from 'lucide-react';
 
 import { HeroSection } from '@/components/home/HeroSection';
 import SanctuaryHub from '@/components/home/SanctuaryHub';
@@ -37,7 +37,7 @@ const FEATURES = [
   { icon: Bell, title: 'Smart Alerts', desc: 'Weather-aware watering reminders, drift detection, and predictive health forecasts — so no plant gets forgotten.', color: '#6B8E6B' },
 ];
 
-function WelcomeLanding({ onGetStarted, onSignIn }: { onGetStarted: () => void; onSignIn: () => void }) {
+function WelcomeLanding({ onGetStarted, onSignIn, onTryScan }: { onGetStarted: () => void; onSignIn: () => void; onTryScan: () => void }) {
   return (
     <PageWrapper className="min-h-screen w-full relative overflow-hidden bg-[#FAF7F2] dark:bg-[#121619]">
       {/* Background architectural glasshouse & estate ambience */}
@@ -97,6 +97,19 @@ function WelcomeLanding({ onGetStarted, onSignIn }: { onGetStarted: () => void; 
             Open Sanctuary Gates
             <ArrowRight size={18} />
           </motion.button>
+
+          {/* The scan is the product. A visitor should be able to prove that
+              before being asked for anything -- this is the whole front door
+              of the funnel now. */}
+          <div className="mt-4">
+            <button
+              onClick={onTryScan}
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-sm border border-[#5A7D5A]/50 dark:border-[#8FB58F]/40 text-[#3D5A3D] dark:text-[#8FB58F] hover:bg-[#5A7D5A]/10 transition-colors cursor-pointer bg-transparent"
+            >
+              <Camera size={16} />
+              Diagnose a plant now — no account needed
+            </button>
+          </div>
 
           <p className="mt-3 text-xs tracking-wider uppercase text-[#9C8E80] dark:text-[#7A756D] font-mono">
             Free forever · Private offline database · No sign-up barrier
@@ -318,7 +331,7 @@ export default function HomePage() {
 
   // Gate: show welcome landing for first-time visitors
   if (!onboarded) {
-    return <WelcomeLanding onGetStarted={handleGetStarted} onSignIn={() => transitionTo('/auth', 'Sign In')} />;
+    return <WelcomeLanding onGetStarted={handleGetStarted} onSignIn={() => transitionTo('/auth', 'Sign In')} onTryScan={() => transitionTo('/lab?tab=dex', 'Botanical Lab')} />;
   }
 
   return (
