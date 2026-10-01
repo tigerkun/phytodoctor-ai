@@ -1,0 +1,20 @@
+# PhytoDoctor AI
+#
+# The public surface is five pages: the landing page, the guest bench, help,
+# privacy and terms. Everything else needs an account and is worthless to a
+# crawler -- it would only ever fetch the sign-in wall. Saying so here saves
+# crawl budget and keeps thin, per-user URLs (/plant/:id especially, which is
+# one card per signed-in user) out of the index.
+
+User-agent: *
+Allow: /
+Disallow: /audit
+Disallow: /assistant
+Disallow: /clinic
+Disallow: /collection
+Disallow: /library
+Disallow: /market
+Disallow: /plant/
+Disallow: /profile
+
+Sitemap: https://phytodoctor-ai.onrender.com/sitemap.xml

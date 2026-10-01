@@ -11,6 +11,7 @@ import { clampTo, clampPercent, clampUnit, hasScore, orderRange } from "./src/li
 import { cooldownFor, selectModels as chooseModels } from "./src/lib/modelCooldown";
 import { readImageSignals, assessProvenance } from "./src/lib/imageProvenance";
 import { GuestQuota } from "./src/lib/guestQuota";
+import { classifyStaticRequest } from "./src/lib/spaFallback";
 
 dotenv.config();
 
@@ -1631,7 +1632,18 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    // Only real navigations get the SPA shell. A miss for an actual file 404s
+    // honestly, and a miss under /api answers in JSON -- `app.get('*')` served
+    // index.html with a 200 for all three, which meant /robots.txt returned
+    // HTML and a stale asset name failed as "Unexpected token '<'".
+    app.use((req, res) => {
+      const decision = classifyStaticRequest(req.path, req.method);
+      if (decision === 'api-not-found') {
+        return fail(res, 404, 'Unknown endpoint.');
+      }
+      if (decision === 'not-found') {
+        return res.status(404).type('text/plain').send('Not found');
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
