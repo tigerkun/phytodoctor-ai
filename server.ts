@@ -12,6 +12,7 @@ import { cooldownFor, selectModels as chooseModels } from "./src/lib/modelCooldo
 import { readImageSignals, assessProvenance } from "./src/lib/imageProvenance";
 import { createGuestQuotaStore, MemoryQuotaStore, type GuestQuotaStore } from "./src/lib/guestQuotaStore";
 import { classifyStaticRequest } from "./src/lib/spaFallback";
+import { clientIpOf as resolveClientIp } from "./src/lib/clientIp";
 
 dotenv.config();
 
@@ -62,16 +63,12 @@ const generalRateCounts = new Map<string, { count: number; resetAt: number }>();
 const aiRateCounts = new Map<string, { count: number; resetAt: number }>();
 
 /**
- * Rightmost X-Forwarded-For entry: the trusted proxy (Render) appends the
- * real client address after any client-supplied entries, so the last value
- * is the only one an attacker cannot spoof. Falls back to req.ip / socket
- * address for direct (non-proxied) connections.
+ * The address a limit should count against. Cloudflare sets CF-Connecting-IP
+ * to the real client and 403s anything carrying its own copy, so it cannot be
+ * rotated to escape a limit the way X-Forwarded-For can. See
+ * src/lib/clientIp.ts for the measurement behind that.
  */
-function clientIpOf(req: express.Request): string {
-  const xff = req.headers['x-forwarded-for'];
-  const entries = typeof xff === 'string' ? xff.split(',').map(s => s.trim()).filter(Boolean) : [];
-  return entries.length > 0 ? entries[entries.length - 1] : (req.ip || req.socket.remoteAddress || 'unknown');
-}
+const clientIpOf = (req: express.Request): string => resolveClientIp(req);
 
 function makeLimiter(limit: number, map: Map<string, { count: number; resetAt: number }>) {
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -639,6 +636,11 @@ const REQUIRED_TABLES = [
 const OPTIONAL_TABLES = [
   'push_subscriptions',
   'push_alert_log',
+  // Written by the purchase_pro_with_seeds RPC, not by this server, so the
+  // RPC probe above cannot see it: the function answering proves nothing about
+  // whether the table it inserts into was ever created. Pro is bought with
+  // seeds, so a missing table breaks that path and nothing else.
+  'subscriptions',
   // Absent until sql/guest_scan_quota.sql is run. Without it the guest scan
   // cap is per instance rather than shared, which is a cost problem, not an
   // outage -- so it is reported and never counted against readiness.
