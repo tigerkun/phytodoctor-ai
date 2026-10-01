@@ -6,6 +6,13 @@
 #
 # This workflow pings the health endpoint often enough that the service never
 # idles long enough to sleep. The repo is public, so Actions minutes are free.
+#
+# A timeout is deliberately NOT treated as a failure on the first attempt. When
+# GitHub delays a scheduled run past Render's 15-minute idle window, the service
+# is asleep and the ping is what wakes it -- a cold boot takes 30-90s. The old
+# 45s timeout with no retry turned that expected cold start into a red run, which
+# made the badge useless: a healthy service that had idled looked identical to a
+# genuinely broken one. Now a run only fails after every attempt times out.
 name: Keep alive
 
 on:
@@ -25,17 +32,28 @@ concurrency:
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    # Room for three attempts at up to 120s each, plus the gaps between them.
+    timeout-minutes: 8
     steps:
       - name: Warm the service
         run: |
-          code=$(curl -sS -o /tmp/health.json -w "%{http_code}" --max-time 45 \
-            https://phytodoctor-ai.onrender.com/healthz)
-          cat /tmp/health.json
-          echo
-          if [ "$code" != "200" ]; then
-            echo "::warning::health check returned HTTP $code"
-            exit 1
-          fi
-          grep -q '"ready":true' /tmp/health.json || {
-            echo "::warning::service answered but is not ready"; exit 1; }
+          url=https://phytodoctor-ai.onrender.com/healthz
+          for attempt in 1 2 3; do
+            code=$(curl -sS -o /tmp/health.json -w "%{http_code}" --max-time 120 "$url") || code=000
+            echo "attempt $attempt -> HTTP $code"
+            if [ "$code" = "200" ] && grep -q '"ready":true' /tmp/health.json; then
+              cat /tmp/health.json; echo
+              echo "service is warm"
+              exit 0
+            fi
+            # A 200 that is not ready is a real problem, not a cold start:
+            # retrying will not fix a service that answered but is unhealthy.
+            if [ "$code" = "200" ]; then
+              echo "::warning::service answered HTTP 200 but is not ready"
+              cat /tmp/health.json; echo
+              exit 1
+            fi
+            [ "$attempt" -lt 3 ] && sleep 10
+          done
+          echo "::warning::health check failed after 3 attempts (last HTTP $code)"
+          exit 1
