@@ -8,16 +8,12 @@ import GardenAmbience from './GardenAmbience';
 
 import { supabase } from '../lib/supabase';
 import { rememberAuthReturn } from '../lib/guestHandoff';
+import { isPublicPath } from '../lib/publicPaths';
 import { GameService } from '../services/gameService';
 
 interface LayoutProps {
   children: ReactNode;
 }
-
-// Routes reachable without a session. Kept in one place because two guards
-// (this one and RequireAuth) have to agree; if they ever disagree the app
-// bounces the visitor off a page that was meant to be open.
-export const PUBLIC_PATHS = ['/auth', '/lab'];
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
@@ -26,7 +22,7 @@ export default function Layout({ children }: LayoutProps) {
   // Pages a visitor may hold without an account. /lab is the whole point of
   // the guest lane: the scan is the product, and a signed-out visitor has to
   // be able to reach it before we ask them for anything.
-  const isPublicPage = PUBLIC_PATHS.some(p => location.pathname === p || location.pathname.startsWith(p + '/'));
+  const isPublicPage = isPublicPath(location.pathname);
   // Tracks auth so the nav/footer don't flash for logged-out visitors.
   const [hasAuth, setHasAuth] = React.useState(() =>
     Boolean(localStorage.getItem('botanical_guardian_auth_token'))
@@ -98,12 +94,12 @@ export default function Layout({ children }: LayoutProps) {
     const token = supabase
       ? null
       : localStorage.getItem('botanical_guardian_auth_token');
-    if (!token && !isAuthPage && !isPublicPage) {
+    if (!token && !isPublicPage) {
       // Send them back to whatever they were reaching for once they sign up.
       rememberAuthReturn(`${location.pathname}${location.search}`);
       navigate('/auth', { replace: true });
     }
-  }, [hasAuth, isAuthPage, isPublicPage, navigate, location.pathname, location.search]);
+  }, [hasAuth, isPublicPage, navigate, location.pathname, location.search]);
 
   return (
     <div className="min-h-screen flex flex-col font-sans relative overflow-x-hidden" id="app-shell" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
