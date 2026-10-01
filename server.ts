@@ -10,7 +10,7 @@ import { createUserScopedClient } from "./src/lib/supabaseUserClient";
 import { clampTo, clampPercent, clampUnit, hasScore, orderRange } from "./src/lib/scoreGuards";
 import { cooldownFor, selectModels as chooseModels } from "./src/lib/modelCooldown";
 import { readImageSignals, assessProvenance } from "./src/lib/imageProvenance";
-import { GuestQuota } from "./src/lib/guestQuota";
+import { createGuestQuotaStore, MemoryQuotaStore, type GuestQuotaStore } from "./src/lib/guestQuotaStore";
 import { classifyStaticRequest } from "./src/lib/spaFallback";
 
 dotenv.config();
@@ -197,15 +197,28 @@ function apiGate(req: express.Request, res: express.Response, next: express.Next
  * after this; for guests (no authUserId) it already short-circuits open.
  */
 const GUEST_IDENTIFY_LIMIT = 2;
-const guestQuota = new GuestQuota(GUEST_IDENTIFY_LIMIT);
 
-function apiOrGuestGate(req: express.Request, res: express.Response, next: express.NextFunction) {
+// Shared when sql/guest_scan_quota.sql has been applied, in-process otherwise.
+// An in-process Map is per instance, and production was observed granting a
+// third scan immediately after refusing one, because the next request landed
+// on a second instance. See src/lib/guestQuotaStore.ts.
+let guestQuota: GuestQuotaStore = new MemoryQuotaStore(GUEST_IDENTIFY_LIMIT);
+
+async function apiOrGuestGate(req: express.Request, res: express.Response, next: express.NextFunction) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
   if (token || !SUPABASE_URL || !SUPABASE_KEY) return apiGate(req, res, next);
 
   const day = new Date().toISOString().slice(0, 10);
-  const quota = guestQuota.take(clientIpOf(req), day, 'identify');
+  let quota;
+  try {
+    quota = await guestQuota.take(clientIpOf(req), day, 'identify');
+  } catch (err) {
+    // A quota store failure must not become a hard error for a visitor who
+    // just wants to photograph a leaf. Serve them; log the reason.
+    console.error('Guest quota store failed:', err);
+    return next();
+  }
   if (!quota.allowed) {
     return fail(res, 401, 'Your free guest scans are used up for today. Create a free account for 3 scans a day.');
   }
@@ -1658,6 +1671,16 @@ async function startServer() {
       console.warn('Supabase admin init timed out or failed, continuing boot');
     }
   }
+
+  // Pick the guest quota backing store once the admin client is up. Runs
+  // before listen() so the very first guest request already hits the right
+  // store rather than the placeholder.
+  guestQuota = await createGuestQuotaStore({
+    supabase: supabaseAdmin,
+    limit: GUEST_IDENTIFY_LIMIT,
+    salt: SUPABASE_SERVICE_KEY,
+    log: (message) => console.log(message),
+  });
 
   scheduleWateringReminders();
 
