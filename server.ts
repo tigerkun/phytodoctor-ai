@@ -639,6 +639,10 @@ const REQUIRED_TABLES = [
 const OPTIONAL_TABLES = [
   'push_subscriptions',
   'push_alert_log',
+  // Absent until sql/guest_scan_quota.sql is run. Without it the guest scan
+  // cap is per instance rather than shared, which is a cost problem, not an
+  // outage -- so it is reported and never counted against readiness.
+  'guest_scan_quota',
 ] as const;
 
 const ALL_TABLES = [...REQUIRED_TABLES, ...OPTIONAL_TABLES] as const;
