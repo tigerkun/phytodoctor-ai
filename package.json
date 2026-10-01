@@ -13,7 +13,8 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test:market": "tsx src/services/marketCheckout.check.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "render:vapid": "node scripts/sync-render-vapid.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
