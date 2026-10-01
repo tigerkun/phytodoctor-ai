@@ -54,6 +54,14 @@ beforeEach(() => {
     }),
   })) as any);
 
+  // grant() and consume() do their read and write inside a Dexie transaction
+  // so two overlapping calls cannot both spend the same item. The table
+  // methods above are mocked rather than backed by a real IndexedDB, so the
+  // transaction is stubbed to run its body — which is exactly what a
+  // single-threaded caller sees anyway. The interleaving that motivated the
+  // transaction needs a real database to reproduce.
+  vi.spyOn(db, 'transaction' as any).mockImplementation((async (_mode: any, _table: any, body: any) => body()) as any);
+
   // The profile row is not what this file is about; earnSeeds reads it for the
   // tier multiplier only.
   vi.spyOn(db.userProfile, 'get').mockImplementation((async () =>

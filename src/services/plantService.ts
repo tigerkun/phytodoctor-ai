@@ -133,6 +133,46 @@ function notifySubscribers(plants: Plant[]) {
   });
 }
 
+/**
+ * The values postgresToPlant substitutes when Postgres has nothing to say.
+ *
+ * Merging the mapped rows straight back over Dexie means these stand-ins win
+ * over whatever the device actually has, and the next fetchPlants() (after
+ * every add/update/delete, plus each mount of the lab page) erases it. The
+ * visible case is a photo stored locally as a `data:` or `local://` URL
+ * because its cloud upload failed: the server has no photo_url, so the merge
+ * writes '' and the plant renders blank with the original unrecoverable.
+ */
+const SERVER_DEFAULTS = {
+  name: 'Unnamed Specimen',
+  species: 'Unknown species',
+  soilType: 'well-draining',
+  potSize: '',
+  potMaterial: 'plastic',
+  location: '',
+  checkInTime: '08:00',
+  status: 'Stable',
+  photoUrl: '',
+  guardianScore: 50,
+  wateringIntervalDays: 7,
+} as const satisfies Partial<Record<keyof Plant, unknown>>;
+
+/**
+ * Lets a real local value win wherever the server contributed only a stand-in.
+ * Anything the server genuinely holds still overwrites, so an intentional
+ * rename or re-pot on another device propagates as before.
+ */
+function preserveLocalFields(mapped: Plant, local: Plant | undefined): Plant {
+  if (!local) return mapped;
+  const merged = { ...mapped } as Record<string, unknown>;
+  for (const [key, fallback] of Object.entries(SERVER_DEFAULTS)) {
+    if (merged[key] === fallback && local[key as keyof Plant] !== undefined && local[key as keyof Plant] !== fallback) {
+      merged[key] = local[key as keyof Plant];
+    }
+  }
+  return merged as unknown as Plant;
+}
+
 export const PlantService = {
   /**
    * Fetches all plants ordered by creation date descending.
@@ -148,12 +188,20 @@ export const PlantService = {
           .order('created_at', { ascending: false });
 
         if (!error && data) {
-          const mapped = data.map(postgresToPlant);
-          // Sync Dexie in background for offline queries
+          const serverRows = data.map(postgresToPlant);
+          // Keep local-only values that Postgres has no column for, then mirror
+          // the merged set back. bulkPut on the mapped rows alone is a full
+          // overwrite, which is how a locally-stored photo survived as a blank
+          // image on the very next fetch.
+          let merged = serverRows;
           try {
-            await db.plants.bulkPut(mapped);
+            const local = await db.plants.bulkGet(serverRows.map((p) => p.id));
+            merged = serverRows.map((p, i) => preserveLocalFields(p, local[i]));
           } catch {}
-          return mapped;
+          try {
+            await db.plants.bulkPut(merged);
+          } catch {}
+          return merged;
         }
       } catch (err) {
         console.error('[PlantService] Error fetching from Supabase:', err);
@@ -287,20 +335,38 @@ export const PlantService = {
 
     if (supabase) {
       const pgPayload = plantToPostgres(payloadUpdates);
-      const { error } = await supabase
+      // `.select()` is load-bearing. A bare `.update().eq()` reports success
+      // when ZERO rows matched — only returning the rows reveals the miss. The
+      // silent case was a plant that never reached Postgres (created while
+      // signed out, or before migratePlantsToCloud ran): the remote write hit
+      // nothing, the local write went through, and the fetchPlants() below then
+      // returned the server list without that plant and broadcast it to every
+      // subscriber — the plant disappeared from the whole app, with no error.
+      const { data, error } = await supabase
         .from('plants')
         .update(pgPayload)
-        .eq('id', id);
+        .eq('id', id)
+        .select('id');
 
       if (error) {
         console.error('[PlantService] Supabase update error:', error);
         throw error;
       }
+      if (!data || data.length === 0) {
+        const err = new Error('This specimen is not on your cloud account yet.');
+        (err as any).code = 'PLANT_NOT_ON_SERVER';
+        throw err;
+      }
     }
 
+    // update() resolves to the number of rows changed, so 0 means the local
+    // mirror missed too. Swallowing that hid real write failures.
     try {
-      await db.plants.update(id, payloadUpdates);
-    } catch {}
+      const changed = await db.plants.update(id, payloadUpdates);
+      if (changed === 0) console.warn('[PlantService] no local row for plant', id);
+    } catch (e) {
+      console.error('[PlantService] local plant update failed:', e);
+    }
 
     const all = await this.fetchPlants();
     notifySubscribers(all);
@@ -322,11 +388,36 @@ export const PlantService = {
       }
     }
 
+    // Each table is cleared independently. A single try/catch around the whole
+    // cascade meant a mid-way failure (storage quota is the realistic one)
+    // skipped every later delete and left partial rows behind. These are all
+    // plant-scoped operational data, so a failure is logged and the rest still
+    // run rather than silently orphaning four more tables.
+    //
+    // db.cards is NOT cleared here on purpose: it is the Keeper's earned
+    // collection (level, XP, growth stage, battle scars, rarity, isFeatured) and
+    // is local-only, never synced and never rebuilt. Cascading into it destroys
+    // progression that was earned, so whether a plant delete should take the
+    // card with it is a product decision, not a cascade detail.
+    const cascade: Array<[string, () => Promise<unknown>]> = [
+      ['checkins', () => db.checkins.where('plantId').equals(id).delete()],
+      ['predictions', () => db.predictions.where('plantId').equals(id).delete()],
+      ['sensorReadings', () => db.sensorReadings.where('plantId').equals(id).delete()],
+      ['alerts', () => db.alerts.where('plantId').equals(id).delete()],
+      ['notes', () => db.notes.where('plantId').equals(id).delete()],
+    ];
     try {
       await db.plants.delete(id);
-      await db.cards.where('plantId').equals(id).delete();
-      await db.checkins.where('plantId').equals(id).delete();
-    } catch {}
+    } catch (e) {
+      console.error('[PlantService] local plant delete failed:', e);
+    }
+    for (const [table, run] of cascade) {
+      try {
+        await run();
+      } catch (e) {
+        console.error(`[PlantService] failed to clear ${table} for plant ${id}:`, e);
+      }
+    }
 
     const all = await this.fetchPlants();
     notifySubscribers(all);

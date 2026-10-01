@@ -5,9 +5,12 @@ import { db, type SeedTransaction } from '../db/database';
 // entry is parked as dead instead of retrying on every flush.
 //
 // Parking is a brake, not a verdict: flushSeedSyncOutbox requeues dead entries
-// once a delivery succeeds, so an outage that outlives this budget delays the
-// credits instead of discarding them.
+// once a delivery succeeds, and again on its own once this cooldown has elapsed
+// since the entry was parked. The cooldown is what stops that second path from
+// turning into unlimited retries against a server that is still broken, while
+// guaranteeing a stranded entry is never stranded for good.
 export const MAX_SYNC_ATTEMPTS = 8;
+export const DEAD_RETRY_COOLDOWN_MS = 30 * 60_000;
 
 /**
  * Apply a signed seed delta to the local profile atomically with its ledger
@@ -102,7 +105,7 @@ export async function flushSeedSyncOutbox(userId: string): Promise<void> {
 
   for (const item of pending) {
     if (item.attempts >= MAX_SYNC_ATTEMPTS) {
-      await db.seedSyncOutbox.update(item.id, { status: 'dead' });
+      await db.seedSyncOutbox.update(item.id, { status: 'dead', deadAt: Date.now() });
       continue;
     }
     let res: Response;
@@ -134,26 +137,51 @@ export async function flushSeedSyncOutbox(userId: string): Promise<void> {
     const attempts = item.attempts + 1;
     await db.seedSyncOutbox.update(item.id, { attempts, lastError: `HTTP ${res.status}` });
     if (attempts >= MAX_SYNC_ATTEMPTS) {
-      await db.seedSyncOutbox.update(item.id, { status: 'dead' });
+      await db.seedSyncOutbox.update(item.id, { status: 'dead', deadAt: Date.now() });
     }
   }
 
-  // Revive anything previously parked, but only after this pass actually
-  // delivered something — proof the server is healthy again. Parking as 'dead'
-  // was meant to stop a broken server from being retried forever, and it did,
-  // but with nothing to undo it the parking became permanent: those deltas
-  // were never retried, so the credits existed only in the local balance and
-  // the server never learned about them. Gating the revival on a successful
-  // delivery keeps the original protection intact, because a server that is
-  // still failing never reaches this line.
+  // ── Reviving parked entries ───────────────────────────────────────────────
+  //
+  // Parking as 'dead' was meant to stop a broken server from being retried
+  // forever, and it did. But with nothing to undo it the parking became
+  // permanent: those deltas were never retried, so the credits existed only in
+  // the local balance and the server never learned about them. hasPendingSeedSyncs
+  // still counts them, so pullServerProfile also bailed for good, leaving the
+  // balance frozen and lower on every other device.
+  //
+  // The gate used to be `delivered > 0` — proof this pass actually reached the
+  // server. Dead rows are not in `pending`, so they can never themselves
+  // satisfy it; it only passed when some *other* row happened to deliver first.
+  // That is precisely the case that did not need reviving, so an entry stranded
+  // by an outage stayed dead until the user happened to earn another seed. A
+  // Keeper who stopped earning during the outage never got it back.
+  //
+  // Two conditions revive a row instead, and neither needs a request:
+  //
+  //   1. This pass delivered something — the server is demonstrably healthy.
+  //   2. The cooldown has elapsed since parking.
+  //
+  // The cooldown is what makes the original protection survive. A failing
+  // server can still cost a row at most MAX_SYNC_ATTEMPTS per cooldown window
+  // rather than one burst, but the entry always comes back on its own. Gating
+  // only on a health signal cannot do this: with an empty pending queue no
+  // request is made, so reaching the end of the loop proves nothing, and
+  // reviving unconditionally hands a still-broken server an unlimited budget.
+  //
+  // Rows parked before `deadAt` existed read as parked at epoch, so they revive
+  // on the first flush after this ships rather than staying stranded.
   //
   // They are requeued rather than sent here, so they go out on the next flush
   // instead of in a tight loop against a server that just came back.
-  if (delivered > 0) {
-    const dead = await db.seedSyncOutbox.where('[userId+status]').equals([userId, 'dead']).toArray();
-    for (const item of dead) {
-      await db.seedSyncOutbox.update(item.id, { status: 'pending', attempts: 0, lastError: undefined });
-    }
+  const parked = await db.seedSyncOutbox.where('[userId+status]').equals([userId, 'dead']).toArray();
+  if (parked.length === 0) return;
+
+  const now = Date.now();
+  for (const item of parked) {
+    const cooledDown = now - (item.deadAt ?? 0) >= DEAD_RETRY_COOLDOWN_MS;
+    if (!delivered && !cooledDown) continue;
+    await db.seedSyncOutbox.update(item.id, { status: 'pending', attempts: 0, lastError: undefined, deadAt: undefined });
   }
 }
 

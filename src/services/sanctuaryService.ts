@@ -69,11 +69,17 @@ export class SanctuaryService {
     const item = SANCTUARY_BY_ID[itemId];
     if (!item) throw new Error(`Unknown sanctuary item: ${itemId}`);
     const perUnit = item.perUnit ?? 1;
-    const next = (await this.getCount(itemId, userId)) + count * perUnit;
-    if (item.maxHeld > 0 && next > item.maxHeld) {
-      throw new Error(`You are already holding the most of ${item.name} you can carry.`);
-    }
-    await this.setCount(itemId, next, userId);
+    // Read and write inside one transaction: two overlapping grants would both
+    // read the same starting count and both write the same incremented value,
+    // letting the Keeper exceed maxHeld and silently losing one grant's units.
+    const next = await db.transaction('rw', db.sanctuaryStock, async () => {
+      const current = (await this.getCount(itemId, userId)) + count * perUnit;
+      if (item.maxHeld > 0 && current > item.maxHeld) {
+        throw new Error(`You are already holding the most of ${item.name} you can carry.`);
+      }
+      await this.setCount(itemId, current, userId);
+      return current;
+    });
     return next;
   }
 
@@ -82,10 +88,16 @@ export class SanctuaryService {
    * because every caller is a "do I have one of these" branch.
    */
   static async consume(itemId: SanctuaryItemId, userId: string = this.getUserId()): Promise<boolean> {
-    const current = await this.getCount(itemId, userId);
-    if (current <= 0) return false;
-    await this.setCount(itemId, current - 1, userId);
-    return true;
+    // One transaction, because the check and the write are the same decision.
+    // Done as two awaits, two overlapping calls both read 1, both write 0, and
+    // both return true — spending one item's bonus twice, which is exactly the
+    // invariant takeBoost's comment claims this pair protects.
+    return await db.transaction('rw', db.sanctuaryStock, async () => {
+      const current = await this.getCount(itemId, userId);
+      if (current <= 0) return false;
+      await this.setCount(itemId, current - 1, userId);
+      return true;
+    });
   }
 
   /** Spends one only if the callback says the Keeper is allowed to use it. */

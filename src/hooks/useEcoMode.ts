@@ -32,26 +32,46 @@ export function useEcoMode() {
     // Check Battery API (if available)
     if (!(navigator as any).getBattery && !(navigator as any).battery) return;
 
+    let cancelled = false;
+    let manager: any = null;
+    const onLevelChange = () => { if (manager) read(manager); };
+    const onChargingChange = () => { if (manager) read(manager); };
+
+    // isLow is derived here rather than only at mount. The handlers used to
+    // update `level` and `charging` but leave `isLow` at its initial value, so
+    // the moment the battery actually dropped below 20% nothing changed:
+    // ecoModeActive, shouldDisableAnimations and shouldReduceParticles all kept
+    // returning full-quality values, and the low-battery protection never
+    // engaged after the first read.
+    const read = (b: any) => {
+      setBattery({
+        level: b.level,
+        charging: b.charging,
+        isLow: !b.charging && b.level < 0.2
+      });
+    };
+
     const updateBattery = async () => {
       const battery = await (navigator as any).getBattery?.();
-      if (battery) {
-        setBattery({
-          level: battery.level,
-          charging: battery.charging,
-          isLow: battery.level < 0.2
-        });
-
-        battery.onlevelchange = () => {
-          setBattery(prev => ({ ...prev, level: battery.level }));
-        };
-
-        battery.onchargingchange = () => {
-          setBattery(prev => ({ ...prev, charging: battery.charging }));
-        };
-      }
+      if (!battery || cancelled) return;
+      manager = battery;
+      read(battery);
+      // addEventListener/removeEventListener, not the `onlevelchange`
+      // properties: assigning those clobbers any other listener and, with no
+      // cleanup below, kept firing setState after unmount.
+      battery.addEventListener?.('levelchange', onLevelChange);
+      battery.addEventListener?.('chargingchange', onChargingChange);
     };
 
     updateBattery();
+
+    return () => {
+      cancelled = true;
+      if (manager) {
+        manager.removeEventListener?.('levelchange', onLevelChange);
+        manager.removeEventListener?.('chargingchange', onChargingChange);
+      }
+    };
   }, []);
 
   return {

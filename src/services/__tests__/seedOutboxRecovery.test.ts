@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { db } from '../../db/database';
-import { flushSeedSyncOutbox, hasPendingSeedSyncs, MAX_SYNC_ATTEMPTS } from '../seedLedger';
+import { flushSeedSyncOutbox, hasPendingSeedSyncs, MAX_SYNC_ATTEMPTS, DEAD_RETRY_COOLDOWN_MS } from '../seedLedger';
 
 /**
  * Regression cover for the seed outbox parking entries as 'dead'.
@@ -30,6 +30,7 @@ type Row = {
   attempts: number;
   lastError?: string;
   status: 'pending' | 'dead';
+  deadAt?: number;
 };
 
 const USER = 'sb_test-user';
@@ -71,9 +72,10 @@ function addRow(over: Partial<Row> = {}): Row {
     source: 'reward',
     description: 'Library quiz',
     createdAt: 1_000 + rows.length,
-    attempts: 0,
-    status: 'pending',
-    ...over,
+  attempts: 0,
+  status: 'pending',
+  deadAt: undefined,
+  ...over,
   };
   rows.push(row);
   return row;
@@ -137,7 +139,9 @@ describe('seed outbox: recovery after the server comes back', () => {
   });
 
   it('leaves dead entries parked while the server is still failing', async () => {
-    addRow({ status: 'dead', attempts: MAX_SYNC_ATTEMPTS });
+    // deadAt marks this as parked by the current build, moments ago. A row with
+    // no deadAt is a legacy one and is covered separately.
+    addRow({ status: 'dead', attempts: MAX_SYNC_ATTEMPTS, deadAt: Date.now() });
 
     serverAnswers(500);
     await flushSeedSyncOutbox(USER);
@@ -164,6 +168,51 @@ describe('seed outbox: recovery after the server comes back', () => {
     spy.mockClear();
     await flushSeedSyncOutbox(USER);
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('leaves a freshly parked entry alone while the cooldown is running', async () => {
+    // The protection the cooldown has to preserve: a server that is still
+    // broken must not get the entry back just because time passed inside a
+    // burst of flushes.
+    addRow({ status: 'dead', attempts: MAX_SYNC_ATTEMPTS, deadAt: Date.now() });
+
+    serverAnswers(500);
+    await flushSeedSyncOutbox(USER);
+
+    expect(rows[0].status).toBe('dead');
+  });
+
+  it('revives a stranded entry on its own, with nothing new earned', async () => {
+    // The bug this whole cooldown path exists for. The entry was parked by an
+    // outage, the server came back, and then the user simply stopped playing.
+    // Nothing was pending, so the old `delivered > 0` gate could never pass and
+    // the credits were stranded permanently: the local balance showed them, the
+    // server never learned of them, and hasPendingSeedSyncs kept
+    // pullServerProfile from ever reconciling. No new row is added here on
+    // purpose — reviving must not depend on the user earning again.
+    addRow({ id: 'tx-stranded', status: 'dead', attempts: MAX_SYNC_ATTEMPTS, deadAt: Date.now() - DEAD_RETRY_COOLDOWN_MS - 1 });
+
+    serverAnswers(200);
+    await flushSeedSyncOutbox(USER);
+
+    expect(rows[0].status).toBe('pending');
+    expect(rows[0].attempts).toBe(0);
+
+    // And the next flush carries the credits home.
+    await flushSeedSyncOutbox(USER);
+    expect(rows).toHaveLength(0);
+    expect(await hasPendingSeedSyncs(USER)).toBe(false);
+  });
+
+  it('revives entries parked before deadAt existed', async () => {
+    // Rows written by an older build have no deadAt. Reading it as 0 makes them
+    // immediately eligible, so nobody who was already stranded stays that way.
+    addRow({ id: 'tx-legacy', status: 'dead', attempts: MAX_SYNC_ATTEMPTS });
+
+    serverAnswers(200);
+    await flushSeedSyncOutbox(USER);
+
+    expect(rows[0].status).toBe('pending');
   });
 });
 

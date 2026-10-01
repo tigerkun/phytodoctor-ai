@@ -126,19 +126,28 @@ export class RewardService {
       xpAwarded = Math.floor(xpAwarded * dynamicStreakMultiplier);
       seedsAwarded = Math.floor(seedsAwarded * dynamicStreakMultiplier);
 
-      // Check daily active seed cap
-      const dailyCap = await this.ensureDailyRewardCap(userId);
-      if (dailyCap.seedsEarned + seedsAwarded > REWARD_CAPS.ACTIVE_DAILY_SEED_CAP) {
-        seedsAwarded = Math.max(0, REWARD_CAPS.ACTIVE_DAILY_SEED_CAP - dailyCap.seedsEarned);
-        capExceeded = true;
-      }
-
-      // Update daily cap
-      await db.dailyRewardCaps.update([userId, this.getTodayDateStr()], {
-        seedsEarned: dailyCap.seedsEarned + seedsAwarded,
-        activeSeedsRemaining: Math.max(0, REWARD_CAPS.ACTIVE_DAILY_SEED_CAP - dailyCap.seedsEarned - seedsAwarded),
-        lastUpdated: new Date()
+      // Check and bump the daily cap inside one transaction. As two separate
+      // awaits, two concurrent awards both read the same seedsEarned, both
+      // decided they were under the cap, and both wrote the same incremented
+      // total — the later write erased the earlier one. The counter then
+      // permanently under-counted, so the Keeper could earn more than
+      // ACTIVE_DAILY_SEED_CAP in a day, every day, with no UI indicating it.
+      const granted = await db.transaction('rw', db.dailyRewardCaps, async () => {
+        const row = await this.ensureDailyRewardCap(userId);
+        let award = seedsAwarded;
+        if (row.seedsEarned + award > REWARD_CAPS.ACTIVE_DAILY_SEED_CAP) {
+          award = Math.max(0, REWARD_CAPS.ACTIVE_DAILY_SEED_CAP - row.seedsEarned);
+          capExceeded = true;
+        }
+        const next = row.seedsEarned + award;
+        await db.dailyRewardCaps.update([userId, this.getTodayDateStr()], {
+          seedsEarned: next,
+          activeSeedsRemaining: Math.max(0, REWARD_CAPS.ACTIVE_DAILY_SEED_CAP - next),
+          lastUpdated: new Date()
+        });
+        return award;
       });
+      seedsAwarded = granted;
     }
 
     // Credit through the shared ledger path so the grant reaches the server.
@@ -163,7 +172,6 @@ export class RewardService {
       throw new Error('Reward could not be recorded: the balance did not update.');
     }
     const newSeeds = credited.seeds;
-    const newXP = levelProgress.totalXP + xpAwarded;
 
     // Record reward in history
     const reward: RewardHistory = {
@@ -180,7 +188,7 @@ export class RewardService {
     await db.rewardHistory.add(reward);
 
     // Check for level up
-    await this.updateLevel(userId, newXP);
+    await this.addXp(userId, xpAwarded);
 
     return {
       xpAwarded,
@@ -268,51 +276,66 @@ export class RewardService {
     await db.discoveryRecords.add(discovery);
 
     // Update level
-    const newXP = levelProgress.totalXP + xpAwarded;
-    await this.updateLevel(userId, newXP);
+    await this.addXp(userId, xpAwarded);
 
     return { xpAwarded, seedsAwarded, chargeUsed };
   }
 
   // ============ LEVEL SYSTEM ============
 
-  static async updateLevel(userId: string, newXP: number): Promise<void> {
-    let progress = await this.ensureLevelProgress(userId);
-    // Find highest tier where xpRequired <= newXP (LEVEL_TIERS is sorted ascending)
-    const levelData = [...LEVEL_TIERS].reverse().find(t => t.xpRequired <= newXP);
+  /**
+   * Adds XP and re-derives the level from the resulting total.
+   *
+   * Takes a DELTA, not an absolute total, and does the read inside the same
+   * transaction as the write. It used to take a total that callers had already
+   * computed from a prior read of `levelProgress.totalXP`, so two concurrent
+   * awards (awardReward racing awardDiscovery, or two rapid taps) both read the
+   * same starting total, both wrote `start + their own award`, and the later
+   * write discarded the earlier award's XP entirely. Because the lost amount is
+   * invisible, the symptom is a Keeper whose XP bar stalls and who silently
+   * never levels up.
+   */
+  static async addXp(userId: string, xpDelta: number): Promise<void> {
+    if (xpDelta <= 0) return;
+    await db.transaction('rw', db.levelProgress, async () => {
+      const progress = await this.ensureLevelProgress(userId);
+      const newXP = progress.totalXP + xpDelta;
+      // Find highest tier where xpRequired <= newXP (LEVEL_TIERS is sorted ascending)
+      const levelData = [...LEVEL_TIERS].reverse().find(t => t.xpRequired <= newXP);
 
-    if (!levelData) return;
+      if (!levelData) return;
 
-    const newLevel = levelData.level;
-    if (newLevel > progress.currentLevel) {
-      // Level up!
-      progress.currentLevel = newLevel;
-      progress.lastLevelUpAt = new Date();
-      progress.unlockedFeatures = this.getUnlockedFeatures(newLevel);
-      progress.permanentMultipliers = this.getLevelMultipliers(newLevel);
+      const newLevel = levelData.level;
+      const levelUp = newLevel > progress.currentLevel;
+      if (levelUp) {
+        progress.currentLevel = newLevel;
+        progress.lastLevelUpAt = new Date();
+        progress.unlockedFeatures = this.getUnlockedFeatures(newLevel);
+        progress.permanentMultipliers = this.getLevelMultipliers(newLevel);
+
+        await db.levelProgress.update(userId, {
+          currentLevel: newLevel,
+          lastLevelUpAt: progress.lastLevelUpAt,
+          unlockedFeatures: progress.unlockedFeatures,
+          permanentMultipliers: progress.permanentMultipliers
+        });
+      }
+
+      // Update XP progress
+      const currentTier = LEVEL_TIERS[newLevel - 1] || LEVEL_TIERS[0];
+      const nextTier = LEVEL_TIERS[newLevel] || currentTier;
+      const xpForCurrentLevel = currentTier.xpRequired;
+      const xpForNextLevel = nextTier.xpRequired;
+      const xpSpan = Math.max(1, xpForNextLevel - xpForCurrentLevel);
+      const xpProgress = newLevel >= LEVEL_TIERS.length
+        ? 100
+        : Math.floor(((newXP - xpForCurrentLevel) / xpSpan) * 100);
 
       await db.levelProgress.update(userId, {
-        currentLevel: newLevel,
-        lastLevelUpAt: new Date(),
-        unlockedFeatures: progress.unlockedFeatures,
-        permanentMultipliers: progress.permanentMultipliers
+        totalXP: newXP,
+        xpToNextLevel: Math.max(0, xpForNextLevel - newXP),
+        xpProgress: Math.min(100, Math.max(0, xpProgress))
       });
-    }
-
-    // Update XP progress
-    const currentTier = LEVEL_TIERS[newLevel - 1] || LEVEL_TIERS[0];
-    const nextTier = LEVEL_TIERS[newLevel] || currentTier;
-    const xpForCurrentLevel = currentTier.xpRequired;
-    const xpForNextLevel = nextTier.xpRequired;
-    const xpSpan = Math.max(1, xpForNextLevel - xpForCurrentLevel);
-    const xpProgress = newLevel >= LEVEL_TIERS.length
-      ? 100
-      : Math.floor(((newXP - xpForCurrentLevel) / xpSpan) * 100);
-
-    await db.levelProgress.update(userId, {
-      totalXP: newXP,
-      xpToNextLevel: Math.max(0, xpForNextLevel - newXP),
-      xpProgress: Math.min(100, Math.max(0, xpProgress))
     });
   }
 
@@ -549,6 +572,11 @@ export class RewardService {
   private static async getDiscoveryChargesUsedThisWeek(userId: string): Promise<number> {
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Start of week (Sunday)
+    // Zero the time of day, as GameService.getCareOffsThisWeek does. Leaving
+    // it at the current time made the window start at, say, Sunday 10:00, so a
+    // discovery already recorded that Sunday did not count against
+    // DISCOVERY_CHARGES_PER_WEEK and the Keeper got a spare charge every week.
+    weekStart.setHours(0, 0, 0, 0);
     const records = await db.discoveryRecords
       .where('userId')
       .equals(userId)

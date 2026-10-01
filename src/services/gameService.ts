@@ -80,8 +80,17 @@ export class GameService {
     try {
       await this.upgradeToPro(userId);
     } catch (err) {
-      // Refund if the tier upgrade failed after the deduction.
-      await this.earnSeeds(GameService.PRO_UPGRADE_COST, 'bonus', 'Pro upgrade refund', userId);
+      // Return exactly what was taken. earnSeeds is the wrong tool here: it
+      // applies the Pro tier multiplier and spends a Long Season boost, so a
+      // Pro member whose upgrade failed was refunded MORE than 1000 seeds and
+      // lost a boost they had paid for. A refund is not a reward.
+      await applySeedDelta({
+        userId,
+        amount: GameService.PRO_UPGRADE_COST,
+        source: 'bonus',
+        description: 'Pro upgrade refund',
+        transactionId: crypto.randomUUID()
+      });
       throw err;
     }
   }
@@ -350,25 +359,46 @@ export class GameService {
       altArt: null
     };
 
-    await db.cards.add(card);
-    
+    // Insert inside a transaction that re-checks. `plantId` is not a unique
+    // index, so the existence check above is not a lock: two concurrent callers
+    // (the lab's lazy generate, CheckInFlow, and the generate inside
+    // updateCardFromCheckIn) could both pass it and both add, putting the same
+    // specimen into the collection twice. A Dexie rw transaction serialises
+    // them, and the re-check is what makes the loser back out.
+    const added = await db.transaction('rw', db.cards, async () => {
+      if (await db.cards.where('plantId').equals(plantId).first()) return null;
+      await db.cards.add(card);
+      return card;
+    });
+    if (!added) return;
+
     // Auto-feature if first or legendary+
     const cardCount = await db.cards.where('userId').equals(userId).count();
     if (cardCount === 1 || ['legendary', 'mythic'].includes(rarity)) {
       await this.setFeaturedCard(card.id, userId);
     }
 
-    // Award seeds for new collection item only if species never discovered before
-    const previouslyDiscovered = profile.discoveredSpecies?.includes(plant.species);
-    
-    if (!previouslyDiscovered) {
-      await this.earnSeeds(ECONOMY_CONFIG.EARNING_BASE.new_plant, 'bonus', `Discovered ${plant.species}`, userId);
+    // Award seeds for new collection item only if species never discovered
+    // before. Decided inside the transaction this time. Both concurrent callers
+    // previously read discoveredSpecies before either wrote it, so both took
+    // this branch: the new_plant bonus was paid twice and the array update lost
+    // one of the two species. Recording the species is what makes the decision,
+    // so it has to be the read-modify-write that is atomic. The credit follows
+    // outside — if it throws, the species stays marked and the bonus is lost
+    // once, which is the right direction to fail compared with paying twice.
+    const isNewSpecies = await db.transaction('rw', db.userProfile, async () => {
+      const fresh = await db.userProfile.get(userId);
+      if (!fresh || fresh.discoveredSpecies?.includes(plant.species)) return false;
       await db.userProfile.update(userId, {
-        discoveredSpecies: [...(profile.discoveredSpecies || []), plant.species]
+        discoveredSpecies: [...(fresh.discoveredSpecies || []), plant.species]
       });
+      return true;
+    });
+    if (isNewSpecies) {
+      await this.earnSeeds(ECONOMY_CONFIG.EARNING_BASE.new_plant, 'bonus', `Discovered ${plant.species}`, userId);
     }
-    
-    return card;
+
+    return added;
   }
 
   static async setFeaturedCard(cardId: string, userId: string = this.getUserId()) {

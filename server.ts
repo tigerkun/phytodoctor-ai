@@ -1476,9 +1476,8 @@ app.get("/api/economy/profile", apiGate, async (req, res) => {
 app.post("/api/economy/seed-sync", express.json({ limit: '16kb' }), apiGate, async (req, res) => {
   try {
     const userId = (req as any).authUserId;
-    const client = userClient((req as any).authToken);
     if (!SUPABASE_URL || !SUPABASE_KEY) return res.json({ ok: true, synced: false }); // local mode
-    if (!userId || !client || !supabaseAdmin) return fail(res, 503, "Economy service is temporarily unavailable.");
+    if (!userId || !supabaseAdmin) return fail(res, 503, "Economy service is temporarily unavailable.");
     const { delta, source, description, transactionId } = req.body || {};
     const d = Math.trunc(Number(delta));
     if (!Number.isFinite(d) || d === 0 || Math.abs(d) > 10000) return fail(res, 400, "Invalid seed delta.");
@@ -1488,7 +1487,14 @@ app.post("/api/economy/seed-sync", express.json({ limit: '16kb' }), apiGate, asy
     if (!transactionId || typeof transactionId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(transactionId)) {
       return fail(res, 400, "Missing or invalid transactionId.");
     }
-    const { data: next, error } = await client.rpc('increment_seeds', {
+    // Deliberately supabaseAdmin, not userClient(authToken). The RPC was
+    // granted to `authenticated`, which left a second door into the economy: a
+    // signed-in user could call PostgREST directly with their own JWT and mint
+    // seeds without ever passing through this route or its validation. That
+    // grant is revoked in sql/economy_service_role_only.sql, making this the
+    // only way in. userId comes from the verified JWT via apiGate, never the
+    // body, and increment_seeds re-checks it against auth.uid().
+    const { data: next, error } = await supabaseAdmin.rpc('increment_seeds', {
       p_user_id: userId,
       p_amount: d,
       p_source: String(source || 'bonus').slice(0, 40),
