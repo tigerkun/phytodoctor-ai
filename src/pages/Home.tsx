@@ -165,22 +165,19 @@ function WelcomeLanding({ onGetStarted, onSignIn, onTryScan }: { onGetStarted: (
               return (
                 <motion.div
                   key={f.title}
-                  initial={{ opacity: 0, y: 25 }}
-                  // Deliberately `animate`, not `whileInView`. This row sits roughly
-                  // 950px down the landing page -- below the fold on any phone
-                  // -- so a scroll-gated reveal is what you would want, and it
-                  // was tried. It cannot work in this layout: Layout.tsx gives
-                  // <main> `overflow-y: auto`, and framer-motion picks the
-                  // nearest scrollable ancestor as its IntersectionObserver
-                  // root. That <main> is 2228px tall while the window is 844,
-                  // so every card "intersects" the moment it mounts and the
-                  // reveal fires instantly. Measured: all three cards at full
-                  // opacity 296ms after mount, with no scroll. A viewport
-                  // margin does not help, because the problem is the root, not
-                  // the threshold. Fixed when the page is genuinely shorter
-                  // than the scrollport; not worth faking until then.
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 + i * 0.08, duration: 0.5 }}
+initial={{ opacity: 0, y: 25 }}
+                  // This row sits ~950px down the landing page, below the fold on
+                  // any phone, so it reveals on arrival rather than on mount.
+                  //
+                  // This was previously pinned to `animate` because a scroll-gated
+                  // reveal was believed to be impossible here. It was possible --
+                  // the blocker was `<AnimatePresence initial={false}>` in App.tsx,
+                  // which suppressed the `initial` state of every descendant, so
+                  // this row rendered already visible and never had a reveal to
+                  // perform. That flag is now scoped to the route wrapper only.
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '0px 0px -12% 0px' }}
+                  transition={{ delay: i * 0.08, duration: 0.5 }}
                   whileHover={{ y: -5 }}
                   // whileHover never fires on a touchscreen, so these cards had
                   // no press feedback at all on the device most people open

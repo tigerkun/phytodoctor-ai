@@ -82,11 +82,30 @@ function RoutedContent() {
     ? { duration: 0 }
     : { duration: 0.2, ease: 'easeOut' as const };
 
+  // Only the very first render skips the transition, so a cold start does not
+  // fade the whole app in from nothing.
+  //
+  // This used to be `<AnimatePresence initial={false}>`, which reads like the
+  // same idea but is not: it suppresses the `initial` state of every descendant
+  // motion component, not just the one it wraps. That silently disabled all
+  // eleven `whileInView` reveals across five files. `initial={{opacity: 0}}`
+  // was never painted, so each element rendered already visible at full
+  // opacity and its reveal-on-scroll had nothing left to do -- which is exactly
+  // what "the page feels dead" was.
+  //
+  // Measured at 390px: with the flag present, every below-the-fold element had
+  // `style=""` (never touched by framer) and computed opacity 1; with it
+  // removed they sit at `opacity: 0; transform: translateY(25px)` and animate
+  // in as they arrive. Scoping the flag to this one wrapper keeps the
+  // no-fade-on-load behaviour and restores the reveals.
+  const [isFirstRender, setIsFirstRender] = React.useState(true);
+  useEffect(() => { setIsFirstRender(false); }, []);
+
   return (
-    <AnimatePresence initial={false} mode="wait">
+    <AnimatePresence mode="wait">
       <motion.div
         key={location.pathname}
-        initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+        initial={isFirstRender || shouldReduceMotion ? false : { opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         exit={shouldReduceMotion ? undefined : { opacity: 0 }}
         transition={transition}

@@ -17,13 +17,12 @@ import { join } from 'node:path';
 const indexCss = readFileSync(join(process.cwd(), 'src/index.css'), 'utf8');
 const skinsCss = readFileSync(join(process.cwd(), 'src/styles/page-skins.css'), 'utf8');
 
-/**
- * Comments are stripped before anything else, in both languages. Several places
- * here are commented with the measurement that motivated them, and those
- * comments quote the very class names, props and pixel sizes the assertions
- * look for -- so a test that reads raw source matches its own explanation as a
- * violation.
- */
+/** Comments are stripped before anything else, in both languages. Several
+ *  places here are commented with the measurement that motivated them, and those
+ *  comments quote the very class names, props and pixel sizes the assertions
+ *  look for -- so a test that reads raw source matches its own explanation as a
+ *  violation. JSX uses `{/* ... *\/}` for the same reason; those are block
+ *  comments and have to go too, or a tag search lands inside one. */
 function stripCssComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, '');
 }
@@ -31,7 +30,7 @@ function stripCssComments(source: string): string {
 /** Line comments only, and a `//` directly after a `:` is left alone so that a
  *  URL inside a string literal does not truncate the line. */
 function stripJsComments(source: string): string {
-  return source.replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  return stripCssComments(source).replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 }
 
 /** The whole phone media query, brace-matched. Slicing to the first `}` would
@@ -156,10 +155,44 @@ describe('phone motion', () => {
     expect(card).toContain('whileHover');
   });
 
-  it('does not pretend the below-fold reveal works', () => {
-    // framer-motion uses the nearest scrollable ancestor as its observer root,
-    // and <main> is 2228px tall inside an 844px window, so whileInView fires on
-    // mount. Kept as `animate` on purpose; the measurement is in Home.tsx.
-    expect(cardBlock()).not.toContain('whileInView');
+  it('gates the below-fold cards on scroll arriving', () => {
+    // These cards sit ~950px down, below the fold on any phone, so they should
+    // reveal when scrolled to rather than the instant they mount. This was
+    // previously asserted the other way round, as a documented dead end: see
+    // `does not suppress the initial state of every page below it`.
+    const card = cardBlock();
+    expect(card, 'the feature cards lost their scroll reveal').toContain('whileInView');
+    expect(card, 'the reveal should fire once, not on every pass')
+      .toMatch(/viewport=\{\{[^}]*once:\s*true/);
+  });
+});
+
+describe('the route wrapper', () => {
+  const app = stripJsComments(readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8'));
+
+  it('does not suppress the initial state of every page below it', () => {
+    // This was `<AnimatePresence initial={false} ...>`, which reads like "don't
+    // animate on first load" but actually means "suppress the `initial` state of
+    // every descendant motion component", not just the one it wraps.
+    //
+    // Consequence, measured at 390px: every below-the-fold element on the
+    // landing page had `style=""` -- framer never painted it -- and sat at
+    // computed opacity 1. All eleven `whileInView` call sites across five files
+    // were rendering already-visible and had no reveal left to perform, which is
+    // what made the page read as dead. Eleven components, one flag.
+    expect(app, 'AnimatePresence initial={false} suppresses every nested reveal')
+      .not.toMatch(/<AnimatePresence[^>]*\binitial=\{false\}/);
+  });
+
+  it('still skips the transition on a cold start, scoped to the wrapper', () => {
+    // Dropping the flag outright would fade the entire app in from nothing on
+    // every load, so the intent behind it is kept -- on the one element that
+    // actually wanted it.
+    expect(app).toMatch(/isFirstRender\s*\|\|\s*shouldReduceMotion\s*\?\s*false/);
+  });
+
+  it('keeps the route transition itself', () => {
+    expect(app).toContain('<AnimatePresence');
+    expect(app).toMatch(/mode="wait"/);
   });
 });
