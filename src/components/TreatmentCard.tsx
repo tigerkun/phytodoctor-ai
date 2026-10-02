@@ -43,6 +43,7 @@ export const TreatmentCard = ({ treatments }: TreatmentCardProps) => {
               <div className="flex h-4 w-4 items-center justify-center shrink-0">
                 <input 
                   type="checkbox" 
+                  aria-label={`Mark "${treatment.step}" as done`}
                   checked={treatment.done} 
                   onChange={() => toggleTreatment(index)} 
                   className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"

@@ -614,10 +614,10 @@ function AddPlantModal({
 
         <form onSubmit={handleSubmit} className="space-y-3.5">
           <div>
-            <label className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
+            <label htmlFor="specimen-designation-nickname" className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
               Specimen Designation / Nickname
             </label>
-            <input
+            <input id="specimen-designation-nickname"
               type="text"
               required
               value={name}
@@ -628,10 +628,10 @@ function AddPlantModal({
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
+            <label htmlFor="botanical-species" className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
               Botanical Species
             </label>
-            <input
+            <input id="botanical-species"
               type="text"
               required
               value={species}
@@ -642,10 +642,10 @@ function AddPlantModal({
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
+            <label htmlFor="specimen-photograph-cloud-storage" className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
               Specimen Photograph (Cloud Storage)
             </label>
-            <input
+            <input id="specimen-photograph-cloud-storage"
               type="file"
               accept="image/*"
               onChange={(e) => {
@@ -666,10 +666,10 @@ function AddPlantModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
+              <label htmlFor="substrate-type" className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
                 Substrate Type
               </label>
-              <select
+              <select id="substrate-type"
                 value={soilType || ''}
                 onChange={(e) => setSoilType(e.target.value as SoilType)}
                 className="w-full px-2.5 py-2 text-xs rounded-lg border border-[#dcd2c0] dark:border-[#3d2e20] bg-white dark:bg-[#251d16] text-[#2b2118] dark:text-[#f4eee1] focus:outline-none focus:ring-1 focus:ring-[#8c6e38]"
@@ -683,10 +683,10 @@ function AddPlantModal({
             </div>
 
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
+              <label htmlFor="pot-vessel" className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
                 Pot Vessel
               </label>
-              <input
+              <input id="pot-vessel"
                 type="text"
                 value={potSize}
                 onChange={(e) => setPotSize(e.target.value)}
@@ -697,10 +697,10 @@ function AddPlantModal({
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
+            <label htmlFor="sanctuary-station-room" className="block text-[11px] font-mono uppercase tracking-wider font-bold text-[#725e4c] dark:text-[#b8a695] mb-1">
               Sanctuary Station / Room
             </label>
-            <input
+            <input id="sanctuary-station-room"
               type="text"
               value={location}
               onChange={(e) => setLocation(e.target.value)}

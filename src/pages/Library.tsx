@@ -874,6 +874,7 @@ export default function Library() {
               <Search size={16} />
             </div>
             <input
+              aria-label="Search pathology or symptoms"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search pathology or symptoms..."

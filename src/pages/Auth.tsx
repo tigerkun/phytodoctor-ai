@@ -404,9 +404,10 @@ export default function Auth() {
                   className="space-y-4 overflow-hidden"
                 >
                   <div className="relative">
-                    <label className="block text-[11px] font-sans font-bold uppercase tracking-[0.1em] text-[#6b5325] dark:text-[#caa651] mb-1.5 pl-1">Full Name</label>
+                    <label htmlFor="auth-name" className="block text-[11px] font-sans font-bold uppercase tracking-[0.1em] text-[#6b5325] dark:text-[#caa651] mb-1.5 pl-1">Full Name</label>
                     <User className="absolute left-4 bottom-3 text-[#8c6e38]" size={17} />
                     <input
+                      id="auth-name"
                       type="text"
                       required={!isLogin}
                       value={name}
@@ -417,14 +418,14 @@ export default function Auth() {
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <select required={!isLogin} value={experienceLevel} onChange={(e) => setExperienceLevel(e.target.value)}
+                    <select aria-label="Rank" required={!isLogin} value={experienceLevel} onChange={(e) => setExperienceLevel(e.target.value)}
                       className={`w-full px-3 py-3 guest-ledger-input rounded-xl text-xs font-semibold appearance-none cursor-pointer ${experienceLevel ? '' : 'text-gray-400'}`}>
                       <option value="" disabled>Rank</option>
                       <option value="novice">Novice</option>
                       <option value="intermediate">Keeper</option>
                       <option value="expert">Master</option>
                     </select>
-                    <select required={!isLogin} value={environment} onChange={(e) => setEnvironment(e.target.value)}
+                    <select aria-label="Sanctuary" required={!isLogin} value={environment} onChange={(e) => setEnvironment(e.target.value)}
                       className={`w-full px-3 py-3 guest-ledger-input rounded-xl text-xs font-semibold appearance-none cursor-pointer ${environment ? '' : 'text-gray-400'}`}>
                       <option value="" disabled>Sanctuary</option>
                       <option value="indoor">Indoor</option>
@@ -439,9 +440,10 @@ export default function Auth() {
 
             {!isRecovery && (
               <div className="relative">
-                <label className="block text-[11px] font-sans font-bold uppercase tracking-[0.1em] text-[#6b5325] dark:text-[#caa651] mb-1.5 pl-1">Email</label>
+                <label htmlFor="auth-email" className="block text-[11px] font-sans font-bold uppercase tracking-[0.1em] text-[#6b5325] dark:text-[#caa651] mb-1.5 pl-1">Email</label>
                 <Mail className={`absolute left-4 bottom-3 ${emailError ? 'text-red-500' : 'text-[#8c6e38]'}`} size={17} />
                 <input
+                  id="auth-email"
                   type="email"
                   required
                   value={email}
@@ -464,7 +466,7 @@ export default function Auth() {
 
             <div className="relative">
               <div className="flex items-center justify-between mb-1.5 pl-1 pr-1">
-                <label className="block text-[11px] font-sans font-bold uppercase tracking-[0.1em] text-[#6b5325] dark:text-[#caa651]">
+                <label htmlFor="auth-password" className="block text-[11px] font-sans font-bold uppercase tracking-[0.1em] text-[#6b5325] dark:text-[#caa651]">
                   {isRecovery ? 'New Passphrase' : 'Passphrase'}
                 </label>
                 {isLogin && !isRecovery && supabaseConfigured && (
@@ -480,6 +482,7 @@ export default function Auth() {
               </div>
               <Lock className="absolute left-4 bottom-3 text-[#8c6e38]" size={17} />
               <input
+                id="auth-password"
                 type={showPassword ? 'text' : 'password'}
                 required
                 value={password}

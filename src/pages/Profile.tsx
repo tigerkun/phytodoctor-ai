@@ -495,10 +495,10 @@ export default function Profile() {
                       className="w-full space-y-3 mt-4 text-left"
                     >
                       <div>
-                        <label className="block text-[9px] font-mono uppercase tracking-widest text-[#d8c59d] mb-1">
+                        <label htmlFor="naturalist-call-sign" className="block text-[9px] font-mono uppercase tracking-widest text-[#d8c59d] mb-1">
                           Naturalist Call Sign
                         </label>
-                        <input
+                        <input id="naturalist-call-sign"
                           type="text"
                           value={username}
                           onChange={(e) => setUsername(e.target.value)}
@@ -508,10 +508,10 @@ export default function Profile() {
                       </div>
 
                       <div>
-                        <label className="block text-[9px] font-mono uppercase tracking-widest text-[#d8c59d] mb-1">
+                        <label htmlFor="tintype-portrait-url-optional" className="block text-[9px] font-mono uppercase tracking-widest text-[#d8c59d] mb-1">
                           Tintype Portrait URL (Optional)
                         </label>
-                        <input
+                        <input id="tintype-portrait-url-optional"
                           type="text"
                           value={avatarUrl}
                           onChange={(e) => setAvatarUrl(e.target.value)}
@@ -521,10 +521,10 @@ export default function Profile() {
                       </div>
 
                       <div>
-                        <label className="block text-[9px] font-mono uppercase tracking-widest text-[#d8c59d] mb-1">
+                        <label htmlFor="equipped-title-honorific" className="block text-[9px] font-mono uppercase tracking-widest text-[#d8c59d] mb-1">
                           Equipped Title / Honorific
                         </label>
-                        <input
+                        <input id="equipped-title-honorific"
                           type="text"
                           value={equippedTitle}
                           onChange={(e) => setEquippedTitle(e.target.value)}
@@ -535,10 +535,10 @@ export default function Profile() {
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[8px] font-mono uppercase tracking-widest text-[#d8c59d] mb-1">
+                          <label htmlFor="experience-tier" className="block text-[8px] font-mono uppercase tracking-widest text-[#d8c59d] mb-1">
                             Experience Tier
                           </label>
-                          <select
+                          <select id="experience-tier"
                             value={experienceLevel}
                             onChange={(e) => setExperienceLevel(e.target.value as any)}
                             className="w-full px-2 py-1.5 bg-[#121c15] text-[#f7e8ce] text-xs rounded-lg border border-[#c5a059]/40 focus:outline-none"
@@ -549,10 +549,10 @@ export default function Profile() {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-[8px] font-mono uppercase tracking-widest text-[#d8c59d] mb-1">
+                          <label htmlFor="sanctuary-habitat" className="block text-[8px] font-mono uppercase tracking-widest text-[#d8c59d] mb-1">
                             Sanctuary Habitat
                           </label>
-                          <select
+                          <select id="sanctuary-habitat"
                             value={environment}
                             onChange={(e) => setEnvironment(e.target.value as any)}
                             className="w-full px-2 py-1.5 bg-[#121c15] text-[#f7e8ce] text-xs rounded-lg border border-[#c5a059]/40 focus:outline-none"

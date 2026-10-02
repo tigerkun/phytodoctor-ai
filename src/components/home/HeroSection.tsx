@@ -395,6 +395,7 @@ export function HeroSection({
               
               <input
                 type="text"
+                aria-label="New specimen nickname"
                 value={editedName}
                 onChange={(e) => setEditedName(e.target.value)}
                 placeholder="Enter nickname..."

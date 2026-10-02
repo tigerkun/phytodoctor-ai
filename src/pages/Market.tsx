@@ -1492,12 +1492,14 @@ export default function GardenMarket() {
           {activeTab !== 'sanctuary' && (
             <>
               <input
+                aria-label="Search the stalls"
                 value={filters.search}
                 onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                 placeholder="Search the stall…"
                 className="ml-auto min-w-[10rem] min-h-[44px] px-3 py-2 text-xs border border-[#d9c4a0] bg-[#fff8e8] text-[#3d2a1c] placeholder:text-[#7a6a50]/60"
               />
               <select
+                aria-label="Sort stalls"
                 value={filters.sort}
                 onChange={(e) => setFilters({ ...filters, sort: e.target.value })}
                 className="min-h-[44px] px-2 py-2 text-[11px] font-black uppercase tracking-widest border border-[#d9c4a0] bg-[#fff8e8] text-[#3d2a1c]"

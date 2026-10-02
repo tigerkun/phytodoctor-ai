@@ -97,6 +97,7 @@ export const PlantProfileDrawer = ({ plant, onClose }: PlantProfileDrawerProps) 
             <div className="flex space-x-2">
               <input 
                 type="text" 
+                aria-label="Ask Gemini about this plant"
                 placeholder="What's wrong with my plant's leaves?" 
                 className="flex-1 px-4 py-2 bg-muted/50 border border-muted/20 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
               />
@@ -111,6 +112,7 @@ export const PlantProfileDrawer = ({ plant, onClose }: PlantProfileDrawerProps) 
             {isNicknameEditing ? (
               <>
                 <input 
+                  aria-label="Plant nickname"
                   value={editedNickname}
                   onChange={(e) => setEditedNickname(e.target.value)}
                   onBlur={handleSaveNickname}

@@ -400,17 +400,17 @@ export default function VaultPage() {
 
             {siteMode === 'location' ? (
               <div className="rounded-3xl border border-border-medium bg-bg-secondary p-6 space-y-3">
-                <input value={cityQuery} onChange={(e) => setCityQuery(e.target.value)} placeholder="City, region, or landmark" className="w-full p-4 rounded-2xl bg-bg-primary border border-border-medium font-bold" />
+                <input aria-label="City, region, or landmark" value={cityQuery} onChange={(e) => setCityQuery(e.target.value)} placeholder="City, region, or landmark" className="w-full p-4 rounded-2xl bg-bg-primary border border-border-medium font-bold" />
                 <button onClick={loadLocationSite} disabled={loadingSite} className="w-full py-3.5 rounded-2xl bg-moss text-white font-black uppercase tracking-[0.16em] text-xs disabled:opacity-50">
                   {loadingSite ? 'Reading meteorological sheet…' : 'Lock observed climate'}
                 </button>
               </div>
             ) : (
               <div className="rounded-3xl border border-border-medium bg-bg-secondary p-6 space-y-3">
-                <select value={biome} onChange={(e) => setBiome(e.target.value)} className="w-full p-4 rounded-2xl bg-bg-primary border border-border-medium font-bold">
+                <select aria-label="Biome" value={biome} onChange={(e) => setBiome(e.target.value)} className="w-full p-4 rounded-2xl bg-bg-primary border border-border-medium font-bold">
                   {BIOMES.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
                 </select>
-                <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="w-full p-4 rounded-2xl bg-bg-primary border border-border-medium font-bold" />
+                <input type="datetime-local" aria-label="Observation time" value={when} onChange={(e) => setWhen(e.target.value)} className="w-full p-4 rounded-2xl bg-bg-primary border border-border-medium font-bold" />
                 <label className="flex items-center gap-2 text-sm font-bold px-1">
                   <input type="checkbox" checked={indoor} onChange={(e) => setIndoor(e.target.checked)} /> Indoor chamber (buffered UV, wind, rain)
                 </label>

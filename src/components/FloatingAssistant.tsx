@@ -222,6 +222,7 @@ export default function FloatingAssistant() {
               <form onSubmit={handleSubmit} className="relative flex items-center gap-2">
                 <input 
                   type="text" 
+                  aria-label="Ask the gardener"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Ask the gardener..."

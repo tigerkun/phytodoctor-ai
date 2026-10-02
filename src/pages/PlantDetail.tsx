@@ -654,6 +654,7 @@ if (!plant) {
                         <Box className="absolute left-4 top-1/2 -translate-y-1/2 text-[#a89578]" size={16} />
                         <input 
                           type="text"
+                          aria-label="Search field notes"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           placeholder="Search field notes..."
@@ -663,6 +664,7 @@ if (!plant) {
 
                       <div className="flex flex-wrap gap-2 items-center">
                         <select 
+                          aria-label="Filter field notes by archetype"
                           value={selectedCategory}
                           onChange={(e) => setSelectedCategory(e.target.value as any)}
                           className="px-3 py-2 bg-white rounded-xl border border-[#dcd0bd] text-[#2e2117] text-[10px] font-mono font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[#c5a059]/40"
@@ -704,6 +706,7 @@ if (!plant) {
                       </div>
 
                       <textarea 
+                        aria-label="Observation details"
                         value={newNote}
                         onChange={(e) => setNewNote(e.target.value)}
                         placeholder="Log observations, feeding regimens, pruning cuts, or fenestrations..."
@@ -733,6 +736,7 @@ if (!plant) {
                           <div className="flex gap-2">
                             <input 
                               type="text"
+                              aria-label="Add a taxonomic tag"
                               value={tagInput}
                               onChange={(e) => setTagInput(e.target.value)}
                               onKeyDown={handleAddTag}

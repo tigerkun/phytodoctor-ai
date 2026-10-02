@@ -97,6 +97,7 @@ export default function ProductFilters({
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-stone pointer-events-none" size={18} />
         <input
           type="text"
+          aria-label="Search products"
           placeholder="Search products..."
           value={filters.search}
           onChange={(e) => handleFilterChange({ search: e.target.value })}
@@ -167,10 +168,10 @@ export default function ProductFilters({
           >
             {/* Sort By */}
             <div>
-              <label className="text-xs font-bold text-text-stone uppercase tracking-wider mb-2 block">
+              <label htmlFor="sort-by" className="text-xs font-bold text-text-stone uppercase tracking-wider mb-2 block">
                 Sort By
               </label>
-              <select
+              <select id="sort-by"
                 value={filters.sortBy}
                 onChange={(e) =>
                   handleFilterChange({
@@ -219,6 +220,7 @@ export default function ProductFilters({
               <div className="space-y-2">
                 <input
                   type="range"
+                  aria-label="Minimum price"
                   min="0"
                   max="5000"
                   value={filters.priceMin}
@@ -231,6 +233,7 @@ export default function ProductFilters({
                 />
                 <input
                   type="range"
+                  aria-label="Maximum price"
                   min="0"
                   max="5000"
                   value={filters.priceMax}

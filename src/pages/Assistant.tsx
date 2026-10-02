@@ -502,6 +502,7 @@ export default function Assistant() {
             <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="relative flex items-center gap-2">
               <input
                 type="text"
+                aria-label="Message the garden assistant"
                 value={input}
                 onChange={(e) => setInput(e.target.value.slice(0, MAX_MESSAGE_CHARS))}
                 placeholder="Transmit inquiry on plant symptoms, watering, chemistry, light, or pests..."
