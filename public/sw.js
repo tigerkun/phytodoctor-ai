@@ -1,4 +1,7 @@
-const CACHE_NAME = 'phyto-guard-v1.8';
+// Bumped to v1.9: v1.8 runtime-cached GET /api/ responses, so every signed-in
+// device already holds stale API entries. The activate handler drops any cache
+// that is not the current one, which evicts them all on the next load.
+const CACHE_NAME = 'phyto-guard-v1.9';
 const ASSETS = [
   '/',
   '/index.html',
@@ -46,6 +49,25 @@ self.addEventListener('fetch', (event) => {
   // Database operations are handled by IndexedDB directly (Dexie),
   // so we skip caching API or DB calls here.
   if (event.request.method !== 'GET') return;
+
+  // API responses must NEVER be served from the cache, and must never be
+  // stored in it.
+  //
+  // The check above only skips NON-GET, so every GET to /api/ used to fall
+  // through to the cache-first branch below and get runtime-cached. Two real
+  // consequences, both observed in production:
+  //
+  // 1. Stale forever. The request board loaded once while empty, that empty
+  //    response was cached, and every later load replayed it -- so a player
+  //    could post a request, be told it succeeded, and never see it appear.
+  //
+  // 2. Cross-user leak. The Cache API matches on URL and method only; it
+  //    ignores the Authorization header. A `/api/economy/profile` response
+  //    cached for one signed-in player was therefore handed to whoever signed
+  //    in next on the same device -- another player's seed balance on screen.
+  //
+  // Returning here lets the request fall through to the network untouched.
+  if (new URL(event.request.url).pathname.startsWith('/api/')) return;
 
   // Navigation requests (the app shell) go network-first so deploys reach
   // users immediately; the cache is only the offline fallback.
