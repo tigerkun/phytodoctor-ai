@@ -23,7 +23,7 @@ import { postgresToPlant, onPlantsChange, PlantService } from '@/services/plantS
 import { StorageService } from '@/services/storageService';
 import type { Plant, SoilType } from '@/types';
 
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { usePageTransition } from '@/components/home/PageTransitionContext';
 
 
@@ -31,9 +31,14 @@ import { usePageTransition } from '@/components/home/PageTransitionContext';
 const ONBOARD_KEY = 'botanical_guardian_onboarded';
 
 const FEATURES = [
-  { icon: Leaf, title: 'AI Plant Doctor', desc: 'Snap a photo and get a diagnosis in about half a minute, powered by Gemini AI — species ID, disease detection, and tailored care plans.', color: '#5A7A5A' },
-  { icon: Shield, title: 'PhytoCards', desc: 'Every plant earns a collectible card that levels up as you care for it. Track rarity, stats, and growth stages.', color: '#C17F59' },
-  { icon: Swords, title: 'Care-Off Arena', desc: 'Challenge other guardians to head-to-head care battles. Prove your green thumb and climb the leaderboard.', color: '#B8860B' },
+  { icon: Leaf, title: 'AI Plant Doctor', desc: 'Snap a photo and get a diagnosis in about half a minute, powered by Gemini AI — species ID, disease detection, and tailored care plans.', color: '#5A7A5A', to: '/lab' },
+  { icon: Shield, title: 'PhytoCards', desc: 'Every plant earns a collectible card that levels up as you care for it. Track rarity, stats, and growth stages.', color: '#C17F59', to: '/collection' },
+  // The Arena card used to promise "head-to-head care battles" and a
+  // leaderboard against other players. There was no route, no page and no UI
+  // behind it — only a careOffs table nobody rendered. The Arena exists now,
+  // and it is honest about what it measures: your own care record, scored
+  // against a ladder of benchmark Keepers.
+  { icon: Swords, title: 'Care-Off Arena', desc: 'Your care record becomes a score — specimen health, streaks, check-ins and species found. Climb a ladder of rival Keepers and win seeds.', color: '#B8860B', to: '/arena' },
   { icon: Bell, title: 'Smart Alerts', desc: 'Weather-aware watering reminders, drift detection, and predictive health forecasts — so no plant gets forgotten.', color: '#6B8E6B' },
 ];
 
@@ -119,25 +124,52 @@ function WelcomeLanding({ onGetStarted, onSignIn, onTryScan }: { onGetStarted: (
         {/* Feature Cards — Carved Stone Plaque Aesthetic */}
         <section className="mb-14">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {FEATURES.map((f, i) => (
-              <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 25 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 + i * 0.08, duration: 0.5 }}
-                whileHover={{ y: -5 }}
-                className="rounded-2xl p-6 border transition-all cursor-default relative overflow-hidden bg-white/70 dark:bg-[#1E1B17]/70 border-[#D2C7B5]/60 dark:border-[#3D3830] shadow-xs hover:shadow-md"
-              >
-                <div
-                  className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 border border-black/5 dark:border-white/10"
-                  style={{ background: `${f.color}18`, color: f.color }}
+            {FEATURES.map((f, i) => {
+              const inner = (
+                <>
+                  <div
+                    className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 border border-black/5 dark:border-white/10"
+                    style={{ background: `${f.color}18`, color: f.color }}
+                  >
+                    <f.icon size={20} />
+                  </div>
+                  <h3 className="font-serif text-lg font-bold mb-1.5 text-[#2C2419] dark:text-[#F5F0E8]">{f.title}</h3>
+                  <p className="text-xs leading-relaxed text-[#6B5E51] dark:text-[#A8B5A0]">{f.desc}</p>
+                  {f.to && (
+                    <span className="inline-flex items-center gap-1.5 mt-4 text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: f.color }}>
+                      Open <ArrowRight size={12} aria-hidden="true" />
+                    </span>
+                  )}
+                </>
+              );
+              // Cards that lead somewhere are links. They were all
+              // `cursor-default` divs, so a card describing a feature was a
+              // dead end — the Arena card in particular advertised something
+              // with no way to reach it.
+              return (
+                <motion.div
+                  key={f.title}
+                  initial={{ opacity: 0, y: 25 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 + i * 0.08, duration: 0.5 }}
+                  whileHover={{ y: -5 }}
+                  className={`rounded-2xl p-6 border transition-all relative overflow-hidden bg-white/70 dark:bg-[#1E1B17]/70 border-[#D2C7B5]/60 dark:border-[#3D3830] shadow-xs hover:shadow-md ${
+                    f.to ? 'cursor-pointer' : 'cursor-default'
+                  }`}
                 >
-                  <f.icon size={20} />
-                </div>
-                <h3 className="font-serif text-lg font-bold mb-1.5 text-[#2C2419] dark:text-[#F5F0E8]">{f.title}</h3>
-                <p className="text-xs leading-relaxed text-[#6B5E51] dark:text-[#A8B5A0]">{f.desc}</p>
-              </motion.div>
-            ))}
+                  {f.to ? (
+                    <Link
+                      to={f.to}
+                      className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#244b2f]"
+                      aria-label={`${f.title} — open`}
+                    >
+                      <span className="sr-only">{f.title}</span>
+                    </Link>
+                  ) : null}
+                  <div className={f.to ? 'pointer-events-none' : ''}>{inner}</div>
+                </motion.div>
+              );
+            })}
           </div>
         </section>
 

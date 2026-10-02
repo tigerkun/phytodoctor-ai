@@ -34,6 +34,7 @@ import { GameService } from '../services/gameService';
 import { identifyPlant } from '../services/geminiService';
 import { PlantService, onPlantsChange } from '../services/plantService';
 import { StorageService } from '../services/storageService';
+import { analyzePlantHealth, type PlantSignature } from '../services/driftDetector';
 import type { Plant } from '../types';
 
 import { usePageTransition } from '../components/home/PageTransitionContext';
@@ -574,23 +575,67 @@ export default function BotanicalLab() {
           photoUrl: cloudUrl
         });
 
+        // Re-derive the health numbers instead of asserting them. This path
+        // used to write guardianScore: 95, driftScore: 0.1 and a hardcoded
+        // "Sunny, 25°C" onto every plant, so a specimen that was visibly
+        // failing still drew a flat healthy line on its timeline, and the
+        // weather row was fiction regardless of where the Keeper was. The
+        // score now follows from the photo they actually uploaded.
+        const previous = await db.checkins
+          .where('plantId').equals(targetPlantId)
+          .reverse().sortBy('timestamp');
+
+        let signature: PlantSignature | null = null;
+        let driftScore: number | null = null;
+        let driftStatus: 'stable' | 'watching' | 'alert' | null = null;
+        try {
+          const analysis = await analyzePlantHealth(file, plant.baselineSignature ?? null, plant.species);
+          signature = analysis.signature;
+          driftScore = analysis.driftScore;
+          driftStatus = analysis.driftStatus;
+        } catch (analysisErr) {
+          // Drift analysis is a bonus on a photo refresh, not the point of it.
+          // Failing it must not lose the upload or the seeds, so the check-in
+          // still records — with a null drift reading rather than a fake one.
+          console.warn('[Lab] Drift analysis skipped on photo refresh:', analysisErr);
+        }
+
+        const guardianScore = driftScore === null
+          ? plant.guardianScore
+          : Math.max(0, Math.min(100, Math.round(100 - driftScore * 60)));
+
         await db.checkins.add({
           id: crypto.randomUUID(),
           plantId: targetPlantId,
           timestamp: today,
-          soilMoisture: 'Moist',
-          lightLevel: 'Indirect',
+          // A photo refresh is not a care observation, so the last real reading
+          // stands rather than being invented. Null on a first-ever check-in,
+          // which is the truth: nobody has recorded it yet.
+          soilMoisture: previous[0]?.soilMoisture ?? null,
+          lightLevel: previous[0]?.lightLevel ?? null,
           changes: ['Photo updated via Wet Lab'],
           photoBlob: null,
           photoUrl: cloudUrl,
-          signature: null,
-          guardianScore: 95,
-          driftScore: 0.1,
-          driftStatus: 'stable',
-          weatherTemp: 25,
-          weatherHumidity: 50,
-          weatherDescription: 'Sunny',
+          signature,
+          guardianScore,
+          driftScore,
+          driftStatus,
+          // Weather belongs to the Weather Service, not a constant in this file.
+          weatherTemp: null,
+          weatherHumidity: null,
+          weatherDescription: null,
           synced: 0
+        });
+
+        await PlantService.updatePlant(targetPlantId, {
+          checkInTime: 'just now',
+          updatedAt: today,
+          photoUrl: cloudUrl,
+          guardianScore,
+          status: driftStatus === null ? plant.status
+            : driftStatus === 'stable' ? 'Stable'
+            : driftStatus === 'watching' ? 'Watching' : 'Alert',
+          ...(signature && !plant.baselineSignature ? { baselineSignature: signature } : {}),
         });
 
       } catch (err: any) {

@@ -16,6 +16,7 @@ const Vault = lazy(() => import('./pages/Vault'));
 const Library = lazy(() => import('./pages/Library'));
 const BotanicalLab = lazy(() => import('./pages/BotanicalLab'));
 const Market = lazy(() => import('./pages/Market'));
+const Arena = lazy(() => import('./pages/Arena'));
 const Profile = lazy(() => import('./pages/Profile'));
 const PlantDetail = lazy(() => import('./pages/PlantDetail'));
 const Assistant = lazy(() => import('./pages/Assistant'));
@@ -118,6 +119,10 @@ function RoutedContent() {
 
             {/* Market & Resources */}
             <Route path="/market" element={<RequireAuth><Market /></RequireAuth>} />
+
+            {/* Care-Off Arena — the landing page promised this since the first
+                commit and it had no route at all until now. */}
+            <Route path="/arena" element={<RequireAuth><Arena /></RequireAuth>} />
 
             {/* Knowledge Base */}
             <Route path="/library" element={<RequireAuth><Library /></RequireAuth>} />

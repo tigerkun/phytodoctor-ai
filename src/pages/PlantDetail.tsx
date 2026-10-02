@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Calendar, ShieldCheck, Activity, AlertCircle, Droplets, Sun, TrendingUp, Box, Camera, Clock, Star, Sprout, Crown, Zap, Plus, Loader2, Book, Bookmark, Send, Share2 } from 'lucide-react';
@@ -18,6 +18,7 @@ import { generatePlantVoice, type PlantVoice } from '../services/plantVoiceServi
 import GrowthForecastCard from '../components/GrowthForecastCard';
 import { forecastGrowth, type GrowthForecast } from '../services/growthForecastService';
 import NotificationOptIn from '../components/NotificationOptIn';
+import CheckInFlow from '../components/CheckInFlow';
 import { renderShareCard, shareCaption } from '../lib/cardShareImage';
 import { shareCard } from '../lib/share';
 
@@ -62,6 +63,16 @@ export default function PlantDetail() {
   const [plant, setPlant] = useState<Plant | undefined>();
   const [plantLoading, setPlantLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
+  // The daily check-in. This flow was fully built (real HSV drift analysis
+  // against the plant's baseline, a real check-in row, a real guardian score)
+  // but had no entry point anywhere in the app, so the "track it over time"
+  // leg of the core loop had no surface: check-ins only ever existed as a
+  // side effect of a scan.
+  const [checkInOpen, setCheckInOpen] = useState(false);
+  // A completed check-in rewrites guardianScore, status and baseline, so the
+  // page has to re-read the plant rather than keep showing the pre-check-in
+  // numbers. The chart is a live query and updates itself; this is the header.
+  const [checkInsTaken, setCheckInsTaken] = useState(0);
 
   useEffect(() => {
     if (!id) {
@@ -90,6 +101,18 @@ export default function PlantDetail() {
 
   const card = useLiveQuery(() => id ? db.cards.where('plantId').equals(id).first() : undefined, [id]);
   const lineage = useLiveQuery(() => PlantService.fetchPlants(), []);
+
+  // The history query is live, so the count follows a new check-in without a
+  // reload. The plant header does not, hence the explicit re-read on close.
+  useEffect(() => {
+    if (history) setCheckInsTaken(history.length);
+  }, [history]);
+
+  const closeCheckIn = useCallback(() => {
+    setCheckInOpen(false);
+    if (!id) return;
+    PlantService.getPlant(id).then(p => setPlant(p || undefined));
+  }, [id]);
 
   const latestCheckIn = history?.[history.length - 1];
   const driftStatus = latestCheckIn?.driftStatus === 'alert' ? 'critical' : latestCheckIn?.driftStatus === 'watching' ? 'declining' : 'stable';
@@ -396,16 +419,32 @@ if (!plant) {
                   </p>
 
                   {/* The growth loop: this card is the invitation. */}
-                  <button
-                    onClick={shareThisPlant}
-                    disabled={sharing}
-                    className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 min-h-[44px] rounded-xl bg-[#244b2f] hover:bg-[#2d5c3a] text-[#f4eee1] text-[11px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95 disabled:opacity-60"
-                  >
-                    {sharing
-                      ? <Loader2 size={14} className="animate-spin" />
-                      : <Share2 size={14} />}
-                    {sharing ? 'Growing your card…' : 'Share this find'}
-                  </button>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={shareThisPlant}
+                      disabled={sharing}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 min-h-[44px] rounded-xl bg-[#244b2f] hover:bg-[#2d5c3a] text-[#f4eee1] text-[11px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95 disabled:opacity-60"
+                    >
+                      {sharing
+                        ? <Loader2 size={14} className="animate-spin" />
+                        : <Share2 size={14} />}
+                      {sharing ? 'Growing your card…' : 'Share this find'}
+                    </button>
+
+                    {/* The daily loop: look at the plant again tomorrow. */}
+                    <button
+                      onClick={() => setCheckInOpen(true)}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 min-h-[44px] rounded-xl bg-[#c5a059] hover:bg-[#d4b169] text-[#2e2117] text-[11px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95"
+                    >
+                      <Camera size={14} />
+                      Daily check-in
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[11px] text-[#7a6855] italic">
+                    {checkInsTaken > 0
+                      ? `${checkInsTaken} check-in${checkInsTaken === 1 ? '' : 's'} logged. Photograph the plant again to track how it is doing.`
+                      : 'No check-ins yet. Photograph the plant again to start its health timeline.'}
+                  </p>
                 </div>
 
                 {/* Score & Status Plate */}
@@ -872,7 +911,7 @@ if (!plant) {
 
                   <div className="flex flex-wrap gap-3 pt-2">
                     <button 
-                      onClick={() => transitionTo(`/assistant?plantName=${encodeURIComponent(plant.name)}&species=${encodeURIComponent(plant.species)}`, 'AI Assistant')}
+                      onClick={() => transitionTo(`/assistant?plantName=${encodeURIComponent(plant.name)}&species=${encodeURIComponent(plant.species)}&plantId=${encodeURIComponent(id)}`, 'AI Assistant')}
                       className="px-6 py-3 bg-[#c5a059] text-[#241a12] font-mono font-bold uppercase tracking-widest text-[10px] rounded-xl hover:bg-[#deb66c] transition-colors flex items-center gap-2 shadow-md"
                     >
                       <span>💬 Consult Chief Botanist</span>
@@ -906,6 +945,18 @@ if (!plant) {
           </motion.div>
         </div>
       </div>
+
+      {/* The check-in flow, mounted. */}
+      <AnimatePresence>
+        {checkInOpen && id && (
+          <CheckInFlow
+            plantName={plant.name}
+            plantId={id}
+            onComplete={closeCheckIn}
+            onClose={closeCheckIn}
+          />
+        )}
+      </AnimatePresence>
     </PageWrapper>
   );
 }

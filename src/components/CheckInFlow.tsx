@@ -215,21 +215,25 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-garden-earth/40 backdrop-blur-xl">
-      <motion.div 
+    // The overlay itself scrolls. This is a four-step flow in a fixed box: on a
+    // phone the p-14 padding plus an mb-12 header pushed the Next button past
+    // the fold, so the last step was unreachable rather than merely cramped.
+    <div className="fixed inset-0 z-[60] flex items-start sm:items-center justify-center p-3 sm:p-6 bg-garden-earth/40 backdrop-blur-xl overflow-y-auto">
+      <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white w-full max-w-xl rounded-[3.5rem] shadow-2xl border border-garden-olive/10 overflow-hidden relative"
+        className="bg-white w-full max-w-xl rounded-[2.5rem] sm:rounded-[3.5rem] shadow-2xl border border-garden-olive/10 overflow-hidden relative my-auto shrink-0"
       >
-        <button 
+        <button
           onClick={onClose}
-          className="absolute top-8 right-8 w-10 h-10 rounded-2xl bg-garden-cream flex items-center justify-center text-garden-earth/40 hover:text-garden-coral transition-colors z-10"
+          aria-label="Close daily check-in"
+          className="absolute top-6 right-6 sm:top-8 sm:right-8 w-10 h-10 rounded-2xl bg-garden-cream flex items-center justify-center text-garden-earth/40 hover:text-garden-coral transition-colors z-10"
         >
           <X size={20} />
         </button>
 
-        <div className="p-10 md:p-14">
-          <header className="mb-12">
+        <div className="p-6 sm:p-10 md:p-14">
+          <header className="mb-8 sm:mb-12">
             <span className="text-[10px] font-black uppercase tracking-[0.3em] text-garden-sage mb-2 block">Daily Check-In</span>
             <h2 className="font-serif text-4xl font-bold text-garden-earth">
               How is <span className="italic text-garden-sage">{plantName}</span>?

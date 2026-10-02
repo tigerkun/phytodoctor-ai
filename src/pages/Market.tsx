@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion, type TargetAndTransition, type Transition } from 'framer-motion';
 import {
   Sparkles,
@@ -664,6 +665,10 @@ function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish, seed
 
 // ── PRO BANNER ──
 function ProBanner() {
+  // This button was styled, animated, labelled "Upgrade — ₹99/mo" and had no
+  // onClick at all: the most prominent call to action on the page did nothing
+  // when pressed. Profile owns the real checkout, so that is where it goes.
+  const navigate = useNavigate();
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -687,6 +692,7 @@ function ProBanner() {
           ))}
         </div>
         <motion.button
+          onClick={() => navigate('/profile')}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className="bg-[#f4e4c1] hover:bg-white text-[#3d2a1c] font-black py-4 px-8 uppercase tracking-[0.16em] text-xs"

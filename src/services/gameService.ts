@@ -1,4 +1,4 @@
-import { db, type PhytoCard, type CardStats, type Plant, type CheckIn, type UserGameProfile, type RarityTier, type GrowthStage, type SeedTransaction, type UserSubscription, type UserCosmetic } from '../db/database';
+import { db, type PhytoCard, type CardStats, type Plant, type CheckIn, type UserGameProfile, type RarityTier, type GrowthStage, type SeedTransaction, type UserSubscription, type UserCosmetic, type CareOff } from '../db/database';
 import { SPECIES_DIFFICULTY, MYTHIC_SPECIES } from '../game/RARITY_DATA';
 import { SPECIES_PROFILES } from '../forecasting/speciesProfiles';
 import { ECONOMY_CONFIG, SEED_MULTIPLIERS, MARKETPLACE_ITEMS } from '../game/ECONOMY_DATA';
@@ -546,12 +546,20 @@ export class GameService {
     return count < 3;
   }
 
-  static async recordCareOff(score: number, result: 'win' | 'loss' | 'draw', userId: string = this.getUserId()) {
+  static async recordCareOff(
+    score: number,
+    result: 'win' | 'loss' | 'draw',
+    userId: string = this.getUserId(),
+    // Which rival was faced. Defaults to the original 'bot' sentinel so any
+    // existing caller — and every already-stored row — stays valid; the Arena
+    // passes the real rung id so the duel history can name the opponent.
+    opponentId: string = 'bot'
+  ) {
     const careOff = {
       id: crypto.randomUUID(),
       userId,
       createdAt: new Date(),
-      opponentId: 'bot',
+      opponentId,
       score,
       result
     };
@@ -560,6 +568,11 @@ export class GameService {
     if (result === 'win') {
       await this.earnSeeds(ECONOMY_CONFIG.EARNING_BASE.arena_win, 'bonus', 'Care-Off Victory', userId);
     }
+  }
+
+  /** The player's arena record, newest first. */
+  static async getCareOffHistory(userId: string = this.getUserId()): Promise<CareOff[]> {
+    return db.careOffs.where('userId').equals(userId).reverse().sortBy('createdAt');
   }
 
   // Propagation

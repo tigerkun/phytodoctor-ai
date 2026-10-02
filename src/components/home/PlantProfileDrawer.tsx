@@ -261,7 +261,7 @@ export function PlantProfileDrawer({ isOpen, onClose, plant }: PlantProfileDrawe
                   whileTap={{ scale: 0.95 }}
                   onClick={() => {
                     onClose();
-                    transitionTo(`/assistant?plantName=${encodeURIComponent(plant.nickname)}&species=${encodeURIComponent(plant.species)}`, 'AI Assistant');
+                    transitionTo(`/assistant?plantName=${encodeURIComponent(plant.nickname)}&species=${encodeURIComponent(plant.species)}&plantId=${encodeURIComponent(plant.id)}`, 'AI Assistant');
                   }}
                   className="flex-1 py-3 min-h-[44px] rounded-lg font-bold text-white transition-all bg-[var(--moss)] hover:bg-[var(--moss-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2"
                 >

@@ -17,6 +17,7 @@ export function NavigationBar() {
   const navItems = [
     { label: 'Home', href: '/' },
     { label: 'Lab', href: '/lab' },
+    { label: 'Arena', href: '/arena' },
     { label: 'Market', href: '/market' },
     { label: 'Library', href: '/library' },
   ];

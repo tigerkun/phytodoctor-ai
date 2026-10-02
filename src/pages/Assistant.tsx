@@ -45,6 +45,12 @@ export default function Assistant() {
   const plantName = searchParams.get('plantName');
   const species = searchParams.get('species');
   const initialQuery = searchParams.get('query');
+  // The real plant id, when the caller knows it. Without this the note-saving
+  // path had to invent a slug, and every note it filed was orphaned: it was
+  // written under e.g. "monstera-deliciosa" while the Field Notebook queries
+  // `notes.where('plantId').equals(<uuid>)`, so nothing ever came back. The
+  // toast said it was filed and it was not.
+  const plantIdParam = searchParams.get('plantId');
 
   // Load persistent conversation history from localStorage
   const [messages, setMessages] = useState<Message[]>(() => {
@@ -240,22 +246,37 @@ export default function Assistant() {
     try {
       triggerHaptic('light');
       const decodedPlant = safeDecode(plantName);
-      const plantSlug = decodedPlant
-        ? decodedPlant.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-        : 'botanical-consultation';
+
+      // Prefer the caller's real plant id. A general consultation (someone
+      // opened the Assistant from the nav with no plant in mind) is not a
+      // plant's note at all, so it gets its own bucket rather than being
+      // filed against a made-up plant that will never be opened again.
+      const isGeneralConsult = !plantIdParam;
+      const plantSlug = isGeneralConsult
+        ? 'botanical-consultation'
+        : plantIdParam;
 
       await db.notes.add({
         id: `dispatch-${Date.now()}-${index}`,
-        plantId: plantSlug || 'botanical-consultation',
-        userId: GameService.getUserId(), // ponytail: slug ≠ UUID; pass ?plantId= param if callers add it
+        plantId: plantSlug,
+        userId: GameService.getUserId(),
         content: content.replace(/<[^>]*>?/gm, ''),
         category: 'observation',
-        tags: ['botanist-dispatch', 'kew-consultation', decodedPlant || 'botanical-advice'],
+        tags: [
+          'botanist-dispatch',
+          'kew-consultation',
+          ...(isGeneralConsult ? ['general-consult'] : []),
+          decodedPlant || 'botanical-advice',
+        ],
         createdAt: new Date()
       });
       setSavedNotes(prev => ({ ...prev, [index]: true }));
       playAudio('leaf-rustle');
-      success("Botanical communiqué filed into Field Log & Notes!");
+      success(
+        isGeneralConsult
+          ? 'Filed to your consultation log.'
+          : `Saved to ${decodedPlant || 'this plant'}'s Field Notebook.`
+      );
     } catch (e) {
       warning("Unable to file dispatch to local database.");
     }
