@@ -1709,6 +1709,14 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   if (err instanceof SyntaxError && 'body' in err) {
     return res.status(400).json({ error: 'Malformed JSON payload.' });
   }
+  // body-parser rejects a payload over the route's `limit` with a
+  // PayloadTooLargeError carrying `type: 'entity.too.large'`. It is not a
+  // SyntaxError, so without this it fell through to the generic 500 below and
+  // the player saw "Internal server error" for what is really their own
+  // paste being too long.
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({ error: "That request was too large. Please shorten it and try again." });
+  }
   if (res.headersSent) {
     return next(err);
   }
