@@ -310,3 +310,16 @@
 .animate-dapple-light {
   animation: dapple-light 12s ease-in-out infinite;
 }
+
+/* ─── Skeleton sweep: a highlight travelling across a loading placeholder ─
+   Used by src/components/feedback/Skeleton.tsx. The `motion-safe:` variant on
+   the element means this only runs when the reader has not asked for reduced
+   motion, so no separate prefers-reduced-motion override is needed here. */
+@keyframes skeleton-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}

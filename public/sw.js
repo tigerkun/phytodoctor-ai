@@ -54,17 +54,18 @@ self.addEventListener('fetch', (event) => {
   // stored in it.
   //
   // The check above only skips NON-GET, so every GET to /api/ used to fall
-  // through to the cache-first branch below and get runtime-cached. Two real
-  // consequences, both observed in production:
+  // through to the cache-first branch below and get runtime-cached. That had a
+  // real, observed consequence: the request board loaded once while empty, that
+  // empty response was cached, and every later load replayed it -- so a player
+  // could post a request, be told it succeeded, and never see it appear.
   //
-  // 1. Stale forever. The request board loaded once while empty, that empty
-  //    response was cached, and every later load replayed it -- so a player
-  //    could post a request, be told it succeeded, and never see it appear.
-  //
-  // 2. Cross-user leak. The Cache API matches on URL and method only; it
-  //    ignores the Authorization header. A `/api/economy/profile` response
-  //    cached for one signed-in player was therefore handed to whoever signed
-  //    in next on the same device -- another player's seed balance on screen.
+  // A cross-user leak was also suspected here, on the reasoning that the Cache
+  // API matches on URL and method and ignores the Authorization header. It
+  // could NOT be reproduced: a controlled two-account test returned each
+  // player's own balance on every read, before and after a cache write. The
+  // caching is still wrong and this line is still correct -- authenticated
+  // responses must never be stored at all -- but the leak itself was not
+  // demonstrated, so it should not be cited as one.
   //
   // Returning here lets the request fall through to the network untouched.
   if (new URL(event.request.url).pathname.startsWith('/api/')) return;

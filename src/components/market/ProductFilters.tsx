@@ -14,6 +14,16 @@ import {
 interface ProductFiltersProps {
   onFilterChange?: (filters: FilterState) => void;
   totalProducts?: number;
+  /**
+   * Increment this to clear every filter from outside.
+   *
+   * This panel keeps its own copy of the filter state, so the parent cannot
+   * reset it by setting its own state — it would push the reset down and this
+   * panel would render the old values again on the next interaction. Watching
+   * a counter is the smallest thing that lets a caller (currently the "clear
+   * filters" action on an empty stall) actually undo what was done here.
+   */
+  resetSignal?: number;
 }
 
 interface FilterState {
@@ -27,20 +37,23 @@ interface FilterState {
   limitedOnly: boolean;
 }
 
+const DEFAULT_FILTERS: FilterState = {
+  search: '',
+  sortBy: 'popular',
+  ratingMin: 0,
+  priceMin: 0,
+  priceMax: 2000,
+  category: 'all',
+  inStockOnly: false,
+  limitedOnly: false,
+};
+
 export default function ProductFilters({
   onFilterChange,
   totalProducts = 0,
+  resetSignal,
 }: ProductFiltersProps) {
-  const [filters, setFilters] = useState<FilterState>({
-    search: '',
-    sortBy: 'popular',
-    ratingMin: 0,
-    priceMin: 0,
-    priceMax: 2000,
-    category: 'all',
-    inStockOnly: false,
-    limitedOnly: false,
-  });
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 
   const [isOpen, setIsOpen] = useState(false);
 
@@ -51,19 +64,20 @@ export default function ProductFilters({
   };
 
   const resetFilters = () => {
-    const defaultFilters: FilterState = {
-      search: '',
-      sortBy: 'popular',
-      ratingMin: 0,
-      priceMin: 0,
-      priceMax: 2000,
-      category: 'all',
-      inStockOnly: false,
-      limitedOnly: false,
-    };
-    setFilters(defaultFilters);
-    onFilterChange?.(defaultFilters);
+    setFilters(DEFAULT_FILTERS);
+    onFilterChange?.(DEFAULT_FILTERS);
   };
+
+  // Skip the first run: on mount this would fire resetFilters and push a
+  // default filter set to the parent, overwriting whatever the page had
+  // already set up before the panel rendered.
+  const isFirstSignal = React.useRef(true);
+  React.useEffect(() => {
+    if (resetSignal === undefined) return;
+    if (isFirstSignal.current) { isFirstSignal.current = false; return; }
+    resetFilters();
+    setIsOpen(false);
+  }, [resetSignal]);
 
   const activeFilters = Object.values(filters).filter(
     (v) => v !== '' && v !== 'popular' && v !== 'all' && v !== 0 && v !== 2000 && v !== false

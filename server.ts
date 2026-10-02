@@ -756,6 +756,22 @@ app.get('/healthz', async (_req, res) => {
   });
 });
 
+// Liveness, deliberately separate from readiness.
+//
+// /healthz above is a readiness check: it probes Supabase for schema drift and
+// answers 503 when the database is unreachable. That is right for deciding
+// "should this instance take traffic" and wrong for deciding "should the
+// platform restart this process" — a database blip would have the platform
+// kill and respawn a perfectly healthy container in a loop, turning a
+// recoverable dependency outage into a self-inflicted one.
+//
+// This endpoint confirms the process is alive and nothing else: no database,
+// no credentials, no external calls. Point the platform's restart probe here
+// and /healthz at the readiness check.
+app.get(['/healthz/live', '/api/health/live'], (_req, res) => {
+  res.status(200).json({ status: 'ok', uptimeSeconds: Math.floor(process.uptime()) });
+});
+
 
 // Gemini Initialization
 const ai = new GoogleGenAI({

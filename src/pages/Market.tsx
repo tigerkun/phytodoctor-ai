@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence, useReducedMotion, type TargetAndTransition, type Transition } from 'framer-motion';
 import {
   Sparkles,
@@ -27,6 +27,9 @@ import CheckoutSummary from '../components/market/CheckoutSummary';
 import { useToast } from '../components/market/ToastNotification';
 import { useDayNightTheme } from '../hooks/useDayNightTheme';
 import PageWrapper from '../components/home/PageWrapper';
+import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/feedback/ErrorState';
+import { SkeletonList } from '../components/feedback/Skeleton';
 import { SanctuaryService } from '../services/sanctuaryService';
 import { MARKETPLACE_ITEMS } from '../game/ECONOMY_DATA';
 import { refundValueFor } from '../lib/marketPricing';
@@ -1066,24 +1069,39 @@ function RequestBoard({ userId, notify }: { userId: string; notify: (ok: boolean
   const [details, setDetails] = useState('');
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadNonce, setLoadNonce] = useState(0);
+  const nameRef = useRef<HTMLInputElement>(null);
 
   const authHeader = (): Record<string, string> => {
     const token = localStorage.getItem('botanical_guardian_auth_token');
     return token ? { Authorization: 'Bearer ' + token } : {};
   };
 
+  // A failed read used to be indistinguishable from an empty board. This
+  // caught every error, and on a non-ok response did nothing at all, so a 500
+  // and a genuinely empty board both rendered the same bare sentence. The two
+  // need different UI: one is a dead end, the other is an invitation.
   const load = async () => {
     try {
       const r = await fetch('/api/market/requests', { headers: authHeader() });
-      if (r.ok) {
-        const j = await r.json();
-        setRequests(j.requests ?? []);
+      if (!r.ok) {
+        setLoadError(r.status === 401
+          ? 'Sign in to see the request board.'
+          : "The request board didn't load. Nothing you posted has been lost.");
+        return;
       }
-    } catch { /* offline: the board keeps whatever it last had */ }
-    finally { setLoaded(true); }
+      const j = await r.json();
+      setRequests(j.requests ?? []);
+      setLoadError(null);
+    } catch {
+      setLoadError("Couldn't reach the bazaar. Check your connection and try again.");
+    } finally {
+      setLoaded(true);
+    }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [loadNonce]);
 
   const submit = async () => {
     if (name.trim().length < 3) { notify(false, 'Tell us what to stock — at least 3 characters.'); return; }
@@ -1128,44 +1146,93 @@ function RequestBoard({ userId, notify }: { userId: string; notify: (ok: boolean
       </div>
 
       <div className="rounded-xl border border-[#d9c4a0] bg-[#fff8e8] p-4 space-y-3">
+        {/* The three controls below carried placeholder text but no label. A
+            placeholder disappears the moment the field is typed into and is
+            not reliably announced, so a screen-reader user reaching the form
+            had three unlabelled inputs and no idea what any of them was for.
+            The labels are visible rather than visually-hidden: the form sits
+            above a fold of empty board space, and this is the page's main
+            call to action. */}
+        <label htmlFor="req-name" className="block text-[10px] font-black uppercase tracking-widest text-[#6b5a3e]">
+          What should the bazaar stock?
+        </label>
         <input
+          id="req-name"
+          ref={nameRef}
           value={name}
           onChange={e => setName(e.target.value)}
-          placeholder="What should the bazaar stock? e.g. Self-watering spike set"
+          placeholder="e.g. Self-watering spike set"
           maxLength={120}
           className="w-full min-h-[44px] px-3 py-2 text-sm border border-[#d9c4a0] bg-white text-[#3d2a1c] placeholder:text-[#7a6a50]/60"
         />
         <div className="flex flex-col md:flex-row gap-3">
-          <select
-            value={category}
-            onChange={e => setCategory(e.target.value)}
-            className="min-h-[44px] px-3 py-2 text-xs border border-[#d9c4a0] bg-white text-[#3d2a1c] capitalize"
-          >
-            {REQUEST_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <input
-            value={details}
-            onChange={e => setDetails(e.target.value)}
-            placeholder="Any specifics? (optional)"
-            maxLength={500}
-            className="flex-1 min-h-[44px] px-3 py-2 text-sm border border-[#d9c4a0] bg-white text-[#3d2a1c] placeholder:text-[#7a6a50]/60"
-          />
-          <button
-            onClick={submit}
-            disabled={busy}
-            className="min-h-[44px] px-6 py-2 rounded bg-[#5a7d5a] disabled:bg-[#9db59d] text-white text-[10px] font-black uppercase tracking-widest shrink-0"
-          >
-            {busy ? 'Posting…' : 'Post request'}
-          </button>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="req-category" className="text-[10px] font-black uppercase tracking-widest text-[#6b5a3e]">
+              Stall to ask
+            </label>
+            <select
+              id="req-category"
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+              className="min-h-[44px] px-3 py-2 text-xs border border-[#d9c4a0] bg-white text-[#3d2a1c] capitalize"
+            >
+              {REQUEST_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="flex-1 flex flex-col gap-1">
+            <label htmlFor="req-details" className="text-[10px] font-black uppercase tracking-widest text-[#6b5a3e]">
+              Specifics <span className="font-normal normal-case tracking-normal text-[#7a6a50]">(optional)</span>
+            </label>
+            <input
+              id="req-details"
+              value={details}
+              onChange={e => setDetails(e.target.value)}
+              placeholder="Size, brand, anything that narrows it down"
+              maxLength={500}
+              className="min-h-[44px] px-3 py-2 text-sm border border-[#d9c4a0] bg-white text-[#3d2a1c] placeholder:text-[#7a6a50]/60"
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={submit}
+              disabled={busy}
+              className="min-h-[44px] px-6 py-2 rounded bg-[#5a7d5a] disabled:bg-[#9db59d] text-white text-[10px] font-black uppercase tracking-widest shrink-0"
+            >
+              {busy ? 'Posting…' : 'Post request'}
+            </button>
+          </div>
         </div>
         <p className="text-[10px] text-[#7a6a50]">Three requests a day keeps the board readable. Signed-in Keepers only.</p>
       </div>
 
-      <div className="space-y-2">
-        {loaded && requests.length === 0 && (
-          <p className="text-xs text-[#7a6a50] py-6 text-center">The board is empty — be the first to ask.</p>
+      {/* The list region announces its own changes. Posting a request adds a
+          row with no focus movement and no navigation, so without this the
+          only signal that anything happened is the toast — and a toast is
+          easy to miss, or to have already vanished. */}
+      <div className="space-y-2" aria-live="polite" aria-busy={!loaded}>
+        {!loaded && <SkeletonList rows={3} />}
+
+        {loaded && loadError && (
+          <ErrorState
+            title="The board didn't load"
+            message={loadError}
+            onRetry={() => setLoadNonce(n => n + 1)}
+          />
         )}
-        {requests.map(r => (
+
+        {loaded && !loadError && requests.length === 0 && (
+          <EmptyState
+            compact
+            title="Nothing on the board yet"
+            body="Be the first to name a crate you'd like the bazaar to stock. The daily audit reads this list before the stalls are set."
+            action={{
+              label: 'Ask for something',
+              onClick: () => nameRef.current?.focus()
+            }}
+          />
+        )}
+
+        {!loadError && requests.map(r => (
           <div key={r.id} className="rounded-lg border border-[#d9c4a0] bg-[#fff8e8] px-4 py-3 flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-sm font-bold text-[#3d2a1c] truncate">{r.product_name}</p>
@@ -1215,6 +1282,10 @@ export default function GardenMarket() {
     limitedOnly: false,
     inStockOnly: false
   });
+  // Bumped by the empty-stall action to clear every filter, including the
+  // ones ProductFilters holds internally.
+  const [filterResetSignal, setFilterResetSignal] = useState(0);
+  const clearAllFilters = () => setFilterResetSignal(n => n + 1);
 
   const userId = GameService.getUserId();
   const profile = useLiveQuery(() => GameService.getProfile());
@@ -1464,6 +1535,7 @@ export default function GardenMarket() {
                   inStockOnly: newFilters.inStockOnly
                 })}
                 totalProducts={filteredProducts.length}
+                resetSignal={filterResetSignal}
               />
             </motion.div>
           )}
@@ -1575,7 +1647,21 @@ export default function GardenMarket() {
                   className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
                 >
                     {filteredProducts.length === 0 ? (
-                      <p className="text-sm text-[#7a6a50] col-span-full py-12">Nothing on this stall — loosen the search or filter.</p>
+                      <EmptyState
+                        compact
+                        className="col-span-full"
+                        icon={ShoppingBag}
+                        title="Nothing on this stall"
+                        body={
+                          filters.search || filters.category !== 'all' || filters.limitedOnly || filters.inStockOnly || filters.minRating > 0
+                            ? "No crate here matches what you've asked for. Clearing the filters brings the whole stall back."
+                            : 'This stall is between restocks. The bazaar audits and refills every morning.'
+                        }
+                        action={{
+                          label: 'Clear filters',
+                          onClick: clearAllFilters
+                        }}
+                      />
                     ) : filteredProducts.map((product) => (
                       <ProductCard
                         key={product.id}
@@ -1612,7 +1698,21 @@ export default function GardenMarket() {
                   className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
                 >
                     {filteredProducts.length === 0 ? (
-                      <p className="text-sm text-[#7a6a50] col-span-full py-12">Nothing on this stall — loosen the search or filter.</p>
+                      <EmptyState
+                        compact
+                        className="col-span-full"
+                        icon={ShoppingBag}
+                        title="Nothing on this stall"
+                        body={
+                          filters.search || filters.category !== 'all' || filters.limitedOnly || filters.inStockOnly || filters.minRating > 0
+                            ? "No crate here matches what you've asked for. Clearing the filters brings the whole stall back."
+                            : 'This stall is between restocks. The bazaar audits and refills every morning.'
+                        }
+                        action={{
+                          label: 'Clear filters',
+                          onClick: clearAllFilters
+                        }}
+                      />
                     ) : filteredProducts.map((product) => (
                       <ProductCard
                         key={product.id}
