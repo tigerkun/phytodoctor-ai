@@ -312,3 +312,72 @@ describe('Lab tap targets', () => {
       .toEqual([]);
   });
 });
+
+describe('market tap targets', () => {
+  const market = stripJsComments(readFileSync(join(process.cwd(), 'src/pages/Market.tsx'), 'utf8'));
+  const MIN_44 = 'min-h-[44px]';
+
+  // The `buttonTagAround` shape from the Lab describe, pointed at Market.tsx.
+  function marketButtonTagAround(marker: string): string {
+    const at = market.indexOf(marker);
+    expect(at, `"${marker}" was not found in Market.tsx`).toBeGreaterThan(-1);
+    const open = market.lastIndexOf('<button', at);
+    expect(open, `"${marker}" matched outside any <button>`).toBeGreaterThan(-1);
+    let depth = 0;
+    let quote = '';
+    for (let i = open; i < market.length; i++) {
+      const ch = market[i];
+      if (quote) {
+        if (ch === quote) quote = '';
+      } else if (ch === '"' || ch === "'" || ch === '`') {
+        quote = ch;
+      } else if (ch === '{' || ch === '(') {
+        depth++;
+      } else if (ch === '}' || ch === ')') {
+        depth--;
+      } else if (ch === '>' && depth === 0 && market[i - 1] !== '=') {
+        return market.slice(open, i + 1);
+      }
+    }
+    throw new Error(`unterminated <button> tag for "${marker}"`);
+  }
+
+  it('gives the pin-crate button a real touch area', () => {
+    // Pinning is a primary card action, and the button measured 32x32 at
+    // 390px -- 12px under the touch minimum, on every card of every stall.
+    // It is sized by h-11/w-11 rather than min-h because it is absolutely
+    // positioned over the image and must be exactly the box it declares.
+    const tag = marketButtonTagAround("aria-label={wished ? 'Unpin crate' : 'Pin crate'}");
+    expect(tag).toMatch(/\bh-11\b/);
+    expect(tag).toMatch(/\bw-11\b/);
+  });
+
+  it('draws the hero dots on an inner bar inside a 44px button', () => {
+    // The dots used to be the animated elements themselves -- 8px-tall
+    // buttons, unpickable with a thumb. The animation now lives on an inner
+    // span and the button is the hit area.
+    const at = market.indexOf('Go to stall slide');
+    expect(at, 'the dot aria-label was not found').toBeGreaterThan(-1);
+    const open = market.lastIndexOf('<button', at);
+    const close = market.indexOf('</button>', open);
+    const block = market.slice(open, close);
+    expect(block).toContain(MIN_44);
+    expect(block).toMatch(/<motion\.span/);
+  });
+
+  it('keeps the digital goods buttons at the touch minimum', () => {
+    // Both buy and equip measured 40px, four under.
+    const buy = marketButtonTagAround("'Buy with seeds'");
+    const equip = marketButtonTagAround("'Equip'");
+    expect(buy).toContain(MIN_44);
+    expect(equip).toContain(MIN_44);
+  });
+
+  it('raises the bazaar kicker on phones, which the utility floor cannot reach', () => {
+    // `.bazaar-kicker` is a hand-written 9px class in page-skins.css, the same
+    // case as the lab kicker: index.css floors utilities, not hand-written
+    // classes. Measured 9px at 390px -- the smallest text in the app.
+    const block = phoneBlock(skinsCss);
+    expect(block).toMatch(/\.bazaar-kicker\s*\{[^}]*font-size:\s*10px/);
+  });
+});

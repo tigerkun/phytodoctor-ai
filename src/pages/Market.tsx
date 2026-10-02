@@ -584,18 +584,27 @@ function HeroCarousel({ onClaim, seeds, products }: { onClaim: (id: string, refu
           </div>
 
           {/* Carousel Dots */}
-          <div className="flex gap-2 pt-4 justify-start">
+          {/* The dot is drawn by an inner bar; the button around it is the hit
+              area. They used to be the same element, which made every dot an
+              8px-tall button -- unpickable with a thumb on a moving bus. The
+              active bar's colour animates on the bar, exactly as before. */}
+          <div className="flex gap-1 pt-4 justify-start">
             {heroProducts.map((_, idx) => (
-              <motion.button
+              <button
                 key={idx}
                 onClick={() => setCarouselIndex(idx)}
-                animate={{
-                  width: idx === carouselIndex ? 24 : 8,
-                  backgroundColor: idx === carouselIndex ? 'var(--accent-sage)' : 'var(--text-stone)',
-                  opacity: idx === carouselIndex ? 1 : 0.3
-                }}
-                className="h-2 rounded-full transition-all"
-              />
+                aria-label={`Go to stall slide ${idx + 1}`}
+                className="min-h-[44px] px-1.5 flex items-center"
+              >
+                <motion.span
+                  animate={{
+                    width: idx === carouselIndex ? 24 : 8,
+                    backgroundColor: idx === carouselIndex ? 'var(--accent-sage)' : 'var(--text-stone)',
+                    opacity: idx === carouselIndex ? 1 : 0.3
+                  }}
+                  className="h-2 rounded-full block"
+                />
+              </button>
             ))}
           </div>
         </motion.div>
@@ -659,10 +668,14 @@ function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish, seed
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggleWish?.(product.id); }}
-          className={`absolute bottom-3 left-3 p-2 border ${wished ? 'bg-[#c17f59] text-white border-[#c17f59]' : 'bg-[#fff8e8] text-[#3d2a1c] border-[#c4a574]'}`}
+          // 44x44, not `p-2`: pinning is a primary card action and measured
+          // 32x32 at 390px -- 12px under the touch minimum, on every card of
+          // every stall. The button is absolutely positioned, so growing it
+          // extends the hit area over the image without moving the layout.
+          className={`absolute bottom-3 left-3 h-11 w-11 flex items-center justify-center border ${wished ? 'bg-[#c17f59] text-white border-[#c17f59]' : 'bg-[#fff8e8]/95 text-[#3d2a1c] border-[#c4a574]'}`}
           aria-label={wished ? 'Unpin crate' : 'Pin crate'}
         >
-          <Bookmark size={14} fill={wished ? 'currentColor' : 'none'} />
+          <Bookmark size={16} fill={wished ? 'currentColor' : 'none'} />
         </button>
         <div className="absolute -bottom-3 right-3 rotate-6 bg-[#fff8e8] border border-[#c4a574] px-3 py-2 shadow-md">
           <p className="text-[9px] uppercase tracking-widest text-[#7a6a50] font-black">Ask</p>
@@ -1288,7 +1301,7 @@ function DigitalGoods({ seeds, userId, notify }: { seeds: number; userId: string
                 <button
                   onClick={() => equip(item.id)}
                   disabled={busy === item.id || equipped === item.id}
-                  className="min-h-[40px] rounded-lg bg-[#5a7d5a] disabled:bg-[#9db59d] text-white text-[10px] font-black uppercase tracking-widest"
+                  className="min-h-[44px] rounded-lg bg-[#5a7d5a] disabled:bg-[#9db59d] text-white text-[10px] font-black uppercase tracking-widest"
                 >
                   {equipped === item.id ? 'Equipped' : busy === item.id ? '…' : 'Equip'}
                 </button>
@@ -1296,7 +1309,7 @@ function DigitalGoods({ seeds, userId, notify }: { seeds: number; userId: string
                 <button
                   onClick={() => buy(item.id)}
                   disabled={busy === item.id || !affordable}
-                  className="min-h-[40px] rounded-lg bg-[#b89542] disabled:bg-[#d9c4a0] disabled:text-[#a08c68] text-[#241a12] text-[10px] font-black uppercase tracking-widest"
+                  className="min-h-[44px] rounded-lg bg-[#b89542] disabled:bg-[#d9c4a0] disabled:text-[#a08c68] text-[#241a12] text-[10px] font-black uppercase tracking-widest"
                 >
                   {busy === item.id ? '…' : !affordable ? 'Need ' + (item.price - seeds).toLocaleString() + ' more' : 'Buy with seeds'}
                 </button>

@@ -774,6 +774,13 @@
   .skin-lab .lab-kicker {
     font-size: 11px;
   }
+
+  /* The market masthead kicker is a hand-written 9px class, so the utility
+     floor in index.css cannot reach it — same case as the lab kicker above.
+     Measured 9px on a 390px phone, the smallest text anywhere in the app. */
+  .bazaar-kicker {
+    font-size: 10px;
+  }
 }
 
 /* 1mm Coordinate Graph Dissection Board */
