@@ -334,7 +334,10 @@ export default function VaultPage() {
                         key={s}
                         type="button"
                         onClick={() => setSpeciesInput(s)}
-                        className="px-3 py-1.5 text-xs rounded-full border border-[#b89552]/30 bg-bg-primary/70 hover:border-moss hover:bg-moss/10 text-text-bark transition-colors font-serif italic flex items-center gap-1.5 shadow-sm"
+                        // min-h, not taller padding: these chips measured 30px
+                        // at 390px, and they are the fastest way to fill the
+                        // species field on a phone.
+                        className="min-h-[44px] px-3 py-1.5 text-xs rounded-full border border-[#b89552]/30 bg-bg-primary/70 hover:border-moss hover:bg-moss/10 text-text-bark transition-colors font-serif italic flex items-center gap-1.5 shadow-sm"
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-moss/70" />
                         {s}

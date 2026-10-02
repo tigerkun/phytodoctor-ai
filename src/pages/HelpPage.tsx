@@ -305,11 +305,11 @@ export default function HelpPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => restartOnboardingTour()}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#3E5C3A] hover:bg-[#4a6d46] text-white text-sm font-semibold transition-colors"
+              className="inline-flex items-center min-h-[44px] gap-2 px-4 py-2.5 rounded-lg bg-[#3E5C3A] hover:bg-[#4a6d46] text-white text-sm font-semibold transition-colors"
             >
               <RefreshCw size={14} /> Replay the tour
             </button>
-            <Link to="/" className="px-4 py-2.5 rounded-lg border border-white/15 text-sm hover:bg-white/5 transition-colors">
+            <Link to="/" className="inline-flex items-center min-h-[44px] px-4 py-2.5 rounded-lg border border-white/15 text-sm hover:bg-white/5 transition-colors">
               Back to Home
             </Link>
           </div>

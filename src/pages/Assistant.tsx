@@ -330,7 +330,7 @@ export default function Assistant() {
             <button
               onClick={goBack}
               aria-label={backTarget.label}
-              className="p-2.5 rounded-md bg-[#2b3d2b] hover:bg-[#1f2d1f] text-[#f4ecd8] border border-[#4a634a]/40 shadow-sm transition-all active:scale-95"
+              className="min-h-[44px] min-w-[44px] p-2 rounded-md bg-[#2b3d2b] hover:bg-[#1f2d1f] text-[#f4ecd8] border border-[#4a634a]/40 shadow-sm transition-all active:scale-95 flex items-center justify-center"
               title="Return to Conservatory"
             >
               <ArrowLeft size={18} />
@@ -399,7 +399,7 @@ export default function Assistant() {
 
               <button
                 onClick={handleClearChat}
-                className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-[#f4ecd8] transition-all text-xs font-semibold flex items-center gap-1.5 border border-white/15 active:scale-95"
+                className="min-h-[44px] px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-[#f4ecd8] transition-all text-xs font-semibold flex items-center gap-1.5 border border-white/15 active:scale-95"
                 title="Clear correspondence desk"
               >
                 <RefreshCw size={13} /> Clear
@@ -510,12 +510,16 @@ export default function Assistant() {
           {/* Quick Inquiry Telegraph Slips */}
           {messages.length <= 2 && (
             <div className="relative z-10 px-4 sm:px-6 py-2.5 bg-[#142419] border-t border-[#26402d] flex gap-2 overflow-x-auto scrollbar-none shrink-0">
+              {/* min-h-[44px], not taller padding: these suggested questions
+                  measured 32px tall at 390px, and they are how most
+                  conversations start. The row scrolls horizontally, so the
+                  taller chips do not crowd the composer. */}
               {QUICK_TOPICS.map((topic, i) => (
                 <button
                   key={i}
                   type="button"
                   onClick={() => handleSend(topic)}
-                  className="px-3 py-1.5 shrink-0 bg-[#1c3324] hover:bg-[#254230] border border-[#3b5e43] rounded-md text-[11px] font-serif text-[#d8e6d8] hover:text-[#fff6df] transition-all shadow-xs active:scale-95"
+                  className="min-h-[44px] px-3 py-1.5 shrink-0 bg-[#1c3324] hover:bg-[#254230] border border-[#3b5e43] rounded-md text-[11px] font-serif text-[#d8e6d8] hover:text-[#fff6df] transition-all shadow-xs active:scale-95"
                 >
                   {topic}
                 </button>
@@ -539,7 +543,7 @@ export default function Assistant() {
               <button
                 type="button"
                 onClick={handleMicClick}
-                className={`absolute right-[58px] top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center telegraph-key-mic ${
+                className={`absolute right-[54px] top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center telegraph-key-mic ${
                   isListening ? 'is-listening' : ''
                 }`}
                 title={isListening ? "Listening... click to end dictation" : "Voice Dictation (Vintage Telegraph Mic)"}

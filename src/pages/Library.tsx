@@ -991,7 +991,9 @@ export default function Library() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={drawNextFact}
-                className="flex items-center gap-2 px-3 py-1.5 bg-moss hover:bg-moss-dark text-white rounded-md text-[10px] font-sans font-bold uppercase tracking-[0.06em] transition-colors shadow-xs"
+                // min-h-[44px]: measured 29px tall at 390px, on the control
+                // that draws the next fact.
+                className="flex items-center gap-2 min-h-[44px] px-3 py-1.5 bg-moss hover:bg-moss-dark text-white rounded-md text-[10px] font-sans font-bold uppercase tracking-[0.06em] transition-colors shadow-xs"
               >
                 <RotateCw size={11} />
                 New Leaf
@@ -1224,13 +1226,16 @@ export default function Library() {
                 href={currentEvent.url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-widest text-moss hover:text-moss-dark"
+                // Inline text link that measured 17px tall: min-h makes the
+                // box a real 44px target and the negative margin keeps it
+                // from disturbing the card row it sits on.
+                className="-my-3 inline-flex items-center min-h-[44px] gap-1.5 py-3 text-[10px] font-mono font-bold uppercase tracking-widest text-moss hover:text-moss-dark"
               >
                 Open Record <ExternalLink size={11} />
               </a>
               <button
                 onClick={nextEarthEvent}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-black/5 dark:bg-white/5 hover:bg-moss/10 text-text-bark rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-colors border border-[#8c7355]/25"
+                className="inline-flex items-center gap-1.5 min-h-[44px] px-3 py-1.5 bg-black/5 dark:bg-white/5 hover:bg-moss/10 text-text-bark rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-colors border border-[#8c7355]/25"
               >
                 <RotateCw size={11} />
                 Next
@@ -1460,7 +1465,7 @@ export default function Library() {
           <div className="relative z-10 shrink-0">
             <Link
               to="/lab"
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-moss hover:bg-moss-dark text-white font-mono text-xs font-bold uppercase tracking-wider transition-colors shadow-xs"
+              className="inline-flex items-center gap-2 min-h-[44px] px-5 py-3 rounded-lg bg-moss hover:bg-moss-dark text-white font-mono text-xs font-bold uppercase tracking-wider transition-colors shadow-xs"
             >
               <span>Open Botanical Lab</span>
               <ExternalLink size={13} />

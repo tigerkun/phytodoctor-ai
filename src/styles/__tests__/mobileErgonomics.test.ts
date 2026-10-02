@@ -381,3 +381,115 @@ describe('market tap targets', () => {
     expect(block).toMatch(/\.bazaar-kicker\s*\{[^}]*font-size:\s*10px/);
   });
 });
+
+describe('app-wide tap targets', () => {
+  /** The pages swept at 390px in the app-wide audit. A `min-h-[NNpx]` under
+   *  44 in any of them is a control the sweep would have measured short. */
+  const SWEPT_PAGES = [
+    'src/pages/Clinic.tsx',
+    'src/pages/Vault.tsx',
+    'src/pages/Profile.tsx',
+    'src/pages/Library.tsx',
+    'src/pages/Assistant.tsx',
+    'src/pages/HelpPage.tsx',
+    'src/pages/Privacy.tsx',
+  ];
+
+  const sources = Object.fromEntries(SWEPT_PAGES.map((p) => [
+    p,
+    stripJsComments(readFileSync(join(process.cwd(), p), 'utf8')),
+  ]));
+
+  /** The class name of every `<button ...>` / `<a ...>` opening tag, using the
+   *  same depth-aware scan as the Lab describe below: a naive regex stops at
+   *  the `>` inside `onClick={(e) => {` and returns a tag with no className. */
+  function interactiveTagsOf(source: string): string[] {
+    const out: string[] = [];
+    for (const name of ['<button', '<a ']) {
+      for (let at = source.indexOf(name); at !== -1; at = source.indexOf(name, at + 1)) {
+        let depth = 0;
+        let quote = '';
+        for (let i = at; i < source.length; i++) {
+          const ch = source[i];
+          if (quote) {
+            if (ch === quote) quote = '';
+          } else if (ch === '"' || ch === "'" || ch === '`') {
+            quote = ch;
+          } else if (ch === '{' || ch === '(') {
+            depth++;
+          } else if (ch === '}' || ch === ')') {
+            depth--;
+          } else if (ch === '>' && depth === 0 && source[i - 1] !== '=') {
+            const tag = source.slice(at, i + 1);
+            const cls = tag.match(/className=(?:"([^"]*)"|\{`([\s\S]*?)`\}|\{'([^']*)'\})/);
+            out.push((cls?.[1] ?? cls?.[2] ?? cls?.[3] ?? '').replace(/\$\{[^}]*\}/g, ''));
+            break;
+          }
+        }
+      }
+    }
+    return out;
+  }
+
+  it('every swept page is free of explicit minimums under 44px', () => {
+    // The audit found min-h-[40px] controls on Profile, Library (via its
+    // error state) and Assistant, plus padding-sized controls. Explicit
+    // minimums below 44 are how the small ones came back last time.
+    //
+    // Scoped to interactive opening tags on purpose: Library lays out a card
+    // row with `min-h-[28px]` on a div, which is spacing, not a touch target.
+    for (const [path, src] of Object.entries(sources)) {
+      const small = interactiveTagsOf(src)
+        .map((cls) => [...cls.matchAll(/min-h-\[(\d+)px\]/g)].map((m) => m[0]))
+        .flat()
+        .filter((declared) => Number(declared.match(/\d+/)![0]) < 44);
+      expect(small, `${path} declares under-sized minimums: ${small.join(', ')}`).toEqual([]);
+    }
+  });
+
+  it('keeps the Clinic breadcrumbs reachable', () => {
+    // They are the only way back from the dispensary and measured 16px tall.
+    const clinic = sources['src/pages/Clinic.tsx'];
+    for (const label of ['Command Center</Link>', 'Botanical Lab</Link>']) {
+      const at = clinic.indexOf(label);
+      expect(at, `${label} not found`).toBeGreaterThan(-1);
+      const open = clinic.lastIndexOf('<Link', at);
+      expect(clinic.slice(open, at)).toContain('min-h-[44px]');
+    }
+  });
+
+  it('keeps the Privacy policy link a real target', () => {
+    // An inline link inside a paragraph measured 18px tall; min-h makes the
+    // box 44px and the negative margin keeps the paragraph line intact.
+    const privacy = sources['src/pages/Privacy.tsx'];
+    const at = privacy.indexOf("supabase.com/privacy");
+    const open = privacy.lastIndexOf('<a', at);
+    const close = privacy.indexOf('</a>', at);
+    const tag = privacy.slice(open, close);
+    expect(tag).toContain('min-h-[44px]');
+    expect(tag).toContain('-my-3');
+  });
+
+  it('keeps the Library record link a real target', () => {
+    const library = sources['src/pages/Library.tsx'];
+    const at = library.indexOf('Open Record');
+    expect(at, 'Open Record not found').toBeGreaterThan(-1);
+    const open = library.lastIndexOf('<a', at);
+    expect(library.slice(open, at)).toContain('min-h-[44px]');
+  });
+
+  it('the passport toggles keep their invisible 44px hit area', () => {
+    // The switch draws 24px tall, which the browser audit flags -- but its
+    // ::after overlay extends the tappable band to 44px. That overlay is the
+    // difference between a violation and a false positive, so pin it.
+    expect(skinsCss).toMatch(/\.passport-toggle-switch::after\s*\{[^}]*inset:\s*-10px 0[^}]*pointer-events:\s*auto/);
+  });
+
+  it('the Assistant mic key is a 44px box, not a 32px one', () => {
+    const assistant = sources['src/pages/Assistant.tsx'];
+    const at = assistant.indexOf('telegraph-key-mic');
+    expect(at, 'mic key not found').toBeGreaterThan(-1);
+    const open = assistant.lastIndexOf('<button', at);
+    expect(assistant.slice(open, at)).toMatch(/\bw-11 h-11\b/);
+  });
+});

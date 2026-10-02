@@ -410,9 +410,13 @@ export default function Clinic() {
         <header className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-[var(--border-light)] pb-4">
           <div>
             <div className="flex items-center gap-2 mb-2 text-xs font-mono text-[var(--text-stone)]">
-              <Link to="/" className="hover:text-[var(--text-bark)] transition-colors">Command Center</Link>
+              {/* Breadcrumb links are the only way back from this page, and they
+                  measured 16px tall at 390px. min-h makes the box a real 44px
+                  target; the negative margin keeps the breadcrumb row from
+                  growing to match. */}
+              <Link to="/" className="-my-2 inline-flex items-center min-h-[44px] py-2 px-1 hover:text-[var(--text-bark)] transition-colors">Command Center</Link>
               <span>/</span>
-              <Link to="/lab" className="hover:text-[var(--text-bark)] transition-colors">Botanical Lab</Link>
+              <Link to="/lab" className="-my-2 inline-flex items-center min-h-[44px] py-2 px-1 hover:text-[var(--text-bark)] transition-colors">Botanical Lab</Link>
               <span>/</span>
               <span className="text-[#5f7161] dark:text-[#9caf88] font-bold">Dispensary</span>
             </div>
@@ -634,7 +638,7 @@ export default function Clinic() {
                         <button
                           type="button"
                           onClick={reset}
-                          className="absolute top-3 right-3 p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl transition-all shadow-sm active:scale-95 min-h-[40px] min-w-[40px] flex items-center justify-center z-10"
+                          className="absolute top-3 right-3 p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl transition-all shadow-sm active:scale-95 min-h-[44px] min-w-[44px] flex items-center justify-center z-10"
                           title="Clear specimen & reset"
                           aria-label="Clear specimen"
                         >

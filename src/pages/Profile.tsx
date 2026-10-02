@@ -469,9 +469,13 @@ export default function Profile() {
                       if (hapticEnabled) triggerHaptic('light');
                     }}
                     title="Engrave Identity"
-                    className="absolute -bottom-2 -right-2 w-9 h-9 rounded-full bg-radial from-[#faecd0] to-[#b89242] border-2 border-[#5c4013] text-[#3b2408] flex items-center justify-center shadow-lg transition-transform hover:scale-110 active:scale-95"
+                    // 44x44, not w-9 h-9 (36px): it is the only way into
+                    // editing the identity, and it sits on the avatar corner
+                    // where a thumb lands. Absolutely positioned, so growing
+                    // it does not move the layout.
+                    className="absolute -bottom-2 -right-2 w-11 h-11 rounded-full bg-radial from-[#faecd0] to-[#b89242] border-2 border-[#5c4013] text-[#3b2408] flex items-center justify-center shadow-lg transition-transform hover:scale-110 active:scale-95"
                   >
-                    <Edit2 size={14} />
+                    <Edit2 size={15} />
                   </button>
                 </div>
 
@@ -861,7 +865,7 @@ export default function Profile() {
                         setLedgerTab('seeds');
                         if (hapticEnabled) triggerHaptic('light');
                       }}
-                      className={`px-2.5 py-2 min-h-[40px] rounded-lg text-[9px] font-mono uppercase tracking-wider font-bold transition-all ${
+                      className={`px-2.5 py-2 min-h-[44px] rounded-lg text-[9px] font-mono uppercase tracking-wider font-bold transition-all ${
                         ledgerTab === 'seeds'
                           ? 'bg-[#2b2118] text-[#faecd0] shadow-xs'
                           : 'text-[#6e5843] dark:text-[#bda68e] hover:text-[#2b2118]'
@@ -874,7 +878,7 @@ export default function Profile() {
                         setLedgerTab('checkins');
                         if (hapticEnabled) triggerHaptic('light');
                       }}
-                      className={`px-2.5 py-2 min-h-[40px] rounded-lg text-[9px] font-mono uppercase tracking-wider font-bold transition-all ${
+                      className={`px-2.5 py-2 min-h-[44px] rounded-lg text-[9px] font-mono uppercase tracking-wider font-bold transition-all ${
                         ledgerTab === 'checkins'
                           ? 'bg-[#2b2118] text-[#faecd0] shadow-xs'
                           : 'text-[#6e5843] dark:text-[#bda68e] hover:text-[#2b2118]'
@@ -889,7 +893,7 @@ export default function Profile() {
                       if (hapticEnabled) triggerHaptic('light');
                       transitionTo('/market', 'The Sunday Heirloom Bazaar');
                     }}
-                    className="px-3 py-1.5 bg-[#c5a059]/20 hover:bg-[#c5a059]/30 border border-[#c5a059]/50 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider text-[#4d3714] dark:text-[#faebd7] flex items-center gap-1.5 transition-colors"
+                    className="min-h-[44px] px-3 py-1.5 bg-[#c5a059]/20 hover:bg-[#c5a059]/30 border border-[#c5a059]/50 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider text-[#4d3714] dark:text-[#faebd7] flex items-center gap-1.5 transition-colors"
                   >
                     <Coins size={12} className="text-[#c5a059]" />
                     <span className="hidden sm:inline">Heirloom Bazaar</span>
@@ -1091,7 +1095,7 @@ export default function Profile() {
                   <button
                     onClick={handleSync}
                     disabled={syncing}
-                    className="w-full py-3 px-4 bg-[#2e4a34] hover:bg-[#395c41] text-[#f4eee1] rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-between transition-colors mb-4"
+                    className="w-full min-h-[44px] py-3 px-4 bg-[#2e4a34] hover:bg-[#395c41] text-[#f4eee1] rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-between transition-colors mb-4"
                   >
                     <span className="flex items-center gap-2">
                       <CloudUp size={14} /> 

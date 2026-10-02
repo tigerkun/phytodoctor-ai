@@ -19,7 +19,7 @@ export default function Privacy() {
               PhytoDoctor AI is local-first. Your plant records, diagnosis history, seeds, streaks, and market activity
               are stored <strong>on your device</strong> (IndexedDB and localStorage in your browser). We do not operate a
               user database of plant records. If you sign in with Supabase (when enabled), your account email and
-              authentication are handled by Supabase under <a href="https://supabase.com/privacy" target="_blank" rel="noreferrer" className="text-moss underline">Supabase's privacy policy</a>.
+              authentication are handled by Supabase under <a href="https://supabase.com/privacy" target="_blank" rel="noreferrer" className="-my-3 inline-flex items-center min-h-[44px] py-3 text-moss underline">Supabase's privacy policy</a>.
             </p>
           </section>
 
