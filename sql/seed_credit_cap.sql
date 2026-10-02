@@ -49,8 +49,10 @@ as $$
 declare
   next_balance   integer;
   credited_today integer;
-  -- ⬇ EDIT THIS ONE NUMBER, then paste the whole file into the SQL editor.
-  daily_credit_cap constant integer := 2000;
+  -- ⬇ Set to 400 on the owner's go-ahead: honest play (tasks 150 + check-ins +
+  --    discovery + streaks) fits with headroom, while a stolen Pro now costs
+  --    2-3 days instead of one. Max legitimate day on record was 583.
+  daily_credit_cap constant integer := 400;
 begin
   if auth.uid() is distinct from p_user_id
      and coalesce(auth.role(), '') <> 'service_role' then
