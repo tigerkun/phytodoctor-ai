@@ -126,6 +126,25 @@ describe('the library is still reachable from a phone', () => {
   });
 });
 
+describe('no page walks session history on its own', () => {
+  // Two pages hand-rolled a back control before the header had one, and both
+  // called navigate(-1). That is the dead end this work exists to remove: a
+  // shared plant link opened cold has nothing to walk back to, so the control
+  // either did nothing or closed a packaged app.
+  it('leaves no navigate(-1) anywhere', () => {
+    expect(stripComments(read('pages/PlantDetail.tsx'))).not.toContain('navigate(-1)');
+    expect(stripComments(read('pages/Assistant.tsx'))).not.toContain('navigate(-1)');
+  });
+
+  it('routes both page-level back controls through the shared resolver', () => {
+    for (const page of ['pages/PlantDetail.tsx', 'pages/Assistant.tsx']) {
+      const source = stripComments(read(page));
+      expect(source, `${page} should use useAppBack`).toContain('useAppBack');
+      expect(source, `${page} should label its back control`).toContain('aria-label={backTarget.label}');
+    }
+  });
+});
+
 describe('the dead navigation component is gone', () => {
   it('no longer ships a nav nobody imports', () => {
     // It rendered hardcoded "34°C Delhi" and a fixed 4,250 seed count. Left in

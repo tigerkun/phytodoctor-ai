@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Calendar, ShieldCheck, Activity, AlertCircle, Droplets, Sun, TrendingUp, Box, Camera, Clock, Star, Sprout, Crown, Zap, Plus, Loader2, Book, Bookmark, Send, Share2 } from 'lucide-react';
 import { db, type PlantNote } from '../db/database';
+import { useAppBack } from '../hooks/useAppBack';
 import { useLiveQuery } from 'dexie-react-hooks';
 import GuardianScoreRing from '../components/GuardianScoreRing';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -43,6 +44,10 @@ const itemVariants = {
 export default function PlantDetail() {
   const { id } = useParams();
   const { transitionTo } = usePageTransition();
+  // Same resolver the header uses. A shared plant link opened cold has no
+  // history to walk, and this is exactly that case -- navigate(-1) would have
+  // stranded the reader, while here it lands in the Vault the plant lives in.
+  const { target: backTarget, goBack } = useAppBack();
   const { success, error } = useToast();
   const [activeTab, setActiveTab] = useState<'timeline' | 'journal' | 'alerts' | 'notebook'>('timeline');
   const [propagating, setPropagating] = useState(false);
@@ -300,11 +305,12 @@ if (!plant) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 md:py-12">
         {/* Navigation & Accession Banner */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-          <button 
-            onClick={() => transitionTo('/', 'Home')} 
+          <button
+            onClick={goBack}
+            aria-label={backTarget.label}
             className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.25em] text-[#c4b193] hover:text-white transition-colors group px-3 py-1.5 rounded-lg bg-black/20 border border-[#c4b193]/20"
           >
-            <ChevronLeft size={14} className="group-hover:-translate-x-1 transition-transform text-[#c5a059]" /> 
+            <ChevronLeft size={14} className="group-hover:-translate-x-1 transition-transform text-[#c5a059]" />
             <span>Return to Conservatory Bench</span>
           </button>
           

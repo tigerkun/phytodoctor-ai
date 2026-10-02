@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, User, Bot, Loader2, Mic, ArrowLeft, ShieldCheck, RefreshCw, BookmarkPlus, Check, Sparkles } from 'lucide-react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { useAppBack } from '../hooks/useAppBack';
 import { chatWithBotanist, type Message } from '../services/chatService';
 import { useToast } from '../components/Toast';
 import { triggerHaptic, playAudio } from '../utils/hapticAudio';
@@ -40,7 +41,10 @@ const QUICK_TOPICS = [
 export default function Assistant() {
   const { success, warning, info } = useToast();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  // Resolved the same way the header does it. Reaching the gardener from a
+  // shared plant link is the common cold-start case, and navigate(-1) had
+  // nothing to walk back to there.
+  const { target: backTarget, goBack } = useAppBack();
 
   const plantName = searchParams.get('plantName');
   const species = searchParams.get('species');
@@ -324,7 +328,8 @@ export default function Assistant() {
         <div className="flex items-center justify-between gap-4 mb-6 pb-5 border-b-2 border-[#3d5a3d]/25">
           <div className="flex items-center gap-3.5">
             <button
-              onClick={() => navigate(-1)}
+              onClick={goBack}
+              aria-label={backTarget.label}
               className="p-2.5 rounded-md bg-[#2b3d2b] hover:bg-[#1f2d1f] text-[#f4ecd8] border border-[#4a634a]/40 shadow-sm transition-all active:scale-95"
               title="Return to Conservatory"
             >
