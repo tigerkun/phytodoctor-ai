@@ -767,6 +767,15 @@
   color: #8fb58f;
 }
 
+/* The Lab's own kicker is a hand-written class rather than a Tailwind utility,
+   so the phone type floor in index.css cannot reach it. Same reasoning: 9px
+   is a desktop eyebrow size and unreadable at arm's length. */
+@media (max-width: 480px) {
+  .skin-lab .lab-kicker {
+    font-size: 11px;
+  }
+}
+
 /* 1mm Coordinate Graph Dissection Board */
 .dissection-board {
   background-color: #f7faf6;

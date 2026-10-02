@@ -323,3 +323,54 @@
     transform: translateX(100%);
   }
 }
+
+/* ─── Phone ergonomics ────────────────────────────────────────────────
+   The interface was typeset for a desktop canvas and inherited unchanged to
+   phones. Measured at 390px, the landing page rendered six 9px labels, eight
+   10px labels and five 12px paragraphs with nothing at all between 12px and
+   16px, and the primary "Sign In to Sanctuary" control came out 21px tall --
+   under half the 44px minimum. Nothing overflowed horizontally; it read as
+   crowded because the type was too small to scan and the controls too small to
+   trust with a thumb.
+
+   These are deliberately floors, not a redesign. Desktop keeps the tighter
+   scale, where 9px eyebrow type is legible and the density reads as precision
+   rather than clutter.
+
+   Tailwind emits arbitrary utilities like text-[9px] inside @layer utilities,
+   and an unlayered rule outranks a layered one no matter the source order, so
+   these overrides need no !important and no edits to the several hundred call
+   sites that use the sizes. */
+@media (max-width: 480px) {
+  /* 7px and 8px are page-level eyebrow labels and gauge captions. The
+     Assistant's 5-6.5px "Kew Station Botanic Dispatch" postmark is deliberately
+     left out of this list: four lines of tiny letterpress caps *are* the stamp,
+     and sizing it up would flatten the effect it exists to create. */
+  .text-\[7px\] {
+    font-size: 10px;
+  }
+  .text-\[8px\] {
+    font-size: 10px;
+  }
+  .text-\[9px\] {
+    font-size: 11px;
+  }
+  .text-\[10px\] {
+    font-size: 11px;
+  }
+  .text-\[11px\] {
+    font-size: 12px;
+  }
+  .text-\[12px\] {
+    font-size: 13px;
+  }
+
+  /* The footer links carry py-3 for exactly this reason, but 9px type makes
+     that box 38px, not 44. inline-flex pins the height to the padding rather
+     than the line box. */
+  footer a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}

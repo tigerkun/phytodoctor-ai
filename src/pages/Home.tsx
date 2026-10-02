@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/database';
 import { GameService } from '@/services/gameService';
@@ -43,6 +43,10 @@ const FEATURES = [
 ];
 
 function WelcomeLanding({ onGetStarted, onSignIn, onTryScan }: { onGetStarted: () => void; onSignIn: () => void; onTryScan: () => void }) {
+  const { scrollY } = useScroll();
+  const crestY = useTransform(scrollY, [0, 600], [0, -80]);
+  const crestOpacity = useTransform(scrollY, [0, 380], [1, 0.1]);
+
   return (
     <PageWrapper className="min-h-screen w-full relative overflow-hidden bg-[#FAF7F2] dark:bg-[#121619]">
       {/* Background architectural glasshouse & estate ambience */}
@@ -58,9 +62,21 @@ function WelcomeLanding({ onGetStarted, onSignIn, onTryScan }: { onGetStarted: (
           transition={{ duration: 0.7 }}
           className="flex flex-col items-center mb-6 text-center"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#b89552]/40 bg-[#f7edd6]/80 dark:bg-[#2b2416]/80 text-[#7a602f] dark:text-[#d4af37] text-[10px] font-black uppercase tracking-[0.25em] shadow-xs">
+          {/* Scroll-linked, so the crest keeps moving for as long as the reader
+              is on the page. Every other animation on this landing fires once
+              on mount and then the page is completely static, which is what
+              read as dead on a phone rather than calm.
+
+              These MotionValues live on the badge, not on the wrapper above:
+              the wrapper already animates `y` and `opacity` from `initial`, and
+              two owners writing the same transform meant the entrance won and
+              the scroll values were silently discarded. */}
+          <motion.div
+            style={{ y: crestY, opacity: crestOpacity }}
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#b89552]/40 bg-[#f7edd6]/80 dark:bg-[#2b2416]/80 text-[#7a602f] dark:text-[#d4af37] text-[10px] font-black uppercase tracking-[0.25em] shadow-xs"
+          >
             🏛️ ESTATE CONSERVATORY · GATEHOUSE № 01
-          </div>
+          </motion.div>
           <div className="w-32 h-px bg-gradient-to-r from-transparent via-[#b89552]/50 to-transparent mt-3" />
         </motion.div>
 
@@ -150,9 +166,26 @@ function WelcomeLanding({ onGetStarted, onSignIn, onTryScan }: { onGetStarted: (
                 <motion.div
                   key={f.title}
                   initial={{ opacity: 0, y: 25 }}
+                  // Deliberately `animate`, not `whileInView`. This row sits roughly
+                  // 950px down the landing page -- below the fold on any phone
+                  // -- so a scroll-gated reveal is what you would want, and it
+                  // was tried. It cannot work in this layout: Layout.tsx gives
+                  // <main> `overflow-y: auto`, and framer-motion picks the
+                  // nearest scrollable ancestor as its IntersectionObserver
+                  // root. That <main> is 2228px tall while the window is 844,
+                  // so every card "intersects" the moment it mounts and the
+                  // reveal fires instantly. Measured: all three cards at full
+                  // opacity 296ms after mount, with no scroll. A viewport
+                  // margin does not help, because the problem is the root, not
+                  // the threshold. Fixed when the page is genuinely shorter
+                  // than the scrollport; not worth faking until then.
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 + i * 0.08, duration: 0.5 }}
                   whileHover={{ y: -5 }}
+                  // whileHover never fires on a touchscreen, so these cards had
+                  // no press feedback at all on the device most people open
+                  // them on. This is the mobile equivalent.
+                  whileTap={f.to ? { scale: 0.97 } : undefined}
                   className={`rounded-2xl p-6 border transition-all relative overflow-hidden bg-white/70 dark:bg-[#1E1B17]/70 border-[#D2C7B5]/60 dark:border-[#3D3830] shadow-xs hover:shadow-md ${
                     f.to ? 'cursor-pointer' : 'cursor-default'
                   }`}
@@ -213,7 +246,12 @@ function WelcomeLanding({ onGetStarted, onSignIn, onTryScan }: { onGetStarted: (
             Already holding estate keys?{' '}
             <button
               onClick={onSignIn}
-              className="font-bold underline text-[#5A7D5A] dark:text-[#8FB58F] hover:opacity-80 cursor-pointer bg-transparent border-none p-0 inline"
+              // Sits mid-sentence, so it cannot be given a 44px box without
+              // breaking the line. The padding and matching negative margin
+              // widen the hit area out over the surrounding whitespace instead:
+              // measured at 21px tall on a phone before this, which is a poor
+              // target for the one link that gets an existing user back in.
+              className="font-bold underline text-[#5A7D5A] dark:text-[#8FB58F] hover:opacity-80 cursor-pointer bg-transparent border-none px-2 -mx-2 py-2 -my-2 inline-block"
             >
               Sign In to Sanctuary
             </button>
