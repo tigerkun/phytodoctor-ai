@@ -17,8 +17,14 @@ import {
   Zap,
   Gift,
   ExternalLink,
-  Crown
+  Crown,
+  Lock,
+  Truck,
+  Ticket,
+  Percent,
+  Gem
 } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/database';
 import { GameService } from '../services/gameService';
@@ -33,7 +39,9 @@ import ErrorState from '../components/feedback/ErrorState';
 import { SkeletonList } from '../components/feedback/Skeleton';
 import { SanctuaryService } from '../services/sanctuaryService';
 import { MARKETPLACE_ITEMS } from '../game/ECONOMY_DATA';
-import { refundValueFor } from '../lib/marketPricing';
+import { VOUCHERS, LEVEL_TIERS } from '../game/REWARD_CONFIG';
+import { lineSeedCost, lineRefundRupees, refundValueFor, volumeDiscountPct } from '../lib/marketPricing';
+import { marketPrivilegesFor, nextMarketUnlock, seedPriceFor, voucherCostFor, type MarketPrivileges } from '../lib/marketUnlocks';
 import {
   SANCTUARY_ITEMS,
   SANCTUARY_CATEGORIES,
@@ -44,7 +52,32 @@ import {
 } from '../game/SANCTUARY_DATA';
 
 // ── MOCK DATA (HIGH-ACCURACY CURATED IMAGES & LINKS) ──
-const MOCK_PRODUCTS = [
+
+/** One crate on the physical stall. Written out rather than inferred so a
+ *  missing flag is a type error rather than an `undefined` that reads falsy
+ *  on some cards and throws nowhere. */
+interface MarketProduct {
+  id: string;
+  category: string;
+  name: string;
+  subtitle: string;
+  image: string;
+  amazonUrl: string;
+  rating: number;
+  reviewCount: number;
+  cashPrice: number;
+  originalPrice?: number;
+  seedPrice: number;
+  isLimited: boolean;
+  proEarlyAccess: boolean;
+  tags: string[];
+  /** L18 "Legendary market drop access": visible to everyone, buyable only
+   *  by Flora Sages. The two dearest crates carry this so the tier has
+   *  something concrete sitting behind it. */
+  legendary?: boolean;
+}
+
+const MOCK_PRODUCTS: MarketProduct[] = [
   {
     id: 'drop-1',
     category: 'drops',
@@ -261,10 +294,23 @@ const MOCK_PRODUCTS = [
   }
 ];
 
-const MOCK_VOUCHERS = [
-  { id: 'v1', title: 'Sprout Saver', value: '₹50 off', discount: 50, seedCost: 300, expiryDays: 12 },
-  { id: 'v2', title: 'Garden Pass', value: '₹150 off + Free Shipping', discount: 150, seedCost: 900, expiryDays: 5 },
-];
+// The two dearest crates are the legendary drops — the L18 tier's concrete
+// reward. Derived by price rather than hand-flagged, so a future price edit
+// cannot accidentally move the tier gate onto a mid-shelf item. A lookup Set,
+// not a mutation of MOCK_PRODUCTS: the drop ids are read off the catalogue
+// everywhere it is rendered, and the file has already been bitten once by a
+// helper that reordered the shared array in place.
+const LEGENDARY_DROP_IDS = new Set(
+  [...MOCK_PRODUCTS].sort((a, b) => b.seedPrice - a.seedPrice).slice(0, 2).map(p => p.id)
+);
+const isLegendaryDrop = (id: string) => LEGENDARY_DROP_IDS.has(id);
+
+// Punchable tickets come from REWARD_CONFIG, the same array the RuleBook
+// renders. The market used to keep its own two-entry copy with cheaper seed
+// costs, so the rulebook quoted 500 seeds for a Sprout Saver while this page
+// charged 300 — one ticket, two prices, depending on which screen you were
+// standing on. There is no second copy to drift any more.
+const TICKETS_FOR_SALE = VOUCHERS;
 
 const CART_KEY = 'phyto_stall_cart';
 const WISH_KEY = 'phyto_stall_wish';
@@ -384,14 +430,17 @@ const FRESH_FINDS: { insight: string; source: string; matchProductId: string }[]
   { insight: 'Filtered or rain water prevents the mineral crust tap water leaves on calathea and maranta soil.', source: 'Missouri Botanical Garden', matchProductId: 'drop-2' },
 ];
 
-function todaysFreshFind() {
-  return FRESH_FINDS[marketDayNumber() % FRESH_FINDS.length];
+function todaysFreshFind(day: number) {
+  return FRESH_FINDS[day % FRESH_FINDS.length];
 }
 
 // Today's Harvest: three stalls at 40% off their seed refund, drawn fresh at
-// midnight. Deterministic per date, identical for every Keeper.
-function todaysHarvest() {
-  return seededPick(MOCK_PRODUCTS, 3, marketDayNumber() * 31 + 7).map(p => ({
+// midnight. Deterministic per date, identical for every Keeper. Takes the
+// catalogue and the stall day rather than reading them itself, so early
+// access and the tier discount flow through the same path as every other
+// price on the page.
+function todaysHarvest(products: MarketProduct[], day: number) {
+  return seededPick(products, 3, day * 31 + 7).map(p => ({
     ...p,
     seedPrice: Math.round(p.seedPrice * 0.6),
     isLimited: true,
@@ -400,9 +449,9 @@ function todaysHarvest() {
 }
 
 // ── HERO CAROUSEL ──
-function HeroCarousel({ onClaim, seeds }: { onClaim: (id: string, refundValue: number) => void; seeds: number }) {
+function HeroCarousel({ onClaim, seeds, products }: { onClaim: (id: string, refundValue: number) => void; seeds: number; products: MarketProduct[] }) {
   const [carouselIndex, setCarouselIndex] = useState(0);
-  const heroProducts = MOCK_PRODUCTS.filter(p => p.isLimited).slice(0, 3);
+  const heroProducts = products.filter(p => p.isLimited).slice(0, 3);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -556,11 +605,12 @@ function HeroCarousel({ onClaim, seeds }: { onClaim: (id: string, refundValue: n
 }
 
 // ── PRODUCT CARD ──
-function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish, seeds }: { product: any; onClaim: (id: string, refundValue: number) => void; onAddToCart?: (product: any) => void; wished?: boolean; onToggleWish?: (id: string) => void; seeds: number }) {
+function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish, seeds, legendaryLocked, legendaryLevel }: { product: MarketProduct; onClaim: (id: string, refundValue: number) => void; onAddToCart?: (product: any) => void; wished?: boolean; onToggleWish?: (id: string) => void; seeds: number; legendaryLocked?: boolean; legendaryLevel?: number }) {
   // Calculate real-world refund logic
+  const reduced = useReducedMotion();
   const refundValue = refundValueFor(product);
   const shortfall = Math.max(0, product.seedPrice - seeds);
-  const canAfford = shortfall === 0;
+  const canAfford = shortfall === 0 && !legendaryLocked;
 
   const handleAmazonRedirect = () => {
     onClaim(product.id, refundValue);
@@ -592,6 +642,18 @@ function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish, seed
         {product.proEarlyAccess && (
           <div className="absolute top-3 right-3 bg-[#d4af37] text-[#2c2419] px-2.5 py-1 text-[9px] font-black tracking-widest uppercase">
             Early stall
+          </div>
+        )}
+        {legendaryLocked && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-[#2c2419]/72 backdrop-blur-[2px]">
+            <motion.div
+              animate={reduced ? {} : { scale: [1, 1.12, 1], opacity: [0.85, 1, 0.85] }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              <Gem size={26} className="text-[#d4af37]" />
+            </motion.div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#f4e4c1]">Legendary crate</p>
+            <p className="text-[10px] text-[#e8d5b0]/75">Opens at level {legendaryLevel} · Flora Sage</p>
           </div>
         )}
         <button
@@ -658,6 +720,197 @@ function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish, seed
             </motion.button>
           </div>
         </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ── TIER LADDER STRIP ──
+// Every market promise LEVEL_TIERS makes, shown where the spending happens
+// with its live state. This is the strip that makes the ladder legible: until
+// it existed, the game computed these unlocks into levelProgress and then
+// never told the shop about them.
+const LADDER_CHIPS: { key: keyof MarketPrivileges; label: string; level: number; icon: typeof Lock; blurb: string }[] = [
+  { key: 'shopUnlocked', label: 'Stalls open', level: 5, icon: ShoppingBag, blurb: 'Spend seeds at the bazaar' },
+  { key: 'earlyAccessHours', label: 'Early stall', level: 8, icon: Clock, blurb: 'Tomorrow’s floor from noon' },
+  { key: 'freeShippingVouchers', label: 'Free shipping', level: 10, icon: Truck, blurb: 'Shipping tickets punchable' },
+  { key: 'voucherExchangeBonusPct', label: '+10% exchange', level: 17, icon: Ticket, blurb: 'Tickets cost 10% fewer seeds' },
+  { key: 'legendaryDrops', label: 'Legendary', level: 18, icon: Gem, blurb: 'The two dearest crates open' },
+  { key: 'discountPct', label: '−5% seeds', level: 20, icon: Percent, blurb: 'Off every seed price, forever' },
+];
+
+function TierLadderStrip({ level, privileges }: { level: number; privileges: MarketPrivileges }) {
+  const reduced = useReducedMotion();
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="mb-10 rounded-xl border border-[#d9c4a0] bg-[#fff8e8] p-4"
+    >
+      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8c6d46] mb-3 flex items-center gap-1.5">
+        <Crown size={12} /> Your bazaar standing · level {level}
+      </p>
+      <motion.div
+        initial="hidden"
+        animate="show"
+        variants={{ show: { transition: { staggerChildren: 0.06 } } }}
+        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2"
+      >
+        {LADDER_CHIPS.map(({ key, label, level: at, icon: Icon, blurb }) => {
+          const value = privileges[key];
+          const on = typeof value === 'boolean' ? value : (value as number) > 0;
+          return (
+            <motion.div
+              key={key}
+              variants={{
+                hidden: { opacity: 0, y: 8 },
+                show: { opacity: 1, y: 0, transition: { duration: 0.3 } }
+              }}
+              whileHover={reduced ? undefined : { y: -2 }}
+              title={blurb}
+              className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left ${
+                on ? 'bg-[#eef4e6] border-[#5a7d5a]/40' : 'bg-[#f7f0e4] border-[#d9c4a0]'
+              }`}
+            >
+              <Icon size={15} className={on ? 'text-[#3d6b4a] shrink-0' : 'text-[#a09070] shrink-0'} />
+              <div className="min-w-0">
+                <p className={`text-[10px] font-black uppercase tracking-wider truncate ${on ? 'text-[#2c4a2c]' : 'text-[#7a6a50]'}`}>
+                  {label}
+                </p>
+                <p className="text-[9px] text-[#a09070] font-mono">{on ? 'unlocked' : `level ${at}`}</p>
+              </div>
+            </motion.div>
+          );
+        })}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ── STALL LOCK ──
+// Shown in place of the physical stalls until level 5. The stall stays
+// browsable-in-principle, but nothing here spends seeds, so hiding the empty
+// shelf behind a locked door with the exact XP remaining is more honest than
+// a shop of buttons that all bounce you off.
+function StallLock({ level, xpToNext, xpProgress, nextUnlock }: {
+  level: number;
+  xpToNext: number;
+  xpProgress: number;
+  nextUnlock: { level: number; feature: string } | null;
+}) {
+  const reduced = useReducedMotion();
+  // The tier that opens the stalls — read from LEVEL_TIERS rather than a
+  // copied 700, so rebalancing the tier moves the lock with it.
+  const target = LEVEL_TIERS.find(t => t.unlocks.market?.shop) ?? LEVEL_TIERS[0];
+  const xpIntoTier = Math.max(0, target.xpRequired - xpToNext);
+  const pct = Math.min(100, Math.round((xpIntoTier / target.xpRequired) * 100));
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      className="max-w-xl mx-auto rounded-2xl border-2 border-dashed border-[#c4a574] bg-[#fff8e8] p-8 text-center"
+    >
+      <motion.div
+        animate={reduced ? {} : { y: [0, -6, 0] }}
+        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+        className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#f4e4c1] border border-[#c4a574] flex items-center justify-center"
+      >
+        <Lock size={26} className="text-[#8c6d46]" />
+      </motion.div>
+      <h3 className="font-serif text-2xl font-semibold text-[#3d2a1c] mb-2">The stalls open at Leaf-Bearer</h3>
+      <p className="text-sm text-[#7a6a50] leading-relaxed mb-6">
+        The bazaar is a seed sink, so it opens once you have a garden to spend on — level {target.level},
+        {' '}{target.xpRequired.toLocaleString()} XP. Diagnosing plants, keeping your streak and winning duels all count.
+      </p>
+      <div className="mb-2 flex justify-between text-[10px] font-black uppercase tracking-widest text-[#8c6d46]">
+        <span>Level {level}</span>
+        <span>{Math.max(0, target.xpRequired - xpIntoTier)} XP to go</span>
+      </div>
+      <div className="h-3 rounded-full bg-[#e8dcc8] overflow-hidden border border-[#d9c4a0]">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+          className="h-full rounded-full"
+          style={{ background: 'linear-gradient(90deg, #5a7d5a, #8fae7a)' }}
+        />
+      </div>
+      {nextUnlock && nextUnlock.level > 5 && (
+        <p className="text-[11px] text-[#a09070] mt-4">
+          Next on the ladder: <span className="font-bold text-[#8c6d46]">{nextUnlock.feature}</span> at level {nextUnlock.level}
+        </p>
+      )}
+    </motion.div>
+  );
+}
+
+// ── MARKET PULSE ──
+// Seven days of the stall, read off the same seeded rotation that stocks it —
+// no stored history, no mock series. The floor genuinely is different every
+// morning, and this is the shape of that difference.
+function MarketPulse({ day }: { day: number }) {
+  const reduced = useReducedMotion();
+  const data = useMemo(() => {
+    const rows: { day: string; crates: number; seedValue: number }[] = [];
+    for (let back = 6; back >= 0; back--) {
+      const d = day - back;
+      const floor = seededPick(MOCK_PRODUCTS, Math.max(8, MOCK_PRODUCTS.length - 4), d * 13 + 1);
+      const label = new Date(Date.now() - back * 86400000).toLocaleDateString(undefined, { weekday: 'short' });
+      rows.push({
+        day: d === day ? 'Today' : label,
+        crates: floor.length,
+        seedValue: Math.round(floor.reduce((s, p) => s + p.seedPrice, 0) / 1000),
+      });
+    }
+    return rows;
+  }, [day]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mb-12 rounded-xl border border-[#d9c4a0] bg-[#fff8e8] p-5"
+    >
+      <div className="flex items-baseline justify-between mb-1">
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8c6d46] flex items-center gap-1.5">
+          <TrendingUp size={12} /> Market pulse · last 7 mornings
+        </p>
+        <p className="text-[10px] text-[#a09070]">seed value in thousands</p>
+      </div>
+      <p className="text-[11px] text-[#7a6a50] mb-4">
+        How the floor has been stocked. The restock is seeded by date, so this is the bazaar's real rhythm — not a forecast.
+      </p>
+      <div className="h-44 -ml-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <defs>
+              <linearGradient id="pulseFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#5a7d5a" stopOpacity={0.55} />
+                <stop offset="100%" stopColor="#5a7d5a" stopOpacity={0.04} />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#7a6a50' }} axisLine={{ stroke: '#d9c4a0' }} tickLine={false} />
+            <YAxis width={34} tick={{ fontSize: 10, fill: '#a09070' }} axisLine={false} tickLine={false} />
+            <Tooltip
+              contentStyle={{ background: '#fff8e8', border: '1px solid #d9c4a0', borderRadius: 8, fontSize: 12 }}
+              labelStyle={{ color: '#3d2a1c', fontWeight: 700 }}
+              formatter={(value: number | string, name: string) =>
+                name === 'crates' ? [`${value} crates`, 'On the floor'] : [`₹${value}k of seeds`, 'Floor value']
+              }
+            />
+            <Area
+              type="monotone"
+              dataKey="crates"
+              stroke="#3d6b4a"
+              strokeWidth={2}
+              fill="url(#pulseFill)"
+              dot={{ r: 2.5, fill: '#3d6b4a' }}
+              animationDuration={reduced ? 0 : 900}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
     </motion.div>
   );
@@ -909,8 +1162,8 @@ function SanctuaryShelf({ seeds, userId }: { seeds: number; userId: string }) {
 
 // ── MAIN EXPORT ──
 // ── TODAY'S HARVEST ── three stalls at 40% off, redrawn every midnight ──
-function TodaysHarvest({ onClaim, onAddToCart, seeds }: { onClaim: (id: string, refundValue: number) => void; onAddToCart?: (product: any) => void; seeds: number }) {
-  const deals = todaysHarvest();
+function TodaysHarvest({ onClaim, onAddToCart, seeds, products, day }: { onClaim: (id: string, refundValue: number) => void; onAddToCart?: (product: any) => void; seeds: number; products: MarketProduct[]; day: number }) {
+  const deals = todaysHarvest(products, day);
   return (
     <div>
       <motion.h2 initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="font-serif text-2xl md:text-3xl font-semibold mb-1 text-[#3d2a1c]">
@@ -934,9 +1187,9 @@ function TodaysHarvest({ onClaim, onAddToCart, seeds }: { onClaim: (id: string, 
 }
 
 // ── FRESH FINDS ── the daily garden audit, sourced, with the stall that uses it ──
-function FreshFindsAudit({ onClaim, seeds }: { onClaim: (id: string, refundValue: number) => void; seeds: number }) {
-  const find = todaysFreshFind();
-  const match = MOCK_PRODUCTS.find(p => p.id === find.matchProductId) ?? MOCK_PRODUCTS[0];
+function FreshFindsAudit({ onClaim, seeds, products, day }: { onClaim: (id: string, refundValue: number) => void; seeds: number; products: MarketProduct[]; day: number }) {
+  const find = todaysFreshFind(day);
+  const match = products.find(p => p.id === find.matchProductId) ?? products[0];
   return (
     <div className="rounded-xl border-2 border-[#d9c4a0] bg-[#fff8e8] p-5 flex flex-col md:flex-row gap-5 items-start shadow-sm">
       <div className="flex-1 min-w-0">
@@ -1301,8 +1554,29 @@ export default function GardenMarket() {
   const level = levelProgress?.currentLevel ?? 1;
   const totalXp = Math.round(levelProgress?.totalXP ?? 0);
   const xpToNext = Math.round(levelProgress?.xpToNextLevel ?? 100);
+
+  // The shop's side of the level ladder. Every price, lock and gate below
+  // reads from this one object.
+  const reduced = useReducedMotion();
+  const privileges = useMemo(() => marketPrivilegesFor(level), [level]);
+  const nextUnlock = useMemo(() => nextMarketUnlock(level), [level]);
+
+  // Early access (L8): from `earlyAccessHours` before midnight, tomorrow's
+  // stall is already on the floor. One day number drives the rotation, the
+  // harvest and the pulse, so an early-access stall is the *same* stall
+  // everyone else sees at midnight — not a different one.
+  const earlyWindow = privileges.earlyAccessHours > 0 && new Date().getHours() >= 24 - privileges.earlyAccessHours;
+  const stallDay = useMemo(() => marketDayNumber() + (earlyWindow ? 1 : 0), [earlyWindow]);
   const stallLeft = `${23 - new Date().getHours()}h ${59 - new Date().getMinutes()}m`;
-  const appliedTicket = MOCK_VOUCHERS.find(v => v.id === appliedTicketId && redeemedTickets.includes(v.id));
+
+  // The catalogue with the L20 standing discount folded into every seed
+  // price. Cash prices are untouched — the rupee side belongs to Amazon.
+  const pricedProducts = useMemo(
+    () => MOCK_PRODUCTS.map(p => ({ ...p, seedPrice: seedPriceFor(p.seedPrice, level) })),
+    [level]
+  );
+
+  const appliedTicket = TICKETS_FOR_SALE.find(v => v.id === appliedTicketId && redeemedTickets.includes(v.id));
 
   useEffect(() => { localStorage.setItem(CART_KEY, JSON.stringify(cartItems)); }, [cartItems]);
   useEffect(() => { localStorage.setItem(WISH_KEY, JSON.stringify(wishlist)); }, [wishlist]);
@@ -1318,16 +1592,18 @@ export default function GardenMarket() {
   // Stalls restock at midnight: a date-seeded subset of the catalogue is on
   // the floor today (always leaving out at most four), so the bazaar is
   // genuinely different every morning. Pinned crates ignore the rotation.
+  // Keyed on `stallDay`, not mounted once — the old `[]` deps meant a page
+  // left open across midnight kept selling yesterday's floor all day.
   const inStockIds = useMemo(
-    () => new Set(seededPick(MOCK_PRODUCTS, Math.max(8, MOCK_PRODUCTS.length - 4), marketDayNumber() * 13 + 1).map(p => p.id)),
-    []
+    () => new Set(seededPick(pricedProducts, Math.max(8, pricedProducts.length - 4), stallDay * 13 + 1).map(p => p.id)),
+    [pricedProducts, stallDay]
   );
   const filteredProducts = useMemo(() => {
     let products = activeTab === 'saved'
-      ? MOCK_PRODUCTS.filter(p => wishlist.includes(p.id))
+      ? pricedProducts.filter(p => wishlist.includes(p.id))
       : activeTab === 'drops'
-        ? [...MOCK_PRODUCTS]
-        : MOCK_PRODUCTS.filter(p => p.category === activeTab);
+        ? [...pricedProducts]
+        : pricedProducts.filter(p => p.category === activeTab);
     if (activeTab !== 'saved') products = products.filter(p => inStockIds.has(p.id));
 
     if (filters.limitedOnly) products = products.filter(p => p.isLimited);
@@ -1346,12 +1622,24 @@ export default function GardenMarket() {
       case 'new': return [...products].reverse();
       default: return products;
     }
-  }, [activeTab, wishlist, filters.limitedOnly, filters.search, filters.priceRange, filters.minRating, filters.sort]);
+  }, [activeTab, wishlist, filters.limitedOnly, filters.search, filters.priceRange, filters.minRating, filters.sort, pricedProducts, inStockIds]);
+
+  // What each crate card needs to know about the ladder. One helper so all
+  // five render sites — the three stall grids, the audit card and the harvest
+  // — pass the same gate, and a fourth tab cannot forget it.
+  const cardGates = (p: MarketProduct) => ({
+    legendaryLocked: isLegendaryDrop(p.id) && !privileges.legendaryDrops,
+    legendaryLevel: LEVEL_TIERS.find(t => t.unlocks.market?.legendaryDrops)?.level ?? 18,
+  });
 
   const handleClaim = (id: string, refundValue: number) => {
-    const product = MOCK_PRODUCTS.find(p => p.id === id);
+    const product = pricedProducts.find(p => p.id === id);
     const cost = product ? product.seedPrice : refundValue * 200;
 
+    if (!privileges.shopUnlocked) {
+      error(`The stalls open at level 5 — you are level ${level}.`);
+      return;
+    }
     if (claimedRefunds.some(r => r.id === id)) {
       error('You already claimed the seed refund for this crate.');
       return;
@@ -1397,16 +1685,27 @@ export default function GardenMarket() {
     });
   };
 
-  const handleAddToCart = (product: any) => {
+  const handleAddToCart = (product: MarketProduct) => {
+    if (!privileges.shopUnlocked) {
+      error(`The stalls open at level 5 — you are level ${level}.`);
+      return;
+    }
+    if (isLegendaryDrop(product.id) && !privileges.legendaryDrops) {
+      error(`Legendary crates open at level 18 — ${product.name} is one of them.`);
+      return;
+    }
     const existingItem = cartItems.find(item => item.id === product.id);
     if (existingItem) {
-      setCartItems(cartItems.map(item => 
+      setCartItems(cartItems.map(item =>
         item.id === product.id ? { ...item, qty: item.qty + 1 } : item
       ));
     } else {
       setCartItems([...cartItems, { ...product, qty: 1 }]);
     }
-    success(`Added ${product.name} to basket`);
+    const saved = volumeDiscountPct(existingItem ? existingItem.qty + 1 : 1);
+    success(saved > 0
+      ? `Added ${product.name} — ${saved}% bulk discount on the seeds`
+      : `Added ${product.name} to basket`);
   };
 
   const bumpQty = (id: string, delta: number) => {
@@ -1422,19 +1721,31 @@ export default function GardenMarket() {
   };
 
   const redeemTicket = async (id: string) => {
-    const voucher = MOCK_VOUCHERS.find(v => v.id === id);
+    const voucher = TICKETS_FOR_SALE.find(v => v.id === id);
     if (!voucher) return;
+    // L17 "+10% Seed-to-Voucher exchange": the same ticket costs fewer seeds.
+    // Computed here rather than baked into the catalogue so the ticket tab can
+    // show the tier saving as a struck-through original.
+    const cost = voucherCostFor(voucher.seedCost, level);
+    if (!privileges.vouchersUnlocked) {
+      error(`Tickets open at level 5 — you are level ${level}.`);
+      return;
+    }
+    if (voucher.requiredLevel && level < voucher.requiredLevel) {
+      error(`${voucher.title} opens at level ${voucher.requiredLevel}.`);
+      return;
+    }
     if (redeemedTickets.includes(id)) {
       setAppliedTicketId(id);
       success('Ticket clipped to this basket');
       return;
     }
-    if (seeds < voucher.seedCost) {
-      error(`Need ${voucher.seedCost.toLocaleString()} seeds`);
+    if (seeds < cost) {
+      error(`Need ${cost.toLocaleString()} seeds`);
       return;
     }
     try {
-      await GameService.spendSeeds(voucher.seedCost, 'spend', `Punched ticket: ${voucher.title}`);
+      await GameService.spendSeeds(cost, 'spend', `Punched ticket: ${voucher.title}`);
       setRedeemedTickets([...redeemedTickets, id]);
       setAppliedTicketId(id);
       reward(`Punched ${voucher.title}`);
@@ -1449,7 +1760,11 @@ export default function GardenMarket() {
       <div className="relative z-10">
         <div className="sticky top-0 z-40 bazaar-mast px-4 md:px-8 py-3 flex items-center justify-between gap-3">
           <div>
-            <p className="bazaar-kicker">Sunday bazaar · stall packs in {stallLeft}</p>
+            <p className="bazaar-kicker">
+              {earlyWindow
+                ? <>Early stall · tomorrow’s floor is live {privileges.earlyAccessHours}h before restock</>
+                : <>Sunday bazaar · stall packs in {stallLeft}</>}
+            </p>
             <h1 className="font-serif text-2xl md:text-3xl font-semibold text-[#3d2a1c]">The Garden Market</h1>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -1594,12 +1909,34 @@ export default function GardenMarket() {
                 exit={{ opacity: 0 }}
                 className="space-y-16"
               >
-                <HeroCarousel onClaim={handleClaim} seeds={seeds} />
+                {!privileges.shopUnlocked ? (
+                  <StallLock level={level} xpToNext={xpToNext} xpProgress={levelProgress?.xpProgress ?? 0} nextUnlock={nextUnlock} />
+                ) : (
+                  <>
+                    <TierLadderStrip level={level} privileges={privileges} />
+                    {earlyWindow && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-center gap-2 rounded-lg border border-[#d4af37]/60 bg-[#d4af37]/10 px-4 py-3"
+                      >
+                        <Clock size={14} className="text-[#8c6d46] shrink-0" />
+                        <p className="text-xs text-[#5c4a2e]">
+                          <span className="font-black uppercase tracking-wider">Cultivator early access.</span>{' '}
+                          You are looking at tomorrow’s floor, {privileges.earlyAccessHours} hours before everyone else.
+                        </p>
+                      </motion.div>
+                    )}
+                    <HeroCarousel onClaim={handleClaim} seeds={seeds} products={pricedProducts} />
 
-                <TodaysHarvest onClaim={handleClaim} onAddToCart={handleAddToCart} seeds={seeds} />
-                <FreshFindsAudit onClaim={handleClaim} seeds={seeds} />
+                    <MarketPulse day={stallDay} />
+                    <TodaysHarvest onClaim={handleClaim} onAddToCart={handleAddToCart} seeds={seeds} products={pricedProducts} day={stallDay} />
+                    <FreshFindsAudit onClaim={handleClaim} seeds={seeds} products={pricedProducts} day={stallDay} />
+                  </>
+                )}
 
                 {/* Featured Section */}
+                {!privileges.shopUnlocked ? null : (
                 <div>
                   <motion.h2
                     initial={{ opacity: 0, x: -20 }}
@@ -1625,10 +1962,12 @@ export default function GardenMarket() {
                         wished={wishlist.includes(product.id)}
                         onToggleWish={toggleWish}
                         seeds={seeds}
+                        {...cardGates(product)}
                       />
                     ))}
                   </motion.div>
                 </div>
+                )}
 
                 <ProBanner />
               </motion.div>
@@ -1648,6 +1987,9 @@ export default function GardenMarket() {
                 >
                   Pottery aisle
                 </motion.h2>
+                {!privileges.shopUnlocked ? (
+                  <StallLock level={level} xpToNext={xpToNext} xpProgress={levelProgress?.xpProgress ?? 0} nextUnlock={nextUnlock} />
+                ) : (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -1679,9 +2021,11 @@ export default function GardenMarket() {
                         wished={wishlist.includes(product.id)}
                         onToggleWish={toggleWish}
                         seeds={seeds}
+                        {...cardGates(product)}
                       />
                     ))}
                 </motion.div>
+                )}
               </motion.div>
             )}
 
@@ -1699,6 +2043,9 @@ export default function GardenMarket() {
                 >
                   Apothecary aisle
                 </motion.h2>
+                {!privileges.shopUnlocked ? (
+                  <StallLock level={level} xpToNext={xpToNext} xpProgress={levelProgress?.xpProgress ?? 0} nextUnlock={nextUnlock} />
+                ) : (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -1730,9 +2077,11 @@ export default function GardenMarket() {
                         wished={wishlist.includes(product.id)}
                         onToggleWish={toggleWish}
                         seeds={seeds}
+                        {...cardGates(product)}
                       />
                     ))}
                 </motion.div>
+                )}
               </motion.div>
             )}
 
@@ -1770,7 +2119,7 @@ export default function GardenMarket() {
                   </div>
                 )}
                 
-                {MOCK_VOUCHERS.length === 0 ? (
+                {TICKETS_FOR_SALE.length === 0 ? (
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -1779,6 +2128,8 @@ export default function GardenMarket() {
                     <Gift size={48} className="mx-auto text-text-muted mb-4" />
                     <p className="text-text-stone">Your garden locker is empty. Complete diagnoses to earn vouchers.</p>
                   </motion.div>
+                ) : !privileges.vouchersUnlocked ? (
+                  <StallLock level={level} xpToNext={xpToNext} xpProgress={levelProgress?.xpProgress ?? 0} nextUnlock={nextUnlock} />
                 ) : (
                   <motion.div
                     initial={{ opacity: 0 }}
@@ -1786,36 +2137,72 @@ export default function GardenMarket() {
                     transition={{ staggerChildren: 0.1 }}
                     className="grid gap-4"
                   >
-                    {MOCK_VOUCHERS.map((voucher, idx) => (
+                    {TICKETS_FOR_SALE.map((voucher, idx) => {
+                      const cost = voucherCostFor(voucher.seedCost, level);
+                      const tierLocked = !!voucher.requiredLevel && level < voucher.requiredLevel;
+                      const exchangeBonus = privileges.voucherExchangeBonusPct > 0 && cost < voucher.seedCost;
+                      return (
                       <motion.div
                         key={voucher.id}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: idx * 0.1 }}
-                        className="relative bg-[#fff8e8] border-2 border-dashed border-[#c17f59] p-6 flex items-center justify-between"
+                        whileHover={reduced ? undefined : { y: -2 }}
+                        className={`relative bg-[#fff8e8] border-2 border-dashed p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${tierLocked ? 'border-[#d9c4a0] opacity-80' : 'border-[#c17f59]'}`}
                         style={{ backgroundImage: 'radial-gradient(circle at 0 50%, transparent 10px, #fff8e8 11px), radial-gradient(circle at 100% 50%, transparent 10px, #fff8e8 11px)', backgroundSize: '100% 100%' }}
                       >
                         <div className="flex items-center gap-4">
-                          <div className="w-16 h-16 rotate-[-8deg] bg-[#c17f59] text-white flex flex-col items-center justify-center font-serif">
+                          <div className={`w-16 h-16 rotate-[-8deg] flex flex-col items-center justify-center font-serif ${tierLocked ? 'bg-[#d9c4a0] text-[#7a6a50]' : 'bg-[#c17f59] text-white'}`}>
                             <span className="text-[9px] uppercase tracking-widest">Off</span>
-                            <span className="text-lg font-bold leading-none">{voucher.value.split(' ')[0]}</span>
+                            <span className="text-lg font-bold leading-none">₹{voucher.realValue}</span>
                           </div>
                           <div>
-                            <h3 className="font-serif text-xl font-semibold text-[#3d2a1c]">{voucher.title}</h3>
-                            <p className="text-sm text-[#7a6a50]">{voucher.value}</p>
-                            <p className="text-[11px] text-[#a09070] mt-1">Punch by {voucher.expiryDays} days · {voucher.seedCost} seeds</p>
+                            <h3 className="font-serif text-xl font-semibold text-[#3d2a1c] flex items-center gap-2">
+                              {voucher.title}
+                              {voucher.freeShipping && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#5a7d5a]/15 text-[#3d6b4a] text-[9px] font-black uppercase tracking-widest">
+                                  <Truck size={10} /> Free shipping
+                                </span>
+                              )}
+                              {tierLocked && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#f4e4c1] text-[#8c6d46] text-[9px] font-black uppercase tracking-widest">
+                                  <Lock size={10} /> Level {voucher.requiredLevel}
+                                </span>
+                              )}
+                            </h3>
+                            <p className="text-sm text-[#7a6a50]">{voucher.discount}</p>
+                            <p className="text-[11px] text-[#a09070] mt-1 flex flex-wrap items-center gap-x-2">
+                              <span>Punch within {voucher.expiryDays} days</span>
+                              <span>·</span>
+                              <span className="flex items-baseline gap-1.5">
+                                {exchangeBonus && (
+                                  <span className="line-through text-[#c4a574]">{voucher.seedCost.toLocaleString()}</span>
+                                )}
+                                <Leaf size={10} className="text-moss inline" /> {cost.toLocaleString()} seeds
+                              </span>
+                              {exchangeBonus && (
+                                <span className="text-[#3d6b4a] font-bold">· L17 exchange −{privileges.voucherExchangeBonusPct}%</span>
+                              )}
+                            </p>
                           </div>
                         </div>
                         <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
+                          whileHover={tierLocked ? undefined : { scale: 1.05 }}
+                          whileTap={tierLocked ? undefined : { scale: 0.95 }}
                           onClick={() => redeemTicket(voucher.id)}
-                          className="px-4 py-2 bg-[#3d2a1c] text-[#f4e4c1] text-[10px] font-black uppercase tracking-widest"
+                          className={`px-4 py-2 min-h-[44px] text-[10px] font-black uppercase tracking-widest ${
+                            tierLocked
+                              ? 'bg-[#e8dcc8] text-[#a09070] cursor-not-allowed'
+                              : 'bg-[#3d2a1c] text-[#f4e4c1]'
+                          }`}
                         >
-                          {appliedTicketId === voucher.id ? 'Clipped' : redeemedTickets.includes(voucher.id) ? 'Apply' : 'Punch ticket'}
+                          {tierLocked
+                            ? `Level ${voucher.requiredLevel}`
+                            : appliedTicketId === voucher.id ? 'Clipped' : redeemedTickets.includes(voucher.id) ? 'Apply' : 'Punch ticket'}
                         </motion.button>
                       </motion.div>
-                    ))}
+                      );
+                    })}
                   </motion.div>
                 )}
               </motion.div>
@@ -1824,6 +2211,9 @@ export default function GardenMarket() {
             {activeTab === 'saved' && (
               <motion.div key="saved-section" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <h2 className="font-serif text-3xl font-semibold mb-8 text-[#3d2a1c]">Pinned crates</h2>
+                {!privileges.shopUnlocked ? (
+                  <StallLock level={level} xpToNext={xpToNext} xpProgress={levelProgress?.xpProgress ?? 0} nextUnlock={nextUnlock} />
+                ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {filteredProducts.length === 0 ? (
                     <p className="text-sm text-[#7a6a50] col-span-full py-12">Pin a crate from the stall to keep it here.</p>
@@ -1836,9 +2226,11 @@ export default function GardenMarket() {
                       wished={wishlist.includes(product.id)}
                       onToggleWish={toggleWish}
                       seeds={seeds}
+                      {...cardGates(product)}
                     />
                   ))}
                 </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -1896,11 +2288,16 @@ export default function GardenMarket() {
                   <div className="flex-1">
                     <p className="font-bold text-sm text-text-bark line-clamp-1">{item.name}</p>
                     <p className="text-xs text-text-stone">₹{item.cashPrice}</p>
+                    {volumeDiscountPct(item.qty) > 0 && (
+                      <p className="text-[10px] font-black uppercase tracking-wider text-moss mt-0.5">
+                        Bulk −{volumeDiscountPct(item.qty)}% seeds
+                      </p>
+                    )}
                     <div className="flex items-center gap-2 mt-1">
-                      <button onClick={() => bumpQty(item.id, -1)} className="text-xs font-black px-1.5 border">−</button>
+                      <button onClick={() => bumpQty(item.id, -1)} aria-label={`One less ${item.name}`} className="min-h-[44px] min-w-[36px] text-xs font-black border">−</button>
                       <span className="text-xs text-text-stone/60">Qty: {item.qty}</span>
-                      <button onClick={() => bumpQty(item.id, 1)} className="text-xs font-black px-1.5 border">+</button>
-                      <button onClick={() => setCartItems(cartItems.filter(i => i.id !== item.id))} className="text-xs text-terracotta hover:text-terracotta-light font-bold ml-auto">Remove</button>
+                      <button onClick={() => bumpQty(item.id, 1)} aria-label={`One more ${item.name}`} className="min-h-[44px] min-w-[36px] text-xs font-black border">+</button>
+                      <button onClick={() => setCartItems(cartItems.filter(i => i.id !== item.id))} aria-label={`Remove ${item.name}`} className="text-xs text-terracotta hover:text-terracotta-light font-bold ml-auto">Remove</button>
                     </div>
                   </div>
                 </motion.div>
@@ -1917,12 +2314,16 @@ export default function GardenMarket() {
                   quantity: item.qty
                 }))}
                 userSeeds={seeds}
-                selectedVoucher={appliedTicket ? { id: appliedTicket.id, discount: appliedTicket.discount } : undefined}
+                selectedVoucher={appliedTicket ? { id: appliedTicket.id, discount: appliedTicket.realValue } : undefined}
                 onCheckout={() => {
-                  const totalSeedsNeeded = cartItems.reduce((sum, item) => sum + (item.seedPrice * item.qty), 0);
-                  // Per-line refund, same formula as the single-item claim
-                  // (seeds ÷ 200), so both purchase paths pay identically.
-                  const seedRefund = cartItems.reduce((sum, item) => sum + Math.floor((item.seedPrice * item.qty) / 200), 0);
+                  // Same two helpers CheckoutSummary renders with, so the
+                  // basket can never show one price and charge another. The
+                  // refund used to be recomputed here as seeds ÷ 200 — the
+                  // pre-rebalance rate — and quietly paid ~3% of the sticker
+                  // while every single-item claim paid 12%.
+                  const totalSeedsNeeded = cartItems.reduce((sum, item) => sum + lineSeedCost(item.seedPrice, item.qty), 0);
+                  const seedRefund = cartItems.reduce((sum, item) => sum + lineRefundRupees(item.cashPrice, item.qty), 0);
+                  const bulkSaved = cartItems.reduce((sum, item) => sum + (item.seedPrice * item.qty - lineSeedCost(item.seedPrice, item.qty)), 0);
 
                   if (seeds < totalSeedsNeeded) {
                     error(`Need ${totalSeedsNeeded.toLocaleString()} seeds to checkout this cart`);
@@ -1932,7 +2333,7 @@ export default function GardenMarket() {
                   setConfirmDialog({
                     isOpen: true,
                     title: "Checkout Cart",
-                    description: `Spend ${totalSeedsNeeded.toLocaleString()} seeds to record ₹${seedRefund} in seed discounts across ${cartItems.length} item${cartItems.length > 1 ? 's' : ''}. You'll get a discount code as your record.`,
+                    description: `Spend ${totalSeedsNeeded.toLocaleString()} seeds to record ₹${seedRefund} in seed discounts across ${cartItems.length} item${cartItems.length > 1 ? 's' : ''}.${bulkSaved > 0 ? ` Bulk pricing already saved ${bulkSaved.toLocaleString()} seeds.` : ''} You'll get a discount code as your record.`,
                     cost: totalSeedsNeeded,
                     onConfirm: async () => {
                       try {

@@ -1,4 +1,5 @@
 import assert from 'node:assert';
+import { lineSeedCost, lineRefundRupees } from '../lib/marketPricing';
 
 export function runMarketCheckoutChecks() {
   console.log('--- Running Market Checkout & Cart Discount Checks ---');
@@ -24,13 +25,17 @@ export function runMarketCheckoutChecks() {
 
   // 1. Total calculations
   const totalCash = mockCart.reduce((sum, item) => sum + item.cashPrice * item.qty, 0);
-  const totalSeedsNeeded = mockCart.reduce((sum, item) => sum + item.seedPrice * item.qty, 0);
   assert.strictEqual(totalCash, 449 * 1 + 299 * 2); // 1047
-  assert.strictEqual(totalSeedsNeeded, 8980 * 1 + 5980 * 2); // 20940
 
-  // 2. Refund calculation (₹1 refund per 200 seeds)
-  const seedRefund = mockCart.reduce((sum, item) => sum + Math.floor((item.seedPrice * item.qty) / 200), 0);
-  assert.strictEqual(seedRefund, Math.floor(8980 / 200) + Math.floor((5980 * 2) / 200)); // 104
+  // 2. Seed totals go through the volume tiers, exactly as the checkout
+  //    handler and the basket sidebar do. The refund is a share of the CASH
+  //    price (see marketPricing.ts) — this file used to assert the pre-
+  //    rebalance `seeds ÷ 200` rate, which paid about a quarter of what every
+  //    single-item claim paid.
+  const totalSeedsNeeded = mockCart.reduce((sum, item) => sum + lineSeedCost(item.seedPrice, item.qty), 0);
+  assert.strictEqual(totalSeedsNeeded, 8980 + Math.round(5980 * 2 * 0.95)); // line of 2 → 5% bulk tier
+  const seedRefund = mockCart.reduce((sum, item) => sum + lineRefundRupees(item.cashPrice, item.qty), 0);
+  assert.strictEqual(seedRefund, 54 * 1 + 36 * 2); // 12% of each cash price, once per unit
 
   // 3. Discount code format
   const discountCode = 'PD-ABC-234';

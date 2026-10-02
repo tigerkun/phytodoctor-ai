@@ -27,3 +27,30 @@ export const SEEDS_PER_RUPEE = 6;
 export function refundValueFor(product: { cashPrice: number }): number {
   return Math.max(10, Math.round(product.cashPrice * 0.12));
 }
+
+/**
+ * The bulk discount a cart line earns by quantity, in percent off its seeds.
+ *
+ * Two tiers, legible at a glance: buying a couple of anything is worth a
+ * small nudge, stocking up is worth a real one. Both the basket sidebar and
+ * the checkout total read this, so a cart can never display one price and
+ * charge another.
+ */
+export function volumeDiscountPct(qty: number): number {
+  if (qty >= 4) return 10;
+  if (qty >= 2) return 5;
+  return 0;
+}
+
+/** Seeds a cart line actually costs: the unit price, less the volume tier. */
+export function lineSeedCost(unitSeedPrice: number, qty: number): number {
+  const pct = volumeDiscountPct(qty);
+  const gross = unitSeedPrice * qty;
+  return pct <= 0 ? gross : Math.round(gross * (1 - pct / 100));
+}
+
+/** The tracked ₹ discount a whole cart line is worth — the per-item refund,
+ *  once per unit, so buying two of something records twice the discount. */
+export function lineRefundRupees(cashPrice: number, qty: number): number {
+  return refundValueFor({ cashPrice }) * qty;
+}

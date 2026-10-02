@@ -24,8 +24,30 @@ export interface LevelTier {
     multipliers?: { seedEarn?: number; xpEarn?: number };
     badges?: string[];
     prestige?: boolean;
+    /** The machine-readable half of every marketplace promise in `features`.
+     *  Kept here rather than in a separate table so the shop and the rulebook
+     *  cannot be rebalanced independently. */
+    market?: TierMarketUnlock;
   };
   prestige?: boolean;
+}
+
+/** Marketplace privileges a tier grants, in the shape the shop consumes. */
+export interface TierMarketUnlock {
+  /** L5 — the physical stalls open for spending. */
+  shop?: boolean;
+  /** L5 — seed-purchased vouchers become available. */
+  vouchers?: boolean;
+  /** L8 — hours before midnight at which tomorrow's stall is visible. */
+  earlyAccessHours?: number;
+  /** L10 — vouchers that carry a free-shipping claim become purchasable. */
+  freeShippingVouchers?: boolean;
+  /** L17 — percent off the seed cost of punching a voucher. */
+  voucherExchangeBonusPct?: number;
+  /** L18 — legendary-tagged crates can be bought. */
+  legendaryDrops?: boolean;
+  /** L20 — percent off every seed price in the shop. */
+  discountPct?: number;
 }
 
 export interface StreakMultiplier {
@@ -292,7 +314,12 @@ export const LEVEL_TIERS: LevelTier[] = [
     title: 'Leaf-Bearer',
     xpRequired: 700,
     unlocks: {
-      features: ['Marketplace unlock', 'Voucher tier 1']
+      features: ['Marketplace unlock', 'Voucher tier 1'],
+      // `market` is the machine-readable half of the same promise. The prose in
+      // `features` is what the RuleBook shows; `market` is what the shop acts
+      // on. marketPrivilegesFor() reads this, and
+      // marketUnlocks.test.ts fails if the two halves ever disagree.
+      market: { shop: true, vouchers: true }
     }
   },
   {
@@ -316,7 +343,8 @@ export const LEVEL_TIERS: LevelTier[] = [
     title: 'Cultivator',
     xpRequired: 1900,
     unlocks: {
-      features: ['Early Market access (12h early)']
+      features: ['Early Market access (12h early)'],
+      market: { earlyAccessHours: 12 }
     }
   },
   {
@@ -332,7 +360,8 @@ export const LEVEL_TIERS: LevelTier[] = [
     title: 'Botanist',
     xpRequired: 3200,
     unlocks: {
-      features: ['Free shipping vouchers', 'Botanist badge']
+      features: ['Free shipping vouchers', 'Botanist badge'],
+      market: { freeShippingVouchers: true }
     }
   },
   {
@@ -390,7 +419,8 @@ export const LEVEL_TIERS: LevelTier[] = [
     xpRequired: 13000,
     unlocks: {
       multipliers: { seedEarn: 1.1 },
-      features: ['+10% Seed-to-Voucher exchange']
+      features: ['+10% Seed-to-Voucher exchange'],
+      market: { voucherExchangeBonusPct: 10 }
     }
   },
   {
@@ -398,7 +428,8 @@ export const LEVEL_TIERS: LevelTier[] = [
     title: 'Flora Sage',
     xpRequired: 15200,
     unlocks: {
-      features: ['Legendary market drop access']
+      features: ['Legendary market drop access'],
+      market: { legendaryDrops: true }
     }
   },
   {
@@ -415,7 +446,8 @@ export const LEVEL_TIERS: LevelTier[] = [
     xpRequired: 20500,
     unlocks: {
       multipliers: { seedEarn: 1.15 },
-      features: ['+5% permanent marketplace discount', 'Guardian badge']
+      features: ['+5% permanent marketplace discount', 'Guardian badge'],
+      market: { discountPct: 5 }
     }
   },
   {
@@ -519,8 +551,23 @@ export interface Voucher {
   realValue: number; // in rupees for display
   discount: string;
   description: string;
+  /** Short label the ticket tab renders on the punched stub. */
+  title: string;
+  /** Days until an unpunched ticket expires. */
+  expiryDays: number;
+  /** True when the claim includes free shipping — the L10 tier unlock gates
+   *  exactly these, which is what "Free shipping vouchers" means in practice. */
+  freeShipping?: boolean;
+  /** Minimum level to punch this voucher. Tier-1 vouchers are open to anyone
+   *  who can reach the ticket tab; the higher ones ride the ladder. */
+  requiredLevel?: number;
 }
 
+// The single source of truth for punchable vouchers. The market used to keep
+// its own two-item copy with different seed costs — the rulebook quoted 500
+// for a Sprout Saver while the shop charged 300 — so the same ticket had two
+// prices depending on which screen you were standing on. RuleBook.tsx renders
+// this array and Market.tsx punches it; neither maintains a rival copy.
 export const VOUCHERS: Voucher[] = [
   {
     id: 'sprout_saver',
@@ -528,7 +575,9 @@ export const VOUCHERS: Voucher[] = [
     seedCost: 500,
     realValue: 50,
     discount: '₹50 off any order',
-    description: 'Perfect for first purchases'
+    description: 'Perfect for first purchases',
+    title: 'Sprout Saver',
+    expiryDays: 12
   },
   {
     id: 'garden_pass',
@@ -536,7 +585,11 @@ export const VOUCHERS: Voucher[] = [
     seedCost: 1500,
     realValue: 150,
     discount: '₹150 off + Free Shipping',
-    description: 'Great value for regular orders'
+    description: 'Great value for regular orders',
+    title: 'Garden Pass',
+    expiryDays: 10,
+    freeShipping: true,
+    requiredLevel: 10
   },
   {
     id: 'bloom_credit',
@@ -544,7 +597,10 @@ export const VOUCHERS: Voucher[] = [
     seedCost: 5000,
     realValue: 500,
     discount: '₹500 flat order credit',
-    description: 'Massive savings for big orders'
+    description: 'Massive savings for big orders',
+    title: 'Bloom Credit',
+    expiryDays: 30,
+    requiredLevel: 14
   },
   {
     id: 'master_perk',
@@ -552,7 +608,11 @@ export const VOUCHERS: Voucher[] = [
     seedCost: 10000,
     realValue: 1200,
     discount: '₹1,200 off + Free Premium Pot',
-    description: 'Elite reward for dedicated gardeners'
+    description: 'Elite reward for dedicated gardeners',
+    title: "Keeper's Perk",
+    expiryDays: 60,
+    freeShipping: true,
+    requiredLevel: 17
   }
 ];
 

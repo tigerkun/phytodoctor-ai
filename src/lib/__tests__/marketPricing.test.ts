@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { refundValueFor, SEEDS_PER_RUPEE } from '../marketPricing';
+import { refundValueFor, SEEDS_PER_RUPEE, volumeDiscountPct, lineSeedCost, lineRefundRupees } from '../marketPricing';
 
 describe('refundValueFor', () => {
   it('is a share of the real cash price, not of the seed price', () => {
@@ -35,5 +35,37 @@ describe('refundValueFor', () => {
       const refund = refundValueFor({ cashPrice });
       expect(cashPrice - refund).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('cart volume pricing', () => {
+  it('has two legible tiers and nothing below one unit', () => {
+    expect(volumeDiscountPct(1)).toBe(0);
+    expect(volumeDiscountPct(2)).toBe(5);
+    expect(volumeDiscountPct(3)).toBe(5);
+    expect(volumeDiscountPct(4)).toBe(10);
+    expect(volumeDiscountPct(9)).toBe(10);
+    expect(volumeDiscountPct(0)).toBe(0);
+  });
+
+  it('applies the tier to the whole line, not per extra unit', () => {
+    // A line of four at 1000 seeds costs 10% off all four: 3600, not
+    // 1000 + 950 + 950 + 900.
+    expect(lineSeedCost(1000, 4)).toBe(3600);
+    expect(lineSeedCost(1000, 2)).toBe(1900);
+    expect(lineSeedCost(1000, 1)).toBe(1000);
+  });
+
+  it('rounds the discounted line, never the unit price first', () => {
+    // Rounding before multiplying would let a price differ by a seed between
+    // the sidebar and the checkout total. Both call the same function.
+    expect(lineSeedCost(715, 4)).toBe(Math.round(715 * 4 * 0.9));
+  });
+
+  it('scales the tracked refund with quantity', () => {
+    // Buying two of something records twice the discount — the claim is a
+    // share of the real cash paid, and the cash paid doubled.
+    expect(lineRefundRupees(449, 1)).toBe(refundValueFor({ cashPrice: 449 }));
+    expect(lineRefundRupees(449, 3)).toBe(refundValueFor({ cashPrice: 449 }) * 3);
   });
 });

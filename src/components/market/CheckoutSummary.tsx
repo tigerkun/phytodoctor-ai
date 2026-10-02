@@ -7,7 +7,9 @@ import {
   Check,
   AlertCircle,
   Zap,
+  Percent,
 } from 'lucide-react';
+import { lineSeedCost, lineRefundRupees, volumeDiscountPct } from '../../lib/marketPricing';
 
 interface CartItem {
   id: string;
@@ -38,21 +40,36 @@ export default function CheckoutSummary({
   const [totalCash, setTotalCash] = useState(0);
   const [totalSeeds, setTotalSeeds] = useState(0);
   const [discount, setDiscount] = useState(0);
+  const [bulkSaved, setBulkSaved] = useState(0);
+  const [refund, setRefund] = useState(0);
 
   useEffect(() => {
     const cashTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const seedTotal = items.reduce((sum, item) => sum + item.seedCost * item.quantity, 0);
+    // Bulk pricing is not cosmetic here: these are the exact helpers the
+    // checkout handler charges with, so the sidebar can never show one total
+    // and take another.
+    const seedTotal = items.reduce((sum, item) => sum + lineSeedCost(item.seedCost, item.quantity), 0);
     const voucherDiscount = selectedVoucher?.discount || 0;
+    const saved = items.reduce(
+      (sum, item) => sum + (item.seedCost * item.quantity - lineSeedCost(item.seedCost, item.quantity)),
+      0
+    );
+    // The refund is a share of the CASH price (see marketPricing.ts). This
+    // used to be `seedCost / 200` — the pre-rebalance rate — which paid about
+    // a quarter of what every single-item claim paid.
+    const refundTotal = items.reduce((sum, item) => sum + lineRefundRupees(item.price, item.quantity), 0);
 
     setTotalCash(cashTotal);
     setTotalSeeds(seedTotal);
     setDiscount(voucherDiscount);
+    setBulkSaved(saved);
+    setRefund(refundTotal);
   }, [items, selectedVoucher]);
 
   const finalPrice = Math.max(0, totalCash - discount);
-  const seedRefund = items.reduce((sum, item) => sum + Math.floor((item.seedCost * item.quantity) / 200), 0);
   const hasEnoughSeeds = userSeeds >= totalSeeds;
   const canCheckout = items.length > 0 && hasEnoughSeeds;
+  const bestTier = Math.max(0, ...items.map(i => volumeDiscountPct(i.quantity)));
 
   return (
     <motion.div
@@ -93,6 +110,20 @@ export default function CheckoutSummary({
             </motion.div>
           )}
 
+          {bulkSaved > 0 && (
+            <motion.div
+              initial={{ x: -10, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              className="flex justify-between items-center text-moss font-bold"
+            >
+              <div className="flex items-center gap-2">
+                <Percent size={14} />
+                <span>Bulk discount{bestTier > 0 ? ` (${bestTier}%)` : ''}</span>
+              </div>
+              <span className="text-moss font-mono">-{bulkSaved.toLocaleString()} seeds</span>
+            </motion.div>
+          )}
+
           <div className="h-px bg-border-light" />
 
           <div className="flex justify-between items-center font-bold text-lg text-text-bark">
@@ -116,7 +147,7 @@ export default function CheckoutSummary({
               Seed Refund
             </p>
             <p className="text-sm text-text-stone font-medium">
-              Complete order to earn <span className="font-bold text-moss">{totalSeeds.toLocaleString()}</span> seeds (≈ ₹{seedRefund})
+              Complete order to earn <span className="font-bold text-moss">{totalSeeds.toLocaleString()}</span> seeds (≈ ₹{refund})
             </p>
           </div>
         </div>
