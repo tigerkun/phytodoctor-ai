@@ -29,6 +29,7 @@ import { useDayNightTheme } from '../hooks/useDayNightTheme';
 import PageWrapper from '../components/home/PageWrapper';
 import { SanctuaryService } from '../services/sanctuaryService';
 import { MARKETPLACE_ITEMS } from '../game/ECONOMY_DATA';
+import { refundValueFor } from '../lib/marketPricing';
 import {
   SANCTUARY_ITEMS,
   SANCTUARY_CATEGORIES,
@@ -305,6 +306,10 @@ function amazonStallUrl(amazonUrl: string): string {
   }
 }
 
+// The tracked ₹ discount a claimed seed-refund is worth lives in
+// `lib/marketPricing` — two cards render that number and they already drifted
+// apart once when one was left on the old seedPrice/200 formula.
+
 // A claimed seed-refund: seeds were spent, this code is the user's proof of
 // the tracked ₹ discount on that stall item.
 interface ClaimedRefund {
@@ -410,10 +415,7 @@ function HeroCarousel({ onClaim, seeds }: { onClaim: (id: string, refundValue: n
 
   const product = heroProducts[carouselIndex];
   // Calculate real-world refund logic (e.g., 200 seeds = ₹1)
-  // The tracked discount is a share of the item's REAL price. It used to be
-  // seedPrice/200, which silently fell to ~3% of the sticker when the seed
-  // rate was rebalanced from 20 to 6 seeds per rupee.
-  const refundValue = Math.max(10, Math.round(product.cashPrice * 0.12));
+  const refundValue = refundValueFor(product);
   const finalPrice = product.cashPrice - refundValue;
   const shortfall = Math.max(0, product.seedPrice - seeds);
   const canAfford = shortfall === 0;
@@ -558,7 +560,7 @@ function HeroCarousel({ onClaim, seeds }: { onClaim: (id: string, refundValue: n
 // ── PRODUCT CARD ──
 function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish, seeds }: { product: any; onClaim: (id: string, refundValue: number) => void; onAddToCart?: (product: any) => void; wished?: boolean; onToggleWish?: (id: string) => void; seeds: number }) {
   // Calculate real-world refund logic
-  const refundValue = Math.floor(product.seedPrice / 200);
+  const refundValue = refundValueFor(product);
   const shortfall = Math.max(0, product.seedPrice - seeds);
   const canAfford = shortfall === 0;
 
