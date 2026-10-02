@@ -307,3 +307,36 @@ export interface SanctuaryStock {
   count: number;
   updatedAt: number;
 }
+
+/** A recorded seed-refund claim from the market: real seeds were spent, so the
+ *  record has to outlive the browser tab (see MarketLedgerRow). */
+export interface ClaimedRefund {
+  id: string;
+  code: string;
+  refundValue: number;
+  seedCost: number;
+  productName: string;
+  claimedAt: string;
+}
+
+/** Per-user market state that used to live in browser-wide localStorage keys.
+ *
+ *  Two things were wrong with the old keys (`phyto_stall_cart` and friends):
+ *  they died when browser data was cleared — taking purchased tickets and
+ *  claimed refunds with them, both of which cost real seeds — and they were
+ *  not user-scoped, so two people sharing a device shared one basket, one set
+ *  of punched tickets and one claim history. Rows here are keyed by userId. */
+export interface MarketLedgerRow {
+  userId: string;
+  refunds: ClaimedRefund[];
+  /** Product ids whose refund was claimed, separate from the refund records
+   *  because a cart checkout records one order but claims every item. */
+  claimedItemIds: string[];
+  /** Punched voucher ids. */
+  tickets: string[];
+  wishlist: string[];
+  /** Basket lines: full product objects as added, each with a `qty`. Left
+   *  loose on purpose — the catalogue shape belongs to the page, not here. */
+  cart: Array<Record<string, unknown>>;
+  updatedAt: number;
+}

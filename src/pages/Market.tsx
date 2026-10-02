@@ -42,6 +42,7 @@ import { MARKETPLACE_ITEMS } from '../game/ECONOMY_DATA';
 import { VOUCHERS, LEVEL_TIERS } from '../game/REWARD_CONFIG';
 import { lineSeedCost, lineRefundRupees, refundValueFor, volumeDiscountPct } from '../lib/marketPricing';
 import { marketPrivilegesFor, nextMarketUnlock, seedPriceFor, voucherCostFor, type MarketPrivileges } from '../lib/marketUnlocks';
+import type { ClaimedRefund, MarketLedgerRow } from '../types';
 import {
   SANCTUARY_ITEMS,
   SANCTUARY_CATEGORIES,
@@ -312,6 +313,10 @@ const isLegendaryDrop = (id: string) => LEGENDARY_DROP_IDS.has(id);
 // standing on. There is no second copy to drift any more.
 const TICKETS_FOR_SALE = VOUCHERS;
 
+// The market's purchased state used to live under these browser-wide keys.
+// They are legacy now: the live copy is the user-scoped marketLedger row in
+// Dexie (v22). The keys are read exactly once — to migrate whatever a player
+// already paid for — and then deleted.
 const CART_KEY = 'phyto_stall_cart';
 const WISH_KEY = 'phyto_stall_wish';
 const TICKET_KEY = 'phyto_stall_tickets';
@@ -354,16 +359,8 @@ function amazonStallUrl(amazonUrl: string): string {
 // `lib/marketPricing` — two cards render that number and they already drifted
 // apart once when one was left on the old seedPrice/200 formula.
 
-// A claimed seed-refund: seeds were spent, this code is the user's proof of
-// the tracked ₹ discount on that stall item.
-interface ClaimedRefund {
-  id: string;
-  code: string;
-  refundValue: number;
-  seedCost: number;
-  productName: string;
-  claimedAt: string;
-}
+// ClaimedRefund lives in types.ts: the marketLedger row persists it, and the
+// page only renders it.
 
 function makeRefundCode(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -381,6 +378,35 @@ function readJson<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+// One-time import of the pre-ledger localStorage state. Runs only when the
+// user has no ledger row, so it can never resurrect deleted data. Writes the
+// imported row, then removes the keys — after the put resolves, so a failed
+// write leaves the originals in place — and returns the row it wrote so the
+// caller can hydrate the mirrors from it directly. That hand-off matters: the
+// write-back effect is armed as soon as hydration finishes, and its empty
+// initial state would otherwise race the import put and erase it.
+async function migrateLegacyMarketState(userId: string): Promise<MarketLedgerRow | null> {
+  const refunds = readJson<ClaimedRefund[]>(REFUNDS_KEY, []);
+  const tickets = readJson<string[]>(TICKET_KEY, []);
+  const wishlist = readJson<string[]>(WISH_KEY, []);
+  const cart = readJson<unknown[]>(CART_KEY, []);
+  if (!refunds.length && !tickets.length && !wishlist.length && !cart.length) return null;
+  const row: MarketLedgerRow = {
+    userId,
+    refunds,
+    claimedItemIds: refunds.map(r => r.id),
+    tickets,
+    wishlist,
+    cart: cart as Array<Record<string, unknown>>,
+    updatedAt: Date.now(),
+  };
+  await db.marketLedger.put(row);
+  for (const key of [CART_KEY, WISH_KEY, TICKET_KEY, REFUNDS_KEY]) {
+    localStorage.removeItem(key);
+  }
+  return row;
 }
 
 
@@ -1525,11 +1551,16 @@ export default function GardenMarket() {
   const { toasts, success, error, warning, reward } = useToast();
   const { theme } = useDayNightTheme();
   const [activeTab, setActiveTab] = useState<'sanctuary' | 'drops' | 'home' | 'care' | 'digital' | 'requests' | 'vouchers' | 'saved'>('sanctuary');
-  const [claimedItems, setClaimedItems] = useState<string[]>(() => readJson(REFUNDS_KEY, [] as ClaimedRefund[]).map(r => r.id));
-  const [claimedRefunds, setClaimedRefunds] = useState<ClaimedRefund[]>(() => readJson(REFUNDS_KEY, [] as ClaimedRefund[]));
-  const [cartItems, setCartItems] = useState<any[]>(() => readJson(CART_KEY, []));
-  const [wishlist, setWishlist] = useState<string[]>(() => readJson(WISH_KEY, []));
-  const [redeemedTickets, setRedeemedTickets] = useState<string[]>(() => readJson(TICKET_KEY, []));
+  // Purchased state mirrors the user's marketLedger row (Dexie v22). They
+  // start empty and hydrate once the row resolves — or once from the legacy
+  // localStorage keys if the player predates the ledger. Kept as state rather
+  // than derived from the query so every existing mutation site keeps its
+  // synchronous shape; the persist effect below writes changes back.
+  const [claimedItems, setClaimedItems] = useState<string[]>([]);
+  const [claimedRefunds, setClaimedRefunds] = useState<ClaimedRefund[]>([]);
+  const [cartItems, setCartItems] = useState<any[]>([]);
+  const [wishlist, setWishlist] = useState<string[]>([]);
+  const [redeemedTickets, setRedeemedTickets] = useState<string[]>([]);
   const [appliedTicketId, setAppliedTicketId] = useState<string | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -1591,11 +1622,49 @@ export default function GardenMarket() {
 
   const appliedTicket = TICKETS_FOR_SALE.find(v => v.id === appliedTicketId && redeemedTickets.includes(v.id));
 
-  useEffect(() => { localStorage.setItem(CART_KEY, JSON.stringify(cartItems)); }, [cartItems]);
-  useEffect(() => { localStorage.setItem(WISH_KEY, JSON.stringify(wishlist)); }, [wishlist]);
-  useEffect(() => { localStorage.setItem(TICKET_KEY, JSON.stringify(redeemedTickets)); }, [redeemedTickets]);
-  useEffect(() => { localStorage.setItem(REFUNDS_KEY, JSON.stringify(claimedRefunds)); }, [claimedRefunds]);
+  // The ledger row, with `null` meaning "resolved, no row yet" so the first
+  // paint (undefined) can be told apart from an empty ledger.
+  const ledger = useLiveQuery(async () => (await db.marketLedger.get(userId)) ?? null, [userId]);
+  // Which user the local mirrors have been hydrated for. Keyed by user, not a
+  // boolean: switching accounts must re-hydrate, and until it has, the write
+  // effect below must stay blocked — otherwise the previous account's basket
+  // would be written under the new account's id.
+  const [ledgerReadyFor, setLedgerReadyFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (ledger === undefined || ledgerReadyFor === userId) return;
+    let cancelled = false;
+    void (async () => {
+      let row = ledger;
+      if (!row) row = await migrateLegacyMarketState(userId);
+      if (cancelled) return;
+      if (row) {
+        setClaimedRefunds(row.refunds ?? []);
+        setClaimedItems(row.claimedItemIds ?? []);
+        setRedeemedTickets(row.tickets ?? []);
+        setWishlist(row.wishlist ?? []);
+        setCartItems((row.cart ?? []) as any[]);
+      }
+      setLedgerReadyFor(userId);
+    })();
+    return () => { cancelled = true; };
+  }, [ledger, ledgerReadyFor, userId]);
 
+  // Single write-back: every mutation site above keeps its synchronous shape,
+  // and this effect mirrors the whole ledger row after each change. Guarded
+  // on ledgerReadyFor so the empty initial state cannot overwrite the row (or
+  // the legacy import) before it has been read — for THIS user.
+  useEffect(() => {
+    if (ledgerReadyFor !== userId) return;
+    void db.marketLedger.put({
+      userId,
+      refunds: claimedRefunds,
+      claimedItemIds: claimedItems,
+      tickets: redeemedTickets,
+      wishlist,
+      cart: cartItems as Array<Record<string, unknown>>,
+      updatedAt: Date.now(),
+    });
+  }, [ledgerReadyFor, userId, claimedRefunds, claimedItems, redeemedTickets, wishlist, cartItems]);
   // Filter + sort products. The 'drops' tab previously handed MOCK_PRODUCTS
   // straight to .sort()/.reverse(), which reorder the module-level array in
   // place — so choosing "price: low" on Drops silently changed the order the
@@ -1678,11 +1747,7 @@ export default function GardenMarket() {
             productName: product?.name || 'Stall item',
             claimedAt: new Date().toISOString(),
           };
-          setClaimedRefunds(prev => {
-            const next = [...prev, record];
-            localStorage.setItem(REFUNDS_KEY, JSON.stringify(next));
-            return next;
-          });
+          setClaimedRefunds(prev => [...prev, record]);
           setClaimedItems(prev => prev.includes(id) ? prev : [...prev, id]);
           reward(`Discount claimed! Code ${record.code} · ₹${refundValue} off (saved to your tickets).`);
           // Open the affiliate stall only after the claim is recorded, so a

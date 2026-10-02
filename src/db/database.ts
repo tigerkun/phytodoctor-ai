@@ -21,7 +21,8 @@ import {
   RewardHistory,
   DiscoveryRecord,
   StreakFreeze,
-  SanctuaryStock
+  SanctuaryStock,
+  MarketLedgerRow
 } from '../types';
 
 export type { 
@@ -98,6 +99,7 @@ class BotanicalDB extends Dexie {
   discoveryRecords!: Table<DiscoveryRecord>;
   streakFreezes!: Table<StreakFreeze>;
   sanctuaryStock!: Table<SanctuaryStock>;
+  marketLedger!: Table<MarketLedgerRow>;
   seedSyncOutbox!: Table<{
     id: string;
     userId: string;
@@ -240,6 +242,13 @@ class BotanicalDB extends Dexie {
     // so a Keeper holding three of something has one row reading 3.
     this.version(21).stores({
       sanctuaryStock: '[userId+itemId], userId, itemId'
+    });
+    // v22: the market's purchased state — punched tickets, claimed refunds,
+    // basket, wishlist — moves out of browser-wide localStorage into one
+    // user-scoped row. The old keys died with browser data (taking tickets
+    // that cost real seeds) and were shared by every account on the device.
+    this.version(22).stores({
+      marketLedger: 'userId'
     });
   }
 }
