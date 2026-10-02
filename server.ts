@@ -13,6 +13,7 @@ import { readImageSignals, assessProvenance } from "./src/lib/imageProvenance";
 import { createGuestQuotaStore, MemoryQuotaStore, type GuestQuotaStore } from "./src/lib/guestQuotaStore";
 import { classifyStaticRequest } from "./src/lib/spaFallback";
 import { clientIpOf as resolveClientIp } from "./src/lib/clientIp";
+import { log, withRequestContext, setRequestUser, currentRequestId } from "./src/lib/logger";
 
 dotenv.config();
 
@@ -27,6 +28,25 @@ app.use(compression());
 // client cannot spoof X-Forwarded-For to rotate rate-limit identities.
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
+
+// ── Request identity ────────────────────────────────────────────────────────
+// Runs before everything else, including the rate limiter, so a request that
+// gets rejected still has an id and can be traced.
+//
+// An inbound `x-request-id` is honoured so a trace can be started upstream (a
+// browser retry, a curl loop, a future gateway) and followed through this
+// server. It is echoed back in the response header either way, which is what
+// makes an id usable: you take it from a failing request and search for it.
+const REQUEST_ID_HEADER = 'x-request-id';
+app.use((req, res, next) => {
+  const inbound = req.get(REQUEST_ID_HEADER);
+  const requestId =
+    typeof inbound === 'string' && /^[\w-]{8,128}$/.test(inbound)
+      ? inbound
+      : randomUUID();
+  res.setHeader(REQUEST_ID_HEADER, requestId);
+  withRequestContext({ requestId }, next);
+});
 
 // ── Security headers ───────────────────────────────────────────────────────
 app.use((req, res, next) => {
@@ -153,10 +173,10 @@ let supabaseAuthInitFailed = false;
 if (SUPABASE_URL && SUPABASE_KEY) {
   import('@supabase/supabase-js').then(({ createClient }) => {
     supabaseAuthClient = createClient(SUPABASE_URL, SUPABASE_KEY);
-    console.log('API auth gate enabled: /api/* requires a Supabase session token.');
+    log.info('API auth gate enabled: /api/* requires a Supabase session token.');
   }).catch((err) => {
     supabaseAuthInitFailed = true;
-    console.error('Supabase gate init failed:', err?.message);
+    log.error('Supabase gate init failed', { err: err?.message });
   });
 }
 
@@ -175,6 +195,9 @@ function apiGate(req: express.Request, res: express.Response, next: express.Next
       if (error || !data?.user) return fail(res, 401, 'Your session has expired. Please sign in again.');
       (req as any).authUserId = data.user.id as string;
       (req as any).authToken = token;
+      // Everything logged from here on carries the user id, with no change to
+      // any of the code that logs.
+      setRequestUser(data.user.id as string);
       next();
     })
     .catch(() => fail(res, 401, 'Your session has expired. Please sign in again.'));
@@ -213,7 +236,7 @@ async function apiOrGuestGate(req: express.Request, res: express.Response, next:
   } catch (err) {
     // A quota store failure must not become a hard error for a visitor who
     // just wants to photograph a leaf. Serve them; log the reason.
-    console.error('Guest quota store failed:', err);
+    log.error('Guest quota store failed', { err });
     return next();
   }
   if (!quota.allowed) {
@@ -232,8 +255,8 @@ let supabaseAdminPromise: Promise<void> | null = null;
 if (SUPABASE_URL && SUPABASE_SERVICE_KEY && (globalThis as any).__createSupabaseAdmin !== true) {
   supabaseAdminPromise = import('@supabase/supabase-js').then(({ createClient }) => {
     supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-    console.log('Economy admin client ready (service role).');
-  }).catch((err) => console.error('Supabase admin init failed:', err?.message));
+    log.info('Economy admin client ready (service role).');
+  }).catch((err) => log.error('Supabase admin init failed', { err: err?.message }));
 }
 
 // RLS-scoped client per request: reads/writes the caller's own economy rows.
@@ -285,7 +308,7 @@ function tierGate(kind: keyof typeof FREE_LIMITS) {
       usageCounts.set(key, used + 1);
       next();
     } catch (error) {
-      console.error(`Tier lookup failed for ${kind}:`, error);
+      log.error('Tier lookup failed', { kind, err: error });
       return fail(res, 503, 'Account limits are temporarily unavailable. Please try again.');
     }
   };
@@ -323,7 +346,7 @@ app.post("/api/plant-voice", express.json({ limit: '16kb' }), aiLimiter, apiGate
     }
     res.json({ ...result, message: result.message.slice(0, 160), suggestedAction: result.suggestedAction?.slice(0, 60) });
   } catch (error: any) {
-    console.error("Plant voice error:", error?.message || error);
+    log.error('Plant voice error', { err: error });
     fail(res, 500, AI_GENERIC_ERROR);
   }
 });
@@ -355,7 +378,7 @@ app.post("/api/predict-growth", express.json({ limit: '16kb' }), aiLimiter, apiG
     });
     res.json(JSON.parse((response.text || "").replace(/```json|```/gi, "").trim()));
   } catch (error: any) {
-    console.error("Growth forecast error:", error?.message || error);
+    log.error('Growth forecast error', { err: error });
     fail(res, 500, AI_GENERIC_ERROR);
   }
 });
@@ -375,10 +398,10 @@ const pushEnabled = Boolean(VAPID_PUBLIC && VAPID_PRIVATE && supabaseAdmin);
 
 if (VAPID_PUBLIC && VAPID_PRIVATE) {
   webpush.setVapidDetails(PUSH_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
-  console.log('Web push sender configured.');
+  log.info('Web push sender configured.');
 } else if (VAPID_PUBLIC || VAPID_PRIVATE) {
   // Half a keypair cannot sign, and silently disabling would hide the mistake.
-  console.warn('Web push disabled: VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must both be set.');
+  log.warn('Web push disabled: VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must both be set.');
 }
 
 type PushRow = { id: string; user_id: string; endpoint: string; p256dh: string; auth_key: string; last_sent_at: string | null };
@@ -389,8 +412,8 @@ function toSubscription(row: PushRow) {
 
 async function dropSubscription(id: string, reason: string) {
   const { error } = await supabaseAdmin.from('push_subscriptions').delete().eq('id', id);
-  if (error) console.error(`Could not remove stale push subscription ${id}:`, error.message);
-  else console.log(`Removed stale push subscription ${id} (${reason}).`);
+  if (error) log.error('Could not remove stale push subscription', { subscriptionId: id, err: error.message });
+  else log.info('Removed stale push subscription', { subscriptionId: id, reason });
 }
 
 /** Send one payload. Returns 'sent', 'stale' (endpoint gone) or 'failed'. */
@@ -404,7 +427,7 @@ async function deliver(row: PushRow, payload: Record<string, string>): Promise<'
       await dropSubscription(row.id, `status ${error.statusCode}`);
       return 'stale';
     }
-    console.error(`Push delivery failed for ${row.id}:`, error?.message || error);
+    log.error('Push delivery failed', { subscriptionId: row.id, err: error });
     return 'failed';
   }
 }
@@ -484,7 +507,7 @@ async function runWateringReminders() {
       );
     }
   }
-  console.log(`Watering reminders: ${sent} sent, ${byUser.size} user(s) with due plants.`);
+  log.info('Watering reminders run', { sent, users: byUser.size });
   return { sent, usersDue: byUser.size };
 }
 
@@ -505,7 +528,7 @@ app.post("/api/push/subscribe", express.json({ limit: '16kb' }), apiGate, async 
     if (error) return fail(res, 500, "Could not save push subscription.");
     res.json({ ok: true });
   } catch (error: any) {
-    console.error("Push subscription error:", error?.message || error);
+    log.error('Push subscription error', { err: error });
     fail(res, 500, "Could not save push subscription.");
   }
 });
@@ -524,7 +547,7 @@ app.post("/api/push/unsubscribe", express.json({ limit: '4kb' }), apiGate, async
     if (error) return fail(res, 500, "Could not remove push subscription.");
     res.json({ ok: true });
   } catch (error: any) {
-    console.error("Push unsubscribe error:", error?.message || error);
+    log.error('Push unsubscribe error', { err: error });
     fail(res, 500, "Could not remove push subscription.");
   }
 });
@@ -551,7 +574,7 @@ app.post("/api/push/test", express.json({ limit: '2kb' }), apiGate, async (req, 
     await supabaseAdmin.from('push_alert_log').insert({ user_id: userId, kind: 'test' });
     res.json({ ok: true });
   } catch (error: any) {
-    console.error("Push test error:", error?.message || error);
+    log.error('Push test error', { err: error });
     fail(res, 500, "The test alert could not be sent.");
   }
 });
@@ -566,11 +589,11 @@ function scheduleWateringReminders() {
   const tick = () => {
     supabaseAdminPromise
       ?.then(() => runWateringReminders())
-      .catch((err) => console.error('Watering reminder run failed:', err?.message || err));
+      .catch((err) => log.error('Watering reminder run failed', { err }));
   };
   setTimeout(tick, 15_000).unref();
   setInterval(tick, PUSH_INTERVAL_MIN * 60_000).unref();
-  console.log(`Watering reminders scheduled every ${PUSH_INTERVAL_MIN} min.`);
+  log.info('Watering reminders scheduled', { intervalMinutes: PUSH_INTERVAL_MIN });
 }
 
 async function grantPro(userId: string, paymentId: string, amount: number, currency: string) {
@@ -737,7 +760,7 @@ app.get('/healthz', async (_req, res) => {
     } catch (error: any) {
       // A network failure is not evidence of drift, and reporting it as drift
       // would page someone about a database that is merely unreachable.
-      console.error('Health check RPC probe failed:', error?.message || error);
+      log.error('Health check RPC probe failed', { err: error });
       rpcCheck = { ok: true, missing: [] };
     }
   }
@@ -852,7 +875,7 @@ async function generateWithRetry(params: any, retries = 1, client: GoogleGenAI =
         const isModelMissing = err?.status === 404 || err?.message?.includes("not found");
         if (isModelMissing) noteModelFailure(modelName, true);
         if (isModelMissing && modelName !== models[models.length - 1]) {
-          console.warn(`Model ${modelName} unavailable (${err?.status || 'error'}), falling back to next model...`);
+          log.warn('Model unavailable, falling back', { model: modelName, status: err?.status || 'error' });
           break;
         }
         if (err?.status === 429) throw err;
@@ -864,14 +887,14 @@ async function generateWithRetry(params: any, retries = 1, client: GoogleGenAI =
         if (isCapacity) {
           noteModelFailure(modelName);
           if (modelName !== models[models.length - 1]) {
-            console.warn(`Model ${modelName} saturated (${err?.status || 'error'}), falling back to next model...`);
+            log.warn('Model saturated, falling back', { model: modelName, status: err?.status || 'error' });
             break;
           }
           if (i === retries) throw err;
         }
 
         if (i === retries && modelName === models[models.length - 1]) throw err;
-        console.warn(`Gemini API (${modelName}) attempt ${i + 1} failed, retrying...`, err?.message || err);
+        log.warn('Gemini attempt failed, retrying', { model: modelName, attempt: i + 1, err });
         await new Promise(r => setTimeout(r, 400 * (i + 1)));
       }
     }
@@ -1095,7 +1118,9 @@ LOCATION-AWARE FIELDS (required if location provided):
       // fixed by maxOutputTokens above) from a model that simply ignored the
       // JSON contract — different fixes for each.
       const finishReason = (response as any)?.candidates?.[0]?.finishReason;
-      console.error(`JSON parse error (finishReason=${finishReason ?? 'unknown'}):`, parseErr.message, "\nRaw snippet:", cleanedText.slice(0, 200));
+      // The snippet is the model's own unparseable output, not the user's input,
+  // and it is the only thing that makes this failure diagnosable. Capped.
+  log.error('Model returned unparseable JSON', { finishReason: finishReason ?? 'unknown', err: parseErr.message, snippet: cleanedText.slice(0, 200) });
       throw new Error("AI response was malformed. Please try again.");
     }
     // severity drives Clinic's `isQuarantineRequired` (>= 3) and the severity
@@ -1171,7 +1196,7 @@ LOCATION-AWARE FIELDS (required if location provided):
     };
     res.json(result);
   } catch (error: any) {
-    console.error("Gemini Error:", error?.response?.status || error?.status || '', error?.message || error);
+    log.error('Gemini request failed', { status: error?.response?.status || error?.status, err: error });
     fail(res, 500, AI_GENERIC_ERROR);
   }
 });
@@ -1291,7 +1316,7 @@ Score climate, water, light, soil, pest exposure and seasonal timing independent
 
     return fail(res, 400, "mode must be profile or assess");
   } catch (error: any) {
-    console.error("Sandbox Error:", error?.response?.status || error?.status || '', error?.message || error);
+    log.error('Sandbox request failed', { status: error?.response?.status || error?.status, err: error });
     fail(res, 500, AI_GENERIC_ERROR);
   }
 });
@@ -1374,7 +1399,7 @@ RESPONSE FORMAT & PACING (SHORT STANZAS):
 
     res.json({ content: response.text, degraded: false });
   } catch (error: any) {
-    console.error("Chat Error:", error?.response?.status || error?.status || '', error?.message || error);
+    log.error('Chat request failed', { status: error?.response?.status || error?.status, err: error });
     const latestUserMessage = [...requestedMessages].reverse().find(m => m?.role === 'user')?.content;
     // The local reply is a genuine safety net for a downed model, but it
     // returns 200 like a real answer, which makes an outage indistinguishable
@@ -1437,7 +1462,7 @@ app.post("/api/guardian/predict", express.json({ limit: '64kb' }), aiLimiter, ap
     if ('confidence' in result) result.confidence = clampUnit(result.confidence);
     res.json(result);
   } catch (error: any) {
-    console.error("Prediction Error:", error?.response?.status || error?.status || '', error?.message || error);
+    log.error('Prediction request failed', { status: error?.response?.status || error?.status, err: error });
     fail(res, 500, AI_GENERIC_ERROR);
   }
 });
@@ -1457,7 +1482,7 @@ app.get("/api/economy/profile", apiGate, async (req, res) => {
     const { data, error } = await client
       .from('profiles').select('seeds, tier, pro_expires_at, current_streak, longest_streak, total_xp, collection_size').eq('user_id', userId).single();
     if (error && error.code !== 'PGRST116') {
-      console.error("economy/profile read error:", error.message);
+      log.error('economy/profile read failed', { err: error.message });
       return fail(res, 503, "Your profile is temporarily unavailable. Please try again.");
     }
     if (!data) {
@@ -1477,7 +1502,7 @@ app.get("/api/economy/profile", apiGate, async (req, res) => {
           if (!existingError && existing) return res.json(existing);
         }
         if (createError || !created) {
-          console.error("economy/profile bootstrap error:", createError?.message || "profile was not created");
+          log.error('economy/profile bootstrap failed', { err: createError?.message || 'profile was not created' });
           return fail(res, 503, "Your profile is temporarily unavailable. Please try again.");
         }
         return res.json(created);
@@ -1486,7 +1511,7 @@ app.get("/api/economy/profile", apiGate, async (req, res) => {
     }
     res.json(data);
   } catch (err: any) {
-    console.error("economy/profile error:", err?.message);
+    log.error('economy/profile failed', { err });
     fail(res, 500, "Could not load your profile.");
   }
 });
@@ -1544,12 +1569,12 @@ app.post("/api/economy/seed-sync", express.json({ limit: '16kb' }), apiGate, asy
       if (message === 'insufficient seeds') {
         return fail(res, 402, "Insufficient seeds.");
       }
-      console.error("seed-sync rpc:", message);
+      log.error('seed-sync rpc failed', { err: message });
       return fail(res, 500, "Could not sync seeds.");
     }
     res.json({ seeds: next });
   } catch (err: any) {
-    console.error("seed-sync error:", err?.message);
+    log.error('seed-sync failed', { err });
     fail(res, 500, "Could not sync seeds.");
   }
 });
@@ -1580,7 +1605,7 @@ app.post("/api/market/request", express.json({ limit: '4kb' }), apiGate, async (
       .eq('user_id', userId)
       .gte('created_at', since);
     if (countErr) {
-      console.error("market request count:", countErr.message);
+      log.error('market request count failed', { err: countErr.message });
       return fail(res, 500, "Could not record your request.");
     }
     if ((count ?? 0) >= 3) {
@@ -1593,12 +1618,12 @@ app.post("/api/market/request", express.json({ limit: '4kb' }), apiGate, async (
       .select('id, product_name, category, details, created_at')
       .single();
     if (error) {
-      console.error("market request insert:", error.message);
+      log.error('market request insert failed', { err: error.message });
       return fail(res, 500, "Could not record your request.");
     }
     res.json({ ok: true, request: data });
   } catch (err: any) {
-    console.error("market request error:", err?.message);
+    log.error('market request failed', { err });
     fail(res, 500, "Could not record your request.");
   }
 });
@@ -1613,12 +1638,12 @@ app.get("/api/market/requests", apiGate, async (req, res) => {
       .order('created_at', { ascending: false })
       .limit(30);
     if (error) {
-      console.error("market requests list:", error.message);
+      log.error('market requests list failed', { err: error.message });
       return fail(res, 500, "Could not load the request board.");
     }
     res.json({ requests: data ?? [] });
   } catch (err: any) {
-    console.error("market requests error:", err?.message);
+    log.error('market requests list failed', { err });
     fail(res, 500, "Could not load the request board.");
   }
 });
@@ -1640,12 +1665,12 @@ app.post("/api/billing/purchase-with-seeds", express.json({ limit: '8kb' }), api
       // The RPC raises 'insufficient seeds' with no balance payload, so the
       // exact shortfall cannot be computed here.
       if (message.includes('insufficient')) return fail(res, 402, "Insufficient seeds.");
-      console.error("purchase rpc:", message);
+      log.error('purchase rpc failed', { err: message });
       return fail(res, 500, "Purchase failed. Please try again.");
     }
     res.json(data);
   } catch (err: any) {
-    console.error("purchase-with-seeds error:", err?.message);
+    log.error('purchase-with-seeds failed', { err });
     fail(res, 500, "Purchase failed. Please try again.");
   }
 });
@@ -1669,12 +1694,12 @@ app.post("/api/billing/create-order", express.json({ limit: '8kb' }), aiLimiter,
     });
     const order = await resp.json();
     if (!resp.ok) {
-      console.error("Razorpay order failed:", order);
+      log.error('Razorpay order failed', { err: order });
       return fail(res, 502, "Could not start the payment. Please try again.");
     }
     res.json({ orderId: order.id, amount: order.amount, currency: order.currency, keyId: RAZORPAY_KEY_ID });
   } catch (err: any) {
-    console.error("create-order error:", err?.message);
+    log.error('create-order failed', { err });
     fail(res, 500, "Could not start the payment.");
   }
 });
@@ -1691,7 +1716,7 @@ app.post("/api/billing/webhook", express.raw({ type: 'application/json', limit: 
     const expected = require('crypto').createHmac('sha256', RAZORPAY_WEBHOOK_SECRET).update(raw).digest('hex');
     const a = Buffer.from(expected), b = Buffer.from(signature);
     if (a.length !== b.length || !require('crypto').timingSafeEqual(a, b)) {
-      console.warn("Webhook signature mismatch");
+      log.warn('Webhook signature mismatch');
       return fail(res, 401, "Invalid signature.");
     }
     const event = JSON.parse(raw.toString('utf8'));
@@ -1709,11 +1734,11 @@ app.post("/api/billing/webhook", express.raw({ type: 'application/json', limit: 
       }
       const result = await grantPro(userId, paymentId, payment.amount, payment.currency);
       if (result?.duplicate) return res.json({ ok: true, duplicate: true });
-      console.log(`Pro granted to ${userId} via Razorpay (${paymentId}).`);
+      log.info('Pro granted via Razorpay', { userId, paymentId });
     }
     res.json({ ok: true });
   } catch (err: any) {
-    console.error("webhook error:", err?.message);
+    log.error('webhook failed', { err });
     fail(res, 500, "Webhook processing failed.");
   }
 });
@@ -1736,7 +1761,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   if (res.headersSent) {
     return next(err);
   }
-  console.error('[Server Error]', err?.message || err);
+  log.error('Unhandled request error', { err, requestId: currentRequestId() });
   res.status(500).json({ error: 'Internal server error.' });
 });
 
@@ -1751,10 +1776,10 @@ async function startServer() {
       throw new Error(`Missing required production configuration: ${missing.join(', ')}`);
     }
     if (!process.env.GEMINI_API_KEY) {
-      console.warn('GEMINI_API_KEY is not configured; AI requests will use fallback behavior.');
+      log.warn('GEMINI_API_KEY is not configured; AI requests will use fallback behavior.');
     }
     if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET || !RAZORPAY_WEBHOOK_SECRET) {
-      console.warn('Razorpay is not fully configured; paid Pro checkout is disabled.');
+      log.warn('Razorpay is not fully configured; paid Pro checkout is disabled.');
     }
   }
 
@@ -1790,7 +1815,7 @@ async function startServer() {
         new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 7000))
       ]);
     } catch (err) {
-      console.warn('Supabase admin init timed out or failed, continuing boot');
+      log.warn('Supabase admin init timed out or failed, continuing boot');
     }
   }
 
@@ -1801,13 +1826,13 @@ async function startServer() {
     supabase: supabaseAdmin,
     limit: GUEST_IDENTIFY_LIMIT,
     salt: SUPABASE_SERVICE_KEY,
-    log: (message) => console.log(message),
+    log: (message) => log.info(message),
   });
 
   scheduleWateringReminders();
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    log.info('Server listening', { url: `http://localhost:${PORT}` });
   });
 }
 
