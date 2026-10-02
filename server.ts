@@ -1517,8 +1517,13 @@ app.post("/api/economy/seed-sync", express.json({ limit: '16kb' }), apiGate, asy
       const message = String(error.message || '');
       // Permanent failures get 4xx so the client outbox drops them instead of
       // retrying forever; anything else stays a retryable 500.
+      // The daily ceiling is deliberately 429, NOT 422: 422 is permanent and
+      // the outbox would DROP the entry — a big-but-legitimate grant (a
+      // discovery bonus landing on a day that already earned 150) would be
+      // silently lost. 429 keeps the entry pending, the flush retries, and the
+      // grant lands the next day when the counter resets.
       if (message === 'daily seed credit limit') {
-        return fail(res, 422, "Daily seed earning limit reached. Please try again tomorrow.");
+        return fail(res, 429, "Daily seed earning limit reached. Your reward will arrive tomorrow.");
       }
       if (message === 'insufficient seeds') {
         return fail(res, 402, "Insufficient seeds.");
@@ -1530,6 +1535,75 @@ app.post("/api/economy/seed-sync", express.json({ limit: '16kb' }), apiGate, asy
   } catch (err: any) {
     console.error("seed-sync error:", err?.message);
     fail(res, 500, "Could not sync seeds.");
+  }
+});
+
+// POST a product request to the market's community board. Players ask for
+// real-world plant/garden items they want stocked; the owner refreshes the
+// stalls daily and stocks what is asked for. RLS on product_requests lets any
+// signed-in Keeper read the board, so counts feel shared; the write goes
+// through here so the per-user daily limit is enforced server-side.
+app.post("/api/market/request", express.json({ limit: '4kb' }), apiGate, async (req, res) => {
+  try {
+    const userId = (req as any).authUserId;
+    if (!userId || !supabaseAdmin) return fail(res, 503, "Market service is temporarily unavailable.");
+
+    const productName = strLimit(req.body?.productName, 120)?.trim() || '';
+    const details = strLimit(req.body?.details, 500)?.trim() || '';
+    const category = String(req.body?.category || 'other');
+    if (productName.length < 3) return fail(res, 400, "Tell us what to stock (at least 3 characters).");
+    if (!['pots', 'care', 'tools', 'seeds', 'home', 'books', 'other'].includes(category)) {
+      return fail(res, 400, "Unknown category.");
+    }
+
+    // 3 requests per Keeper per day — a wishlist, not a shoutbox.
+    const since = new Date(Date.now() - 24 * 3600_000).toISOString();
+    const { count, error: countErr } = await supabaseAdmin
+      .from('product_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('created_at', since);
+    if (countErr) {
+      console.error("market request count:", countErr.message);
+      return fail(res, 500, "Could not record your request.");
+    }
+    if ((count ?? 0) >= 3) {
+      return fail(res, 429, "You've asked for plenty today — the bazaar needs time. Try again tomorrow.");
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('product_requests')
+      .insert({ user_id: userId, product_name: productName, category, details: details || null })
+      .select('id, product_name, category, details, created_at')
+      .single();
+    if (error) {
+      console.error("market request insert:", error.message);
+      return fail(res, 500, "Could not record your request.");
+    }
+    res.json({ ok: true, request: data });
+  } catch (err: any) {
+    console.error("market request error:", err?.message);
+    fail(res, 500, "Could not record your request.");
+  }
+});
+
+// GET recent requests for the community board.
+app.get("/api/market/requests", apiGate, async (req, res) => {
+  try {
+    if (!supabaseAdmin) return fail(res, 503, "Market service is temporarily unavailable.");
+    const { data, error } = await supabaseAdmin
+      .from('product_requests')
+      .select('id, product_name, category, details, created_at, user_id')
+      .order('created_at', { ascending: false })
+      .limit(30);
+    if (error) {
+      console.error("market requests list:", error.message);
+      return fail(res, 500, "Could not load the request board.");
+    }
+    res.json({ requests: data ?? [] });
+  } catch (err: any) {
+    console.error("market requests error:", err?.message);
+    fail(res, 500, "Could not load the request board.");
   }
 });
 

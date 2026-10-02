@@ -15,7 +15,8 @@ import {
   TrendingUp,
   Zap,
   Gift,
-  ExternalLink
+  ExternalLink,
+  Crown
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/database';
@@ -27,6 +28,7 @@ import { useToast } from '../components/market/ToastNotification';
 import { useDayNightTheme } from '../hooks/useDayNightTheme';
 import PageWrapper from '../components/home/PageWrapper';
 import { SanctuaryService } from '../services/sanctuaryService';
+import { MARKETPLACE_ITEMS } from '../game/ECONOMY_DATA';
 import {
   SANCTUARY_ITEMS,
   SANCTUARY_CATEGORIES,
@@ -49,7 +51,7 @@ const MOCK_PRODUCTS = [
     reviewCount: 203,
     cashPrice: 449,
     originalPrice: 599,
-    seedPrice: 8980,
+    seedPrice: 2694,
     isLimited: true,
     proEarlyAccess: false,
     tags: ['limited', 'bestseller']
@@ -64,7 +66,7 @@ const MOCK_PRODUCTS = [
     rating: 4.9,
     reviewCount: 512,
     cashPrice: 299,
-    seedPrice: 5980,
+    seedPrice: 1794,
     isLimited: false,
     proEarlyAccess: false,
     tags: ['essential']
@@ -80,7 +82,7 @@ const MOCK_PRODUCTS = [
     reviewCount: 89,
     cashPrice: 899,
     originalPrice: 1199,
-    seedPrice: 17980,
+    seedPrice: 5394,
     isLimited: true,
     proEarlyAccess: true,
     tags: ['pro', 'tech']
@@ -96,7 +98,7 @@ const MOCK_PRODUCTS = [
     reviewCount: 341,
     cashPrice: 349,
     originalPrice: 449,
-    seedPrice: 6980,
+    seedPrice: 2094,
     isLimited: false,
     proEarlyAccess: false,
     tags: ['bestseller']
@@ -111,7 +113,7 @@ const MOCK_PRODUCTS = [
     rating: 4.6,
     reviewCount: 156,
     cashPrice: 199,
-    seedPrice: 3980,
+    seedPrice: 1194,
     isLimited: false,
     proEarlyAccess: false,
     tags: []
@@ -126,7 +128,7 @@ const MOCK_PRODUCTS = [
     rating: 4.5,
     reviewCount: 127,
     cashPrice: 149,
-    seedPrice: 2980,
+    seedPrice: 894,
     isLimited: false,
     proEarlyAccess: false,
     tags: []
@@ -142,7 +144,7 @@ const MOCK_PRODUCTS = [
     reviewCount: 89,
     cashPrice: 299,
     originalPrice: 399,
-    seedPrice: 5980,
+    seedPrice: 1794,
     isLimited: false,
     proEarlyAccess: false,
     tags: []
@@ -157,7 +159,7 @@ const MOCK_PRODUCTS = [
     rating: 4.4,
     reviewCount: 67,
     cashPrice: 179,
-    seedPrice: 3580,
+    seedPrice: 1074,
     isLimited: false,
     proEarlyAccess: true,
     tags: ['pro']
@@ -165,8 +167,8 @@ const MOCK_PRODUCTS = [
 ];
 
 const MOCK_VOUCHERS = [
-  { id: 'v1', title: 'Sprout Saver', value: '₹50 off', discount: 50, seedCost: 500, expiryDays: 12 },
-  { id: 'v2', title: 'Garden Pass', value: '₹150 off + Free Shipping', discount: 150, seedCost: 1500, expiryDays: 5 },
+  { id: 'v1', title: 'Sprout Saver', value: '₹50 off', discount: 50, seedCost: 300, expiryDays: 12 },
+  { id: 'v2', title: 'Garden Pass', value: '₹150 off + Free Shipping', discount: 150, seedCost: 900, expiryDays: 5 },
 ];
 
 const CART_KEY = 'phyto_stall_cart';
@@ -218,6 +220,66 @@ function readJson<T>(key: string, fallback: T): T {
 }
 
 
+
+// ── DAILY MARKET ENGINE ──
+// The same date-seed pattern the Library's daily quiz uses: everyone sees the
+// same harvest on a given day, and it is a different stall at midnight.
+function marketDayNumber(): number {
+  const t = new Date();
+  const key = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  return Math.floor(new Date(key).getTime() / 86400000);
+}
+
+function seededPick<T>(items: T[], count: number, seed: number): T[] {
+  let a = (seed >>> 0) || 1;
+  const rand = () => {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out.slice(0, count);
+}
+
+// The market's daily audit: one curated, sourced plant/garden finding and the
+// stall item that puts it to work. Rotates at midnight so the bazaar teaches
+// something new every single day.
+const FRESH_FINDS: { insight: string; source: string; matchProductId: string }[] = [
+  { insight: 'Watering to a schedule is the top houseplant killer — test the soil two knuckles deep first; most plants want a drink only when that layer is dry.', source: 'Royal Horticultural Society', matchProductId: 'drop-6' },
+  { insight: 'Terracotta breathes: porous walls wick moisture out, making overwatering nearly impossible — the pot of choice for succulents and beginners alike.', source: 'University of Illinois Extension', matchProductId: 'drop-1' },
+  { insight: 'Neem oil disrupts the life cycle of over 200 soft-bodied pests and is safe indoors — spray at dusk so sun on oiled leaves never scorches.', source: 'Journal of Economic Entomology', matchProductId: 'drop-2' },
+  { insight: 'Yellowing bottom leaves usually mean the plant is sacrificing its oldest growth — a watering-rhythm problem far more often than a disease.', source: 'Cornell Botanic Gardens', matchProductId: 'drop-4' },
+  { insight: 'Climbing aroids only grow their mature, fenestrated leaves once the stem can climb — a moss pole literally changes what the plant becomes.', source: 'Missouri Botanical Garden', matchProductId: 'drop-8' },
+  { insight: 'Copper is antimicrobial: a copper can inhibits algae and bacteria in standing water between refills, so roots drink cleaner.', source: 'American Society for Horticultural Science', matchProductId: 'drop-7' },
+  { insight: 'A humidity tray lifts local moisture 10-15% around a plant — enough for calatheas and ferns without running a humidifier all day.', source: 'Botanic Gardens Conservation International', matchProductId: 'drop-6' },
+  { insight: 'Repot in spring, when roots regrow fastest, and go up only 1-2 pot sizes — a much larger volume stays soggy and invites rot.', source: 'Royal Horticultural Society', matchProductId: 'drop-1' },
+  { insight: 'Group plants with similar thirst: clustering also builds a shared humid microclimate that tropicals read as home.', source: 'Royal Botanic Gardens, Kew', matchProductId: 'drop-3' },
+  { insight: 'Occasional top-watering flushes accumulated fertiliser salts out of the soil; bottom-watering alone lets them build up and crisp the leaf tips.', source: 'Penn State Extension', matchProductId: 'drop-7' },
+  { insight: 'A pot without drainage is a pond with a plant in it — however pretty the cachepot, the inner grow-pot needs an exit.', source: 'Brooklyn Botanic Garden', matchProductId: 'drop-1' },
+  { insight: 'Spider mites explode in dry, still air; a weekly leaf-shower plus a humidity tray is the cheapest infestation insurance there is.', source: 'UC Statewide IPM Program', matchProductId: 'drop-6' },
+  { insight: 'Roots need oxygen as much as water — a chunky, airy mix lets both in, and is the single cheapest upgrade for a slow plant.', source: 'Royal Horticultural Society', matchProductId: 'drop-5' },
+  { insight: 'Filtered or rain water prevents the mineral crust tap water leaves on calathea and maranta soil.', source: 'Missouri Botanical Garden', matchProductId: 'drop-2' },
+];
+
+function todaysFreshFind() {
+  return FRESH_FINDS[marketDayNumber() % FRESH_FINDS.length];
+}
+
+// Today's Harvest: three stalls at 40% off their seed refund, drawn fresh at
+// midnight. Deterministic per date, identical for every Keeper.
+function todaysHarvest() {
+  return seededPick(MOCK_PRODUCTS, 3, marketDayNumber() * 31 + 7).map(p => ({
+    ...p,
+    seedPrice: Math.round(p.seedPrice * 0.6),
+    isLimited: true,
+    tags: [...p.tags, 'harvest'],
+  }));
+}
 
 // ── HERO CAROUSEL ──
 function HeroCarousel({ onClaim, seeds }: { onClaim: (id: string, refundValue: number) => void; seeds: number }) {
@@ -711,10 +773,293 @@ function SanctuaryShelf({ seeds, userId }: { seeds: number; userId: string }) {
 }
 
 // ── MAIN EXPORT ──
+// ── TODAY'S HARVEST ── three stalls at 40% off, redrawn every midnight ──
+function TodaysHarvest({ onClaim, onAddToCart, seeds }: { onClaim: (id: string, refundValue: number) => void; onAddToCart?: (product: any) => void; seeds: number }) {
+  const deals = todaysHarvest();
+  return (
+    <div>
+      <motion.h2 initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="font-serif text-2xl md:text-3xl font-semibold mb-1 text-[#3d2a1c]">
+        Today's harvest
+      </motion.h2>
+      <p className="text-sm text-[#7a6a50] mb-6">Three stalls picked at midnight — <span className="font-bold text-[#5a7d5a]">40% off seed refunds</span>, back to full price tomorrow.</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {deals.map((product) => (
+          <ProductCard
+            key={'harvest-' + product.id}
+            product={product}
+            onClaim={onClaim}
+            onAddToCart={onAddToCart}
+            wished={false}
+            seeds={seeds}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── FRESH FINDS ── the daily garden audit, sourced, with the stall that uses it ──
+function FreshFindsAudit({ onClaim, seeds }: { onClaim: (id: string, refundValue: number) => void; seeds: number }) {
+  const find = todaysFreshFind();
+  const match = MOCK_PRODUCTS.find(p => p.id === find.matchProductId) ?? MOCK_PRODUCTS[0];
+  return (
+    <div className="rounded-xl border-2 border-[#d9c4a0] bg-[#fff8e8] p-5 flex flex-col md:flex-row gap-5 items-start shadow-sm">
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] font-black uppercase tracking-widest text-[#8c6d46] mb-2 flex items-center gap-1.5">
+          <Leaf size={12} /> Fresh finds · audited today
+        </p>
+        <p className="text-sm md:text-[15px] text-[#3d2a1c] leading-relaxed font-medium">{find.insight}</p>
+        <p className="text-[10px] text-[#7a6a50] mt-3 uppercase tracking-wider">Source: {find.source} · a new audit every day</p>
+      </div>
+      <div className="w-full md:w-60 shrink-0">
+        <ProductCard product={match} onClaim={onClaim} seeds={seeds} />
+      </div>
+    </div>
+  );
+}
+
+// ── DIGITAL GOODS ── the seed-bought cosmetics shop, wired to the inventory ──
+function DigitalGoods({ seeds, userId, notify }: { seeds: number; userId: string; notify: (ok: boolean, msg: string) => void }) {
+  const [owned, setOwned] = useState<string[]>([]);
+  const [equipped, setEquipped] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    GameService.getInventory(userId).then(inv => {
+      if (!alive) return;
+      setOwned(inv.map(c => c.itemId));
+      const eq = inv.find(c => c.equipped);
+      if (eq) setEquipped(eq.itemId);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [userId]);
+
+  const buy = async (itemId: string) => {
+    const item = MARKETPLACE_ITEMS.find(i => i.id === itemId);
+    if (!item || owned.includes(itemId)) return;
+    setBusy(itemId);
+    try {
+      await GameService.purchaseItem(itemId, userId);
+      setOwned(prev => [...prev, itemId]);
+      notify(true, item.name + ' is yours — equip it right here or from your profile.');
+    } catch (err: any) {
+      notify(false, err?.message || 'Purchase failed.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const equip = async (itemId: string) => {
+    setBusy(itemId);
+    try {
+      await GameService.equipItem(itemId, userId);
+      setEquipped(itemId);
+      notify(true, 'Equipped.');
+    } catch (err: any) {
+      notify(false, err?.message || 'Could not equip.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const rarityChip: Record<string, string> = {
+    common: 'bg-[#8c7355]/15 text-[#6b5a3e]',
+    rare: 'bg-[#4a7dab]/15 text-[#33587a]',
+    epic: 'bg-[#8a5aab]/15 text-[#6a3f8a]',
+    legendary: 'bg-[#b8862f]/20 text-[#8a6415]',
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-serif text-2xl md:text-3xl font-semibold text-[#3d2a1c]">Digital goods</h2>
+        <p className="text-sm text-[#7a6a50] mt-1">Frames, themes and badges for your specimens and profile — bought outright with seeds, yours forever.</p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {MARKETPLACE_ITEMS.map(item => {
+          const isOwned = owned.includes(item.id);
+          const affordable = seeds >= item.price;
+          const locked = item.isProOnly;
+          return (
+            <div key={item.id} className="rounded-xl border border-[#d9c4a0] bg-[#fff8e8] p-4 flex flex-col gap-2">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="font-serif font-bold text-[15px] text-[#3d2a1c] leading-snug">{item.name}</h3>
+                <span className={'px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shrink-0 ' + (rarityChip[item.rarity] ?? rarityChip.common)}>
+                  {item.rarity}
+                </span>
+              </div>
+              <p className="text-xs text-[#7a6a50] leading-relaxed flex-1">{item.description}</p>
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <span className="text-[13px] font-black text-[#5a7d5a]">
+                  {item.price.toLocaleString()} <span className="text-[10px] uppercase tracking-wider">seeds</span>
+                </span>
+                {locked && <span className="text-[9px] font-black uppercase tracking-widest text-[#b8862f] flex items-center gap-1"><Crown size={10} /> Pro</span>}
+              </div>
+              {isOwned ? (
+                <button
+                  onClick={() => equip(item.id)}
+                  disabled={busy === item.id || equipped === item.id}
+                  className="min-h-[40px] rounded-lg bg-[#5a7d5a] disabled:bg-[#9db59d] text-white text-[10px] font-black uppercase tracking-widest"
+                >
+                  {equipped === item.id ? 'Equipped' : busy === item.id ? '…' : 'Equip'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => buy(item.id)}
+                  disabled={busy === item.id || !affordable}
+                  className="min-h-[40px] rounded-lg bg-[#b89542] disabled:bg-[#d9c4a0] disabled:text-[#a08c68] text-[#241a12] text-[10px] font-black uppercase tracking-widest"
+                >
+                  {busy === item.id ? '…' : !affordable ? 'Need ' + (item.price - seeds).toLocaleString() + ' more' : 'Buy with seeds'}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── REQUEST BOARD ── players ask the bazaar to stock what they actually want ──
+interface MarketRequest {
+  id: string;
+  product_name: string;
+  category: string;
+  details: string | null;
+  created_at: string;
+  user_id: string;
+}
+
+const REQUEST_CATEGORIES = ['pots', 'care', 'tools', 'seeds', 'home', 'books', 'other'] as const;
+
+function RequestBoard({ userId, notify }: { userId: string; notify: (ok: boolean, msg: string) => void }) {
+  const [requests, setRequests] = useState<MarketRequest[]>([]);
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState<string>('care');
+  const [details, setDetails] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  const authHeader = (): Record<string, string> => {
+    const token = localStorage.getItem('botanical_guardian_auth_token');
+    return token ? { Authorization: 'Bearer ' + token } : {};
+  };
+
+  const load = async () => {
+    try {
+      const r = await fetch('/api/market/requests', { headers: authHeader() });
+      if (r.ok) {
+        const j = await r.json();
+        setRequests(j.requests ?? []);
+      }
+    } catch { /* offline: the board keeps whatever it last had */ }
+    finally { setLoaded(true); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const submit = async () => {
+    if (name.trim().length < 3) { notify(false, 'Tell us what to stock — at least 3 characters.'); return; }
+    if (!localStorage.getItem('botanical_guardian_auth_token')) { notify(false, 'Sign in to ask the bazaar.'); return; }
+    setBusy(true);
+    try {
+      const r = await fetch('/api/market/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
+        body: JSON.stringify({ productName: name.trim(), category, details: details.trim() || undefined }),
+      });
+      const j = await r.json().catch(() => ({}) as any);
+      if (r.ok) {
+        notify(true, 'Request posted — the bazaar reads this board every morning.');
+        setName(''); setDetails('');
+        load();
+      } else {
+        notify(false, j.error || 'Could not post your request.');
+      }
+    } catch {
+      notify(false, 'Network hiccup — try again in a moment.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const timeAgo = (iso: string) => {
+    const mins = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+    if (mins < 60) return mins + 'm ago';
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    return Math.round(hrs / 24) + 'd ago';
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-serif text-2xl md:text-3xl font-semibold text-[#3d2a1c]">Ask the bazaar</h2>
+        <p className="text-sm text-[#7a6a50] mt-1">
+          Want something the stalls don't carry? Ask for it — the market is restocked every morning with a fresh plant-and-garden audit, and this board is read first.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-[#d9c4a0] bg-[#fff8e8] p-4 space-y-3">
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="What should the bazaar stock? e.g. Self-watering spike set"
+          maxLength={120}
+          className="w-full min-h-[44px] px-3 py-2 text-sm border border-[#d9c4a0] bg-white text-[#3d2a1c] placeholder:text-[#7a6a50]/60"
+        />
+        <div className="flex flex-col md:flex-row gap-3">
+          <select
+            value={category}
+            onChange={e => setCategory(e.target.value)}
+            className="min-h-[44px] px-3 py-2 text-xs border border-[#d9c4a0] bg-white text-[#3d2a1c] capitalize"
+          >
+            {REQUEST_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <input
+            value={details}
+            onChange={e => setDetails(e.target.value)}
+            placeholder="Any specifics? (optional)"
+            maxLength={500}
+            className="flex-1 min-h-[44px] px-3 py-2 text-sm border border-[#d9c4a0] bg-white text-[#3d2a1c] placeholder:text-[#7a6a50]/60"
+          />
+          <button
+            onClick={submit}
+            disabled={busy}
+            className="min-h-[44px] px-6 py-2 rounded bg-[#5a7d5a] disabled:bg-[#9db59d] text-white text-[10px] font-black uppercase tracking-widest shrink-0"
+          >
+            {busy ? 'Posting…' : 'Post request'}
+          </button>
+        </div>
+        <p className="text-[10px] text-[#7a6a50]">Three requests a day keeps the board readable. Signed-in Keepers only.</p>
+      </div>
+
+      <div className="space-y-2">
+        {loaded && requests.length === 0 && (
+          <p className="text-xs text-[#7a6a50] py-6 text-center">The board is empty — be the first to ask.</p>
+        )}
+        {requests.map(r => (
+          <div key={r.id} className="rounded-lg border border-[#d9c4a0] bg-[#fff8e8] px-4 py-3 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-[#3d2a1c] truncate">{r.product_name}</p>
+              {r.details && <p className="text-xs text-[#7a6a50] truncate">{r.details}</p>}
+            </div>
+            <div className="shrink-0 text-right">
+              <span className="inline-block px-2 py-0.5 rounded bg-[#8c7355]/15 text-[#6b5a3e] text-[9px] font-black uppercase tracking-widest">{r.category}</span>
+              <p className="text-[10px] text-[#7a6a50] mt-1">{timeAgo(r.created_at)}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function GardenMarket() {
   const { toasts, success, error, warning, reward } = useToast();
   const { theme } = useDayNightTheme();
-  const [activeTab, setActiveTab] = useState<'sanctuary' | 'drops' | 'home' | 'care' | 'vouchers' | 'saved'>('sanctuary');
+  const [activeTab, setActiveTab] = useState<'sanctuary' | 'drops' | 'home' | 'care' | 'digital' | 'requests' | 'vouchers' | 'saved'>('sanctuary');
   const [claimedItems, setClaimedItems] = useState<string[]>(() => readJson(REFUNDS_KEY, [] as ClaimedRefund[]).map(r => r.id));
   const [claimedRefunds, setClaimedRefunds] = useState<ClaimedRefund[]>(() => readJson(REFUNDS_KEY, [] as ClaimedRefund[]));
   const [cartItems, setCartItems] = useState<any[]>(() => readJson(CART_KEY, []));
@@ -920,6 +1265,8 @@ export default function GardenMarket() {
         <div className="px-4 md:px-8 py-4 flex gap-2 overflow-x-auto items-center border-b border-[#e8dcc8]" style={{ background: '#f7f0e4' }}>
           {([
             ['sanctuary', 'Sanctuary'],
+            ['digital', 'Digital goods'],
+            ['requests', 'Ask the bazaar'],
             ['drops', 'Open stall'],
             ['home', 'Pots & hangers'],
             ['care', 'Oils & soil'],
@@ -1003,6 +1350,28 @@ export default function GardenMarket() {
               </motion.div>
             )}
 
+            {activeTab === 'digital' && (
+              <motion.div
+                key="digital-section"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <DigitalGoods seeds={seeds} userId={userId} notify={(ok, msg) => (ok ? success(msg) : error(msg))} />
+              </motion.div>
+            )}
+
+            {activeTab === 'requests' && (
+              <motion.div
+                key="requests-section"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <RequestBoard userId={userId} notify={(ok, msg) => (ok ? success(msg) : error(msg))} />
+              </motion.div>
+            )}
+
             {activeTab === 'drops' && (
               <motion.div
                 key="drops-section"
@@ -1012,6 +1381,9 @@ export default function GardenMarket() {
                 className="space-y-16"
               >
                 <HeroCarousel onClaim={handleClaim} seeds={seeds} />
+
+                <TodaysHarvest onClaim={handleClaim} onAddToCart={handleAddToCart} seeds={seeds} />
+                <FreshFindsAudit onClaim={handleClaim} seeds={seeds} />
 
                 {/* Featured Section */}
                 <div>

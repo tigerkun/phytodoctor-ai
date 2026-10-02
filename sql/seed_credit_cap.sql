@@ -65,6 +65,15 @@ begin
     raise exception 'invalid seed transaction';
   end if;
 
+  -- A single credit larger than the whole daily ceiling cannot be legitimate:
+  -- no EARNING_BASE grant exceeds 400 (the 1000-seed discovery bonus was
+  -- rebalanced to 350 for exactly this). Rejecting with the same message as
+  -- the daily cap keeps one server mapping, and that mapping is 429-retryable
+  -- so nothing is ever dropped.
+  if p_amount > daily_credit_cap then
+    raise exception 'daily seed credit limit';
+  end if;
+
   insert into public.seed_transactions (id, user_id, amount, source, description)
   values (
     p_transaction_id,
