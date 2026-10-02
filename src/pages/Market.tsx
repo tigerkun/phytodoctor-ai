@@ -163,6 +163,102 @@ const MOCK_PRODUCTS = [
     isLimited: false,
     proEarlyAccess: true,
     tags: ['pro']
+  },
+  {
+    id: 'drop-9',
+    category: 'care',
+    name: 'Vermicompost Boost (5 kg)',
+    subtitle: 'Organic worm-cast soil food',
+    image: 'https://images.unsplash.com/photo-1587315955134-8c27e7b0e0a2?auto=format&fit=crop&w=800&q=80',
+    amazonUrl: 'https://www.amazon.in/s?k=vermicompost+organic+fertiliser+plants',
+    flipkartUrl: 'https://www.flipkart.com/search?q=vermicompost+organic+manure',
+    rating: 4.6,
+    reviewCount: 312,
+    cashPrice: 199,
+    seedPrice: 1194,
+    isLimited: false,
+    proEarlyAccess: false,
+    tags: []
+  },
+  {
+    id: 'drop-10',
+    category: 'tools',
+    name: 'Bypass Pruning Shears',
+    subtitle: 'Clean cuts, sap-resistant blade',
+    image: 'https://images.unsplash.com/photo-1598902069229-4f2f0e38a3a2?auto=format&fit=crop&w=800&q=80',
+    amazonUrl: 'https://www.amazon.in/s?k=pruning+shears+garden',
+    flipkartUrl: 'https://www.flipkart.com/search?q=pruning+shears+garden',
+    rating: 4.7,
+    reviewCount: 256,
+    cashPrice: 349,
+    seedPrice: 2094,
+    isLimited: false,
+    proEarlyAccess: false,
+    tags: ['bestseller']
+  },
+  {
+    id: 'drop-11',
+    category: 'seeds',
+    name: 'Herb Starter Kit (5 varieties)',
+    subtitle: 'Basil, mint, coriander & more',
+    image: 'https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?auto=format&fit=crop&w=800&q=80',
+    amazonUrl: 'https://www.amazon.in/s?k=herb+seeds+starter+kit',
+    flipkartUrl: 'https://www.flipkart.com/search?q=herb+seeds+kit',
+    rating: 4.5,
+    reviewCount: 184,
+    cashPrice: 299,
+    seedPrice: 1794,
+    isLimited: true,
+    proEarlyAccess: false,
+    tags: ['limited']
+  },
+  {
+    id: 'drop-12',
+    category: 'home',
+    name: 'Macramé Plant Hangers (set of 3)',
+    subtitle: 'Cotton weave, balcony-ready',
+    image: 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=800&q=80',
+    amazonUrl: 'https://www.amazon.in/s?k=macrame+plant+hanger',
+    flipkartUrl: 'https://www.flipkart.com/search?q=macrame+plant+hanger',
+    rating: 4.4,
+    reviewCount: 97,
+    cashPrice: 249,
+    seedPrice: 1494,
+    isLimited: false,
+    proEarlyAccess: false,
+    tags: []
+  },
+  {
+    id: 'drop-13',
+    category: 'care',
+    name: 'Slow-Release Fertiliser Spikes',
+    subtitle: '90 days of feeding per spike',
+    image: 'https://images.unsplash.com/photo-1508502726440-477c94bc361e?auto=format&fit=crop&w=800&q=80',
+    amazonUrl: 'https://www.amazon.in/s?k=fertiliser+spikes+plants',
+    flipkartUrl: 'https://www.flipkart.com/search?q=fertilizer+spikes+plants',
+    rating: 4.3,
+    reviewCount: 141,
+    cashPrice: 129,
+    seedPrice: 774,
+    isLimited: false,
+    proEarlyAccess: false,
+    tags: []
+  },
+  {
+    id: 'drop-14',
+    category: 'tools',
+    name: 'Soil Moisture Meter',
+    subtitle: 'Know before you pour',
+    image: 'https://images.unsplash.com/photo-1463936575829-25148e1db1b8?auto=format&fit=crop&w=800&q=80',
+    amazonUrl: 'https://www.amazon.in/s?k=soil+moisture+meter',
+    flipkartUrl: 'https://www.flipkart.com/search?q=soil+moisture+meter',
+    rating: 4.5,
+    reviewCount: 223,
+    cashPrice: 279,
+    seedPrice: 1674,
+    isLimited: false,
+    proEarlyAccess: false,
+    tags: ['bestseller']
   }
 ];
 
@@ -180,6 +276,25 @@ const AFFILIATE_TAG = 'botanicalguard-21';
 
 // Append the affiliate tag correctly: stall URLs already contain a query
 // string (`/s?k=...`), so the tag must join with `&`, never a second `?`.
+// Live platform searches: these open CURRENT listings for the product on each
+// marketplace, so a stall never points at a dead or out-of-stock page.
+// Flipkart retired its affiliate API years ago, so its link is a plain live
+// search; Amazon carries the associate tag on the same live search.
+function flipkartSearchUrl(name: string): string {
+  return 'https://www.flipkart.com/search?q=' + encodeURIComponent(name);
+}
+
+function amazonLiveSearchUrl(name: string): string {
+  try {
+    const u = new URL('https://www.amazon.in/s');
+    u.searchParams.set('k', name);
+    u.searchParams.set('tag', AFFILIATE_TAG);
+    return u.toString();
+  } catch {
+    return 'https://www.amazon.in/s?k=' + encodeURIComponent(name);
+  }
+}
+
 function amazonStallUrl(amazonUrl: string): string {
   try {
     const url = new URL(amazonUrl);
@@ -295,7 +410,10 @@ function HeroCarousel({ onClaim, seeds }: { onClaim: (id: string, refundValue: n
 
   const product = heroProducts[carouselIndex];
   // Calculate real-world refund logic (e.g., 200 seeds = ₹1)
-  const refundValue = Math.floor(product.seedPrice / 200);
+  // The tracked discount is a share of the item's REAL price. It used to be
+  // seedPrice/200, which silently fell to ~3% of the sticker when the seed
+  // rate was rebalanced from 20 to 6 seeds per rupee.
+  const refundValue = Math.max(10, Math.round(product.cashPrice * 0.12));
   const finalPrice = product.cashPrice - refundValue;
   const shortfall = Math.max(0, product.seedPrice - seeds);
   const canAfford = shortfall === 0;
@@ -523,8 +641,20 @@ function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish, seed
               Add to basket
             </motion.button>
             <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleAmazonRedirect}
-              className="flex-1 border border-[#c4a574] bg-[#fff8e8] hover:bg-[#f4e4c1] text-[#3d2a1c] font-black py-2.5 px-3 text-[10px] uppercase tracking-widest flex items-center justify-center gap-1">
-              Buy <ExternalLink size={11} />
+              className="flex-1 border border-[#c4a574] bg-[#fff8e8] hover:bg-[#f4e4c1] text-[#3d2a1c] font-black py-2.5 px-2 text-[10px] uppercase tracking-widest flex items-center justify-center gap-1">
+              Claim <ExternalLink size={11} />
+            </motion.button>
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              onClick={() => window.open(amazonLiveSearchUrl(product.name), '_blank', 'noopener')}
+              title="See live Amazon listings for this"
+              className="border border-[#c4a574] bg-[#fff8e8] hover:bg-[#f4e4c1] text-[#3d2a1c] font-black py-2.5 px-2.5 text-[10px] uppercase tracking-widest flex items-center justify-center gap-1">
+              <ExternalLink size={11} /> a
+            </motion.button>
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              onClick={() => window.open(flipkartSearchUrl(product.name), '_blank', 'noopener')}
+              title="See live Flipkart listings for this"
+              className="border border-[#c4a574] bg-[#fff8e8] hover:bg-[#f4e4c1] text-[#3d2a1c] font-black py-2.5 px-2.5 text-[10px] uppercase tracking-widest flex items-center justify-center gap-1">
+              <ExternalLink size={11} /> f
             </motion.button>
           </div>
         </div>
@@ -1112,12 +1242,20 @@ export default function GardenMarket() {
   // hero carousel and every other tab render from. Copy before sorting, and
   // memoize so typing in the search box doesn't re-filter the catalogue on
   // every keystroke.
+  // Stalls restock at midnight: a date-seeded subset of the catalogue is on
+  // the floor today (always leaving out at most four), so the bazaar is
+  // genuinely different every morning. Pinned crates ignore the rotation.
+  const inStockIds = useMemo(
+    () => new Set(seededPick(MOCK_PRODUCTS, Math.max(8, MOCK_PRODUCTS.length - 4), marketDayNumber() * 13 + 1).map(p => p.id)),
+    []
+  );
   const filteredProducts = useMemo(() => {
     let products = activeTab === 'saved'
       ? MOCK_PRODUCTS.filter(p => wishlist.includes(p.id))
       : activeTab === 'drops'
         ? [...MOCK_PRODUCTS]
         : MOCK_PRODUCTS.filter(p => p.category === activeTab);
+    if (activeTab !== 'saved') products = products.filter(p => inStockIds.has(p.id));
 
     if (filters.limitedOnly) products = products.filter(p => p.isLimited);
     if (filters.search) products = products.filter(p =>
@@ -1394,7 +1532,7 @@ export default function GardenMarket() {
                   >
                     On the stall today
                   </motion.h2>
-                  <p className="text-sm text-[#7a6a50] mb-8">Buy on Amazon. Spend seeds at this stall to clip a rupee refund.</p>
+                  <p className="text-sm text-[#7a6a50] mb-8">Buy on Amazon or Flipkart. Spend seeds at this stall to clip a rupee refund. Stalls restock every morning.</p>
                   
                   <motion.div
                     initial={{ opacity: 0 }}
