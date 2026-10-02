@@ -5,6 +5,7 @@ import { NavigationBar } from './home/NavigationBar';
 import MobileBottomNav from './home/MobileBottomNav';
 import { PageTransitionProvider } from './home/PageTransitionContext';
 import GardenAmbience from './GardenAmbience';
+import RouteAnnouncer from './RouteAnnouncer';
 
 import { supabase } from '../lib/supabase';
 import { rememberAuthReturn } from '../lib/guestHandoff';
@@ -105,6 +106,18 @@ export default function Layout({ children }: LayoutProps) {
     <div className="min-h-screen flex flex-col font-sans relative overflow-x-hidden" id="app-shell" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       <GardenAmbience />
       <PageTransitionProvider>
+        {/* First Tab stop on every page. With a header, a hero and a nav row
+            ahead of the content, a keyboard user otherwise tabs through a dozen
+            decorative controls to reach the page they asked for. */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[200] focus:px-5 focus:py-3 focus:rounded-xl focus:bg-[var(--moss)] focus:text-white focus:text-sm focus:font-bold focus:shadow-lg"
+        >
+          Skip to main content
+        </a>
+
+        <RouteAnnouncer />
+
         {/* Only show nav when authenticated */}
         {!isAuthPage && hasAuth && (
           <>
@@ -113,7 +126,15 @@ export default function Layout({ children }: LayoutProps) {
           </>
         )}
 
-        <main className="flex-grow relative z-10 w-full min-w-0 pb-28 md:pb-12 overflow-x-visible overflow-y-auto">
+        {/* tabIndex and focus:outline-none are a pair: the outline rule gives
+            RouteAnnouncer somewhere to put focus after a route change, and
+            outline-none stops that programmatic move from painting a ring
+            around the whole page. The skip link keeps its own ring. */}
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-grow relative z-10 w-full min-w-0 pb-28 md:pb-12 overflow-x-visible overflow-y-auto focus:outline-none"
+        >
           {children}
         </main>
 
@@ -132,9 +153,12 @@ function Footer() {
         <span>Diagnostic Research Protocol v1.4.0 active</span>
       </div>
       {/* py-3 gives each link a 44px tap height — at 9px type the text box
-          was only 14px tall, well under the touch-target minimum. */}
+          was only 14px tall, well under the touch-target minimum. Library is
+          here because the bottom bar caps at five and cannot carry it; this is
+          the phone's only route to the Field Library now. */}
       <div className="flex flex-wrap justify-center gap-x-6">
         <Link to="/lab" className="py-3">Lab Notes</Link>
+        <Link to="/library" className="py-3">Library</Link>
         <Link to="/help" className="py-3">Help &amp; FAQ</Link>
         <Link to="/privacy" className="py-3">Privacy</Link>
         <Link to="/terms" className="py-3">Terms</Link>
