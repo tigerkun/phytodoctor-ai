@@ -118,7 +118,10 @@ function NonPlantResult({ result, onScanAgain }: { result: any; onScanAgain: () 
       <div className="mt-6 flex flex-wrap justify-center gap-3">
         <button
           onClick={onScanAgain}
-          className="px-6 py-3 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-md active:scale-95"
+          // Measured 40px at 390px: 12px padding a side plus a 16px line box at
+          // 12px type. It renders only in the post-scan state, which the tab
+          // URLs do not reach -- the audit that found the other three missed it.
+          className="min-h-[44px] inline-flex items-center justify-center px-6 py-3 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-md active:scale-95"
         >
           📷 Scan a Plant
         </button>
@@ -721,7 +724,13 @@ export default function BotanicalLab() {
             {!isAuthed && (
               <button
                 onClick={() => transitionTo('/', 'Estate')}
-                className="mb-3 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-text-stone hover:text-moss transition-colors font-mono"
+                // min-h, not py: at the floored 11px type the line box is 16.5px,
+                // so `py-2` reaches only 32.5px. This was 17px tall before either
+                // -- under half the touch minimum, on the front door of the
+                // product, on the one control a signed-out visitor has for
+                // leaving. The negative horizontal margin grows the hit area
+                // without shifting the label off its optical edge.
+                className="mb-3 -mx-2 flex items-center gap-1.5 min-h-[44px] text-[10px] font-black uppercase tracking-widest text-text-stone hover:text-moss transition-colors font-mono"
               >
                 ← Back to the Estate
               </button>
@@ -774,7 +783,11 @@ export default function BotanicalLab() {
             </p>
             <button
               onClick={() => { rememberAuthReturn('/lab?tab=dex'); transitionTo('/auth', 'Sign up'); }}
-              className="shrink-0 px-4 py-2 rounded-full bg-moss hover:brightness-110 text-white font-black uppercase tracking-widest text-[11px] transition-all active:scale-95 font-mono whitespace-nowrap"
+              // The only call to action on this panel, and it was 34px tall at
+              // 11px type -- `py-2` is 8px a side plus a ~18px line box. The phone
+              // type floor raises the type, not the padding, so the height has to
+              // be asked for explicitly.
+              className="shrink-0 min-h-[44px] inline-flex items-center justify-center px-4 py-2 rounded-full bg-moss hover:brightness-110 text-white font-black uppercase tracking-widest text-[11px] transition-all active:scale-95 font-mono whitespace-nowrap"
             >
               Sign up free
             </button>
@@ -810,7 +823,7 @@ export default function BotanicalLab() {
                       <button
                         type="button"
                         onClick={() => setScanMode('consult')}
-                        className={`flex-1 py-2 px-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                        className={`min-h-[44px] flex-1 py-2 px-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
                           scanMode === 'consult'
                             ? 'bg-moss text-white shadow-md'
                             : 'text-text-stone hover:text-text-bark hover:bg-bg-tertiary'
@@ -821,7 +834,7 @@ export default function BotanicalLab() {
                       <button
                         type="button"
                         onClick={() => setScanMode('index')}
-                        className={`flex-1 py-2 px-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                        className={`min-h-[44px] flex-1 py-2 px-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
                           scanMode === 'index'
                             ? 'bg-moss text-white shadow-md'
                             : 'text-text-stone hover:text-text-bark hover:bg-bg-tertiary'
@@ -843,7 +856,11 @@ export default function BotanicalLab() {
                               e.stopPropagation();
                               setMagnification(mag);
                             }}
-                            className={`px-3 py-2 min-h-[40px] rounded-full text-[10px] font-mono font-black tracking-widest uppercase transition-all ${
+                            // min-h was 40px, four under the touch minimum, on the
+                            // one control that changes what the specimen under the
+                            // reticle means. The ring is `p-1`, so the 44px sits
+                            // inside it without the group growing.
+                            className={`px-3 py-2 min-h-[44px] inline-flex items-center justify-center rounded-full text-[10px] font-mono font-black tracking-widest uppercase transition-all ${
                               magnification === mag
                                 ? 'bg-[#b89552] text-white shadow-xs'
                                 : 'text-[#7a602f] dark:text-[#d4af37] hover:bg-[#b89552]/15'
@@ -979,7 +996,7 @@ export default function BotanicalLab() {
                   </div>
                   <button
                     onClick={() => resetDexScan(true)}
-                    className="px-6 py-2.5 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition-all active:scale-95"
+                    className="min-h-[44px] inline-flex items-center justify-center px-6 py-2.5 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition-all active:scale-95"
                   >
                     🔄 Try Again
                   </button>
@@ -1180,7 +1197,14 @@ export default function BotanicalLab() {
                                   <button
                                     onClick={attestSelfCaptured}
                                     disabled={attesting}
-                                    className="mt-3 w-full py-2.5 bg-gold/20 hover:bg-gold/30 text-text-bark border border-gold/40 font-black uppercase tracking-widest text-[11px] rounded-xl transition-all active:scale-95 disabled:opacity-50 font-mono"
+                                    // The provenance release is the one control that
+                                    // gets a held seed back, and it sits in the
+                                    // deepest state in the Lab -- behind a scan,
+                                    // inside the hold card. `py-2.5` on a floored
+                                    // 12px label is 44px exactly; the min-height
+                                    // is what stops it dropping under when the
+                                    // type floor is tuned again.
+                                    className="mt-3 w-full min-h-[44px] inline-flex items-center justify-center py-2.5 bg-gold/20 hover:bg-gold/30 text-text-bark border border-gold/40 font-black uppercase tracking-widest text-[11px] rounded-xl transition-all active:scale-95 disabled:opacity-50 font-mono"
                                   >
                                     {attesting ? 'Releasing…' : `🤝 I took this photo myself — release ${provenanceHold.withheldSeeds} seeds`}
                                   </button>
@@ -1203,13 +1227,17 @@ export default function BotanicalLab() {
                                 </p>
                                 <button
                                   onClick={() => { rememberAuthReturn('/lab?tab=dex'); transitionTo('/auth', 'Sign up'); }}
-                                  className="mt-3 w-full py-2.5 bg-moss hover:brightness-110 text-white font-black uppercase tracking-widest text-[11px] rounded-xl transition-all active:scale-95 font-mono"
+                                  // Same 44px as the panel-level sign-up above, and for the same reason:
+                                // `py-2.5` on an 11px label is 36.5px. This one only
+                                // renders once the quota panel opens, which is why
+                                // auditing the Lab's tab URLs alone does not find it.
+                                className="mt-3 w-full min-h-[44px] py-2.5 bg-moss hover:brightness-110 text-white font-black uppercase tracking-widest text-[11px] rounded-xl transition-all active:scale-95 font-mono"
                                 >
                                   Create free account — 20 seconds
                                 </button>
                                 <button
                                   onClick={() => { setGuestHoldout(false); resetDexScan(true); }}
-                                  className="mt-2 w-full py-2 text-[11px] font-bold uppercase tracking-widest text-text-muted hover:text-text-stone transition-colors font-mono"
+                                  className="min-h-[44px] inline-flex items-center justify-center mt-2 w-full py-2 text-[11px] font-bold uppercase tracking-widest text-text-muted hover:text-text-stone transition-colors font-mono"
                                 >
                                   Not now — scan another
                                 </button>
@@ -1275,7 +1303,7 @@ export default function BotanicalLab() {
                         <div className="mt-8 flex flex-wrap sm:flex-nowrap gap-3">
                           <button
                             onClick={() => resetDexScan(true)}
-                            className="flex-1 py-3 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-md active:scale-95"
+                            className="min-h-[44px] inline-flex items-center justify-center flex-1 py-3 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-md active:scale-95"
                           >
                             📷 Scan Another
                           </button>
@@ -1286,7 +1314,7 @@ export default function BotanicalLab() {
                                 setActiveTab('sanctuary');
                                 setSearchParams({ tab: 'sanctuary' });
                               }}
-                              className="flex-1 py-3 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 active:scale-95 font-mono"
+                              className="min-h-[44px] flex-1 py-3 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 active:scale-95 font-mono"
                             >
                               🔬 View Specimen in Sanctuary <ArrowRight size={12} />
                             </button>
@@ -1294,7 +1322,7 @@ export default function BotanicalLab() {
                             <button
                               onClick={() => indexSpecimen()}
                               disabled={isUplinkingPhoto}
-                              className="flex-1 py-3 bg-gold/20 hover:bg-gold/30 text-text-bark border border-gold/40 font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95 font-mono disabled:opacity-50"
+                              className="min-h-[44px] flex-1 py-3 bg-gold/20 hover:bg-gold/30 text-text-bark border border-gold/40 font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95 font-mono disabled:opacity-50"
                             >
                               {isUplinkingPhoto ? 'Uplinking photo to vault...' : '📥 Index to Sanctuary'}
                             </button>
@@ -1308,7 +1336,7 @@ export default function BotanicalLab() {
                               const query = encodeURIComponent(`I just ran a scan on my ${dexResult?.commonName || 'plant'}. The health status is ${dexResult?.healthStatus || 'unknown'} with severity ${dexResult?.severity || 1}/5. Diagnosis: ${dexResult?.diagnosis || 'N/A'}. What is the best treatment plan?`);
                               transitionTo(`/assistant?plantName=${name}&species=${spec}&query=${query}`, 'AI Assistant');
                             }}
-                            className="flex-1 py-3 bg-bg-secondary hover:bg-bg-tertiary text-text-bark border border-border-medium font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95 font-mono"
+                            className="min-h-[44px] flex-1 py-3 bg-bg-secondary hover:bg-bg-tertiary text-text-bark border border-border-medium font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95 font-mono"
                           >
                             💬 Consult Assistant
                           </button>
@@ -1335,7 +1363,7 @@ export default function BotanicalLab() {
                 </div>
                 <button
                   onClick={() => setScanError(null)}
-                  className="text-[10px] font-mono font-black uppercase tracking-wider text-rose-500 hover:text-rose-700 px-2 py-1 rounded transition-colors"
+                  className="min-h-[44px] inline-flex items-center justify-center text-[10px] font-mono font-black uppercase tracking-wider text-rose-500 hover:text-rose-700 px-2 py-1 rounded transition-colors"
                 >
                   Dismiss [×]
                 </button>
@@ -1521,7 +1549,7 @@ export default function BotanicalLab() {
 
                       <button
                         onClick={() => transitionTo(`/plant/${plant.id}`, plant.name)}
-                        className="w-full py-2 text-[9px] font-black uppercase tracking-widest text-moss hover:text-moss-dark flex items-center justify-center gap-1 transition-colors font-mono"
+                        className="min-h-[44px] w-full py-2 text-[9px] font-black uppercase tracking-widest text-moss hover:text-moss-dark flex items-center justify-center gap-1 transition-colors font-mono"
                       >
                         View Specimen Dossier <ArrowRight size={11} />
                       </button>
@@ -1604,7 +1632,7 @@ export default function BotanicalLab() {
                       <div key={item.id} className="border border-border-light rounded-2xl overflow-hidden bg-bg-secondary">
                         <button
                           onClick={() => setActiveAccordion(isOpen ? null : idx)}
-                          className="w-full px-5 py-4 flex items-center justify-between text-left font-serif font-bold text-text-bark text-sm hover:bg-bg-tertiary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-inset"
+                          className="min-h-[44px] w-full px-5 py-4 flex items-center justify-between text-left font-serif font-bold text-text-bark text-sm hover:bg-bg-tertiary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-inset"
                         >
                           <span>{item.title}</span>
                           <motion.div

@@ -196,3 +196,119 @@ describe('the route wrapper', () => {
     expect(app).toMatch(/mode="wait"/);
   });
 });
+
+describe('Lab tap targets', () => {
+  const lab = stripJsComments(readFileSync(join(process.cwd(), 'src/pages/BotanicalLab.tsx'), 'utf8'));
+
+  /** Every `<button ...>` opening tag in the file, tag end included.
+   *
+   *  A naive `/<button\b[\s\S]*?>/` stops at the first `>`, which inside
+   *  `onClick={(e) => {` is the arrow -- so every button with an inline handler
+   *  and a template-literal className came back as a tag that contained no
+   *  className at all, and the sweep below silently skipped them. Mutation
+   *  testing is what turned that up: shrinking the magnification selectors
+   *  failed the named test but sailed through the sweep.
+   *
+   *  So this tracks brace and paren depth, skips string literals (one class
+   *  name is a template literal containing `${...}`), and reads the `>` of an
+   *  `=>` as an arrow rather than the end of the tag. */
+  function buttonTags(): { start: number; tag: string }[] {
+    const tags: { start: number; tag: string }[] = [];
+    for (let at = lab.indexOf('<button'); at !== -1; at = lab.indexOf('<button', at + 1)) {
+      let depth = 0;
+      let quote = '';
+      for (let i = at; i < lab.length; i++) {
+        const ch = lab[i];
+        if (quote) {
+          if (ch === quote) quote = '';
+        } else if (ch === '"' || ch === "'" || ch === '`') {
+          quote = ch;
+        } else if (ch === '{' || ch === '(') {
+          depth++;
+        } else if (ch === '}' || ch === ')') {
+          depth--;
+        } else if (ch === '>' && depth === 0 && lab[i - 1] !== '=') {
+          tags.push({ start: at, tag: lab.slice(at, i + 1) });
+          break;
+        }
+      }
+    }
+    return tags;
+  }
+
+  /** The class name written on a button tag, with any `${...}` interpolation
+   *  removed so a conditional class does not hide the static half. */
+  function classNameOf(tag: string): string {
+    const found = tag.match(/className=(?:"([^"]*)"|\{`([\s\S]*?)`\}|\{'([^']*)'\})/);
+    return (found?.[1] ?? found?.[2] ?? found?.[3] ?? '').replace(/\$\{[^}]*\}/g, '');
+  }
+
+  /** The opening `<button ...>` tag that owns `marker`. Ownership is "the last
+   *  `<button` before the marker", which also holds when the marker is the
+   *  button's own label and therefore sits *after* the tag closes. */
+  function buttonTagAround(marker: string): string {
+    const at = lab.indexOf(marker);
+    expect(at, `"${marker}" was not found in BotanicalLab.tsx`).toBeGreaterThan(-1);
+    const open = lab.lastIndexOf('<button', at);
+    // Without this the lookup below reports a missing tag instead of the real
+    // problem, which is a marker that matched an import statement.
+    expect(open, `"${marker}" matched outside any <button>`).toBeGreaterThan(-1);
+    const owner = buttonTags().find((t) => t.start === open);
+    if (!owner) throw new Error(`unterminated <button> tag opened at ${open}`);
+    return owner.tag;
+  }
+
+  // Plain text, not a pattern: in JSX a class name is a bare string, so the
+  // square brackets are literal here and need no escaping.
+  const MIN_44 = 'min-h-[44px]';
+
+  it('finds each control by its own markup', () => {
+    // Guards the slicing above. If a marker stopped existing, or the scan
+    // stopped early, these would quietly become assertions about a tag with no
+    // className on it.
+    expect(buttonTagAround('← Back to the Estate')).toContain('className');
+    expect(buttonTagAround('Sign up free')).toContain('className');
+    expect(buttonTagAround('setMagnification(mag)')).toContain('className');
+  });
+
+  it.each([
+    ['the back control', '← Back to the Estate'],
+    ['the sign-up call to action', 'Sign up free'],
+    ['the magnification selectors', 'setMagnification(mag)'],
+  ])('gives %s the 44px touch minimum', (_label, marker) => {
+    // Padding does not reach it. The type floor raises these labels to 11px,
+    // which is a 16.5px line box, so `py-2` tops out around 32.5px -- and the
+    // back control measured 17px before this, on the only way out of the page
+    // for a signed-out visitor. The height has to be asked for explicitly.
+    expect(buttonTagAround(marker)).toContain(MIN_44);
+  });
+
+  it('sets no Lab control height below the touch minimum', () => {
+    // The general form of the rule, so the next `min-h-[40px]` added around
+    // here turns the suite red instead of shipping another small target.
+    const tooSmall = [...lab.matchAll(/min-h-\[(\d+)px\]/g)]
+      .map((m) => m[0])
+      .filter((declared) => Number(declared.match(/\d+/)![0]) < 44);
+    expect(tooSmall, `under-sized Lab controls: ${tooSmall.join(', ')}`).toEqual([]);
+  });
+
+  it('asks for 44px on every Lab control that is sized by its padding', () => {
+    // This is the check that would have caught the two controls a route-level
+    // audit misses. Both render only after a scan -- the "Scan a Plant" primary
+    // and the provenance release that unlocks a held seed -- so they are absent
+    // from every Lab tab URL, and measuring the pages found neither. Reading
+    // the source does find them.
+    //
+    // Only buttons whose height actually comes from padding are considered: an
+    // icon button sized by `w-* h-*` is already explicit, and the field
+    // selectors use a conditional class, so the interpolated part is removed
+    // before matching rather than pattern-matched around.
+    const undersized = buttonTags()
+      .filter((t) => /\bpy-|\bmin-h-|\bh-/.test(t.tag))
+      .map((t) => classNameOf(t.tag))
+      .filter((cls) => cls.trim().length > 0 && !cls.includes(MIN_44));
+
+    expect(undersized, `Lab controls left to their padding: ${undersized.join(' | ')}`)
+      .toEqual([]);
+  });
+});
