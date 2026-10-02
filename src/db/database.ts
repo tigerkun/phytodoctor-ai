@@ -108,6 +108,9 @@ class BotanicalDB extends Dexie {
     attempts: number;
     lastError?: string;
     status: 'pending' | 'dead';
+    // When the entry was parked. The revival cooldown reads it; absent on rows
+    // parked by older builds, which read as parked at epoch and revive at once.
+    deadAt?: number;
   }>;
 
   constructor() {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -503,7 +503,7 @@ const DAILY_QUIZZES = [
   {
     question: 'What do roots sense to always grow downward?',
     options: ['Gravity', 'Magnetism', 'Sound'],
-    answer: 1,
+    answer: 0,
     explanation: 'Statoliths — dense starch grains in root-cap cells — settle and signal the direction of gravity.',
   },
   {
@@ -599,7 +599,7 @@ const DAILY_QUIZZES = [
   {
     question: 'What is etiolation?',
     options: ['Pale, stretched growth in darkness', 'Leaf burn', 'Root rot'],
-    answer: 1,
+    answer: 0,
     explanation: 'Starved of light, plants lengthen internodes and lose chlorophyll hunting for a source.',
   },
   {
@@ -685,13 +685,28 @@ export default function Library() {
   // puzzle streak so it survives reloads.
   const [streak, setStreak] = useState(() => Number(localStorage.getItem('botanical_quiz_streak') || 0));
   const [bestStreak, setBestStreak] = useState(() => Number(localStorage.getItem('botanical_quiz_best_streak') || 0));
-  const [attemptsLeft, setAttemptsLeft] = useState(() => Math.max(0, QUIZZES_PER_DAY - attemptsUsedToday()));
   const [isProUser, setIsProUser] = useState(false);
   const [justFell, setJustFell] = useState(false);
+  const answeringRef = useRef(false);
   const userId = GameService.getUserId();
   // The current attempt's puzzle: attempt N serves today's Nth draw.
   const quizIndex = todaysQuizOrder[attemptsUsedToday() % todaysQuizOrder.length];
   const dailyQuiz = DAILY_QUIZZES[quizIndex];
+  // Every bank entry lists its correct option first, so the raw order let a
+  // player who always taps the top answer win ~94% of the time. Shuffling the
+  // options with the same date seed as the quiz rotation keeps a day's layout
+  // identical for everyone while moving the answer somewhere else.
+  const presentedQuiz = useMemo(() => {
+    const order = seededShuffle(dailyQuiz.options.map((_, i) => i), dayNumber * 131 + quizIndex * 17 + 7);
+    return {
+      options: order.map(i => dailyQuiz.options[i]),
+      answer: order.indexOf(dailyQuiz.answer),
+    };
+  }, [dailyQuiz, dayNumber, quizIndex]);
+  // Derived, not state: attemptsUsedToday() keys on the local date, but state
+  // captured at mount went stale when a tab stayed open past midnight — the
+  // new day granted three fresh attempts while puzzlesLocked kept reading 0.
+  const attemptsLeft = Math.max(0, QUIZZES_PER_DAY - attemptsUsedToday());
   // Illuminated Codex leaf: deterministic per day.
   const codexFact = BOTANICAL_FACTS[todaysFactOrder[(dayNumber * 5 + 7) % todaysFactOrder.length]];
   const currentEvent = earthEvents[earthIndex % earthEvents.length];
@@ -743,17 +758,20 @@ export default function Library() {
   }, []);
 
   const answerQuiz = async (index: number) => {
-    if (answered || selectedAnswer !== null || puzzlesLocked) return;
+    // answered/selectedAnswer are state, so two clicks landing in the same tick
+    // both saw the old values and both reached the reward — one answer, two
+    // attempts consumed and two +25 credits. The ref flips synchronously.
+    if (answeringRef.current || answered || selectedAnswer !== null || puzzlesLocked) return;
+    answeringRef.current = true;
     setSelectedAnswer(index);
     setAnswered(true);
-    const isCorrect = index === dailyQuiz.answer;
+    const isCorrect = index === presentedQuiz.answer;
     triggerHaptic(isCorrect ? 'medium' : 'light');
     playAudio(isCorrect ? 'success' : 'chime');
 
     // One attempt consumed whether right or wrong — like chess.com's daily
     // puzzles, accuracy is what preserves the streak.
-    const used = consumeQuizAttempt();
-    setAttemptsLeft(Math.max(0, QUIZZES_PER_DAY - used));
+    consumeQuizAttempt();
 
     if (isCorrect) {
       const newStreak = streak + 1;
@@ -793,6 +811,7 @@ export default function Library() {
     if (puzzlesLocked) return;
     triggerHaptic('light');
     playAudio('leaf-rustle');
+    answeringRef.current = false;
     setSelectedAnswer(null);
     setQuizMessage('');
     setAnswered(false);
@@ -1035,7 +1054,7 @@ export default function Library() {
                   {streak >= 10 ? <TreePine size={22} aria-hidden="true" /> : streak >= 5 ? <Sprout size={22} aria-hidden="true" /> : <Sprout size={18} aria-hidden="true" />}
                 </motion.div>
                 {/* Leaf-burst on a fresh solve */}
-                {answered && !justFell && selectedAnswer === dailyQuiz.answer && (
+                {answered && !justFell && selectedAnswer === presentedQuiz.answer && (
                   <motion.div
                     className="absolute inset-0 pointer-events-none"
                     initial={{ opacity: 1 }}
@@ -1111,9 +1130,9 @@ export default function Library() {
             ) : (
               <>
                 <div className="space-y-2">
-                  {dailyQuiz.options.map((option, index) => {
-                    const isCorrect = selectedAnswer !== null && index === dailyQuiz.answer;
-                    const isWrong = selectedAnswer === index && index !== dailyQuiz.answer;
+                  {presentedQuiz.options.map((option, index) => {
+                    const isCorrect = selectedAnswer !== null && index === presentedQuiz.answer;
+                    const isWrong = selectedAnswer === index && index !== presentedQuiz.answer;
                     return (
                       <button
                         key={option}

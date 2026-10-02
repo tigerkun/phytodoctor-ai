@@ -950,6 +950,13 @@ LOCATION-AWARE FIELDS (required if location provided):
       config: {
         systemInstruction: "You are PhytoDoctor AI's Chief Botanical Pathologist and Regional Horticulture Specialist. You perform precise, evidence-based visual diagnoses. You always consider the user's local climate, geography, and current weather when giving care advice. Never give generic advice — always be specific to the plant specimen, its visible condition, and the user's location. Return complete, structured JSON according to the schema.",
         temperature: 0.15,
+        // The schema's long-form fields (diagnosis, timeline, instructions,
+        // location advice) run 1.5-3k output tokens in practice. Leaving the
+        // cap at the model default let a verbose answer get cut mid-JSON,
+        // which surfaced to the Keeper as "AI response was malformed" after
+        // the full generation wait. Pinning a generous ceiling keeps complete
+        // payloads under it; thinkingBudget is 0, so these are all answer.
+        maxOutputTokens: 8192,
         // Internal marker consumed by generateWithRetry: skip 2.5 "thinking"
         // tokens so the scan result arrives as fast as possible.
         disableThinking: true,
@@ -1068,7 +1075,11 @@ LOCATION-AWARE FIELDS (required if location provided):
     try {
       result = JSON.parse(cleanedText);
     } catch (parseErr: any) {
-      console.error("JSON parse error (response may have been truncated):", parseErr.message, "\nRaw snippet:", cleanedText.slice(0, 200));
+      // finishReason in the log separates "hit the output cap" (MAX_TOKENS,
+      // fixed by maxOutputTokens above) from a model that simply ignored the
+      // JSON contract — different fixes for each.
+      const finishReason = (response as any)?.candidates?.[0]?.finishReason;
+      console.error(`JSON parse error (finishReason=${finishReason ?? 'unknown'}):`, parseErr.message, "\nRaw snippet:", cleanedText.slice(0, 200));
       throw new Error("AI response was malformed. Please try again.");
     }
     // severity drives Clinic's `isQuarantineRequired` (>= 3) and the severity
@@ -1165,6 +1176,7 @@ app.post("/api/sandbox", express.json({ limit: '64kb' }), aiLimiter, apiGate, ti
         config: {
           systemInstruction: "You are PhytoDoctor AI's horticultural physiologist. Return only JSON matching the schema. Ideal ranges must be realistic for that species. Never invent a plant that does not exist — flag fictional or non-botanical names via isRealSpecies=false.",
           temperature: 0.2,
+          disableThinking: true, // a Keeper is waiting on this dossier; skip 2.5 thinking tokens
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
