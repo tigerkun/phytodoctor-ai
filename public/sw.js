@@ -1,7 +1,9 @@
-// Bumped to v1.9: v1.8 runtime-cached GET /api/ responses, so every signed-in
-// device already holds stale API entries. The activate handler drops any cache
-// that is not the current one, which evicts them all on the next load.
-const CACHE_NAME = 'phyto-guard-v1.9';
+// Bumped to v2.0: the cache-first branch is now scoped to immutable assets
+// (/assets/ content hashes and the font CDNs). Every other same-origin GET is
+// network-first, so deployable files like the OG image and manifest refresh
+// without a version bump. The activate handler drops any cache that is not
+// this one, which evicts v1.9's frozen copies on the next load.
+const CACHE_NAME = 'phyto-guard-v2.0';
 const ASSETS = [
   '/',
   '/index.html',
@@ -83,28 +85,61 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) return cachedResponse;
+  const url = new URL(event.request.url);
+  const sameOrigin = url.origin === self.location.origin;
 
-      return fetch(event.request).then((networkResponse) => {
-        // Runtime-cache the stylesheet we depend on. Only same-origin and the
-        // font CDN: caching an arbitrary cross-origin response would store a
-        // 404 the page then serves forever.
-        const url = event.request.url;
-        const cacheable =
-          url.startsWith(self.location.origin) || url.includes('fonts.googleapis');
-        if (cacheable && networkResponse.ok) {
+  // Content-hashed build output and the font CDNs are immutable: the same URL
+  // can never mean different bytes, so they are the only things served
+  // cache-first. Everything else same-origin (the icons, the OG image, the
+  // manifest, robots.txt) used to land in this branch too, which froze them at
+  // whatever bytes the first visit saw — an updated og-image or theme colour
+  // never reached an existing user until the next CACHE_NAME bump.
+  const immutable =
+    (sameOrigin && url.pathname.startsWith('/assets/')) ||
+    url.hostname === 'fonts.googleapis.com' ||
+    url.hostname === 'fonts.gstatic.com';
+
+  if (immutable) {
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        if (cachedResponse) return cachedResponse;
+
+        return fetch(event.request).then((networkResponse) => {
+          if (networkResponse.ok) {
+            const cacheCopy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cacheCopy));
+          }
+          return networkResponse;
+        }).catch(() => {
+          // Fallback for offline access
+          return caches.match('/index.html');
+        });
+      })
+    );
+    return;
+  }
+
+  // Every other same-origin GET: network-first, cache as the offline fallback.
+  // A fresh copy also refreshes the stored one, so deployable files track the
+  // site without a worker version bump.
+  if (sameOrigin) {
+    event.respondWith(
+      fetch(event.request).then((networkResponse) => {
+        if (networkResponse.ok) {
           const cacheCopy = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cacheCopy));
         }
         return networkResponse;
-      }).catch(() => {
-        // Fallback for offline access
-        return caches.match('/index.html');
-      });
-    })
-  );
+      }).catch(() =>
+        caches.match(event.request).then((cached) => cached || caches.match('/index.html'))
+      )
+    );
+    return;
+  }
+
+  // Other cross-origin traffic is passed through untouched: caching an
+  // arbitrary cross-origin response could store a 404 the page then serves
+  // forever.
 });
 
 // These have to be registered at the top level of the worker script. They used

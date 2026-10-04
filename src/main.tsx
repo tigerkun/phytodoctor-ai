@@ -12,8 +12,11 @@ runDbMigration().catch(console.error);
 // Flush any pending seed-sync outbox entries when connectivity is restored
 window.addEventListener('online', () => GameService.flushSeedSyncOutbox());
 
-// Register Service Worker
-if ('serviceWorker' in navigator) {
+// Register Service Worker — production only. In dev, Vite serves unhashed
+// modules that mutate on every save; the worker's runtime cache would hold
+// stale module graphs and HMR would silently fight it, which reads as
+// "changes not applying" rather than as a caching bug.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then((registration) => {
