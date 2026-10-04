@@ -10,12 +10,17 @@ interface Faq {
 
 interface FaqCategory {
   title: string;
+  /** Chip label for the category bar. The titles run long
+   *  ("PhytoCards, the Vault & Check-ins") and eight of them side by side
+   *  would need a bar wider than any phone. */
+  short: string;
   items: Faq[];
 }
 
 const FAQS: FaqCategory[] = [
   {
     title: 'Getting Started',
+    short: 'Getting Started',
     items: [
       {
         q: 'What is PhytoDoctor AI?',
@@ -41,6 +46,7 @@ const FAQS: FaqCategory[] = [
   },
   {
     title: 'Seeds & the Economy',
+    short: 'Seeds',
     items: [
       {
         q: 'What are Seeds?',
@@ -66,6 +72,7 @@ const FAQS: FaqCategory[] = [
   },
   {
     title: 'Scanning & Diagnosis',
+    short: 'Scanning',
     items: [
       {
         q: 'How do I scan a plant?',
@@ -95,6 +102,7 @@ const FAQS: FaqCategory[] = [
   },
   {
     title: 'PhytoCards, the Vault & Check-ins',
+    short: 'Cards & Vault',
     items: [
       {
         q: 'What are PhytoCards?',
@@ -116,6 +124,7 @@ const FAQS: FaqCategory[] = [
   },
   {
     title: 'Market & Payments',
+    short: 'Market',
     items: [
       {
         q: 'How does the Garden Market work?',
@@ -141,6 +150,7 @@ const FAQS: FaqCategory[] = [
   },
   {
     title: 'Account & Profile',
+    short: 'Account',
     items: [
       {
         q: 'How do I sign in?',
@@ -166,6 +176,7 @@ const FAQS: FaqCategory[] = [
   },
   {
     title: 'Privacy & Data',
+    short: 'Privacy',
     items: [
       {
         q: 'What data does the app collect?',
@@ -187,6 +198,7 @@ const FAQS: FaqCategory[] = [
   },
   {
     title: 'Troubleshooting',
+    short: 'Troubleshooting',
     items: [
       {
         q: 'The AI says it is busy or unavailable.',
@@ -210,22 +222,34 @@ const FAQS: FaqCategory[] = [
 
 const TOTAL = FAQS.reduce((n, c) => n + c.items.length, 0);
 
+/** Sentinel for "no category chosen" — a title, not an index, so the bar and
+ *  the data cannot fall out of step if a category is ever reordered. */
+export const ALL_CATEGORIES = 'All';
+
 export default function HelpPage() {
   const [query, setQuery] = useState('');
   const [openKey, setOpenKey] = useState<string | null>(null);
+  // Measured at 390px the centre was 3461px — 4.1 phone screens — for 38
+  // answers in 8 categories, with no way to reach a category except scrolling
+  // or already knowing a word to search for. The category bar below makes each
+  // one a tap away.
+  const [category, setCategory] = useState<string>(ALL_CATEGORIES);
 
+  // Category and search compose rather than replace: choosing "Market" and then
+  // typing narrows within Market, so a visitor who has half-remembered a
+  // category is never stuck with the wrong one.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return FAQS;
     return FAQS
-      .map(category => ({
-        title: category.title,
-        items: category.items.filter(
-          f => f.q.toLowerCase().includes(q) || f.a.toLowerCase().includes(q)
-        ),
+      .filter(c => category === ALL_CATEGORIES || c.title === category)
+      .map(c => ({
+        title: c.title,
+        items: q
+          ? c.items.filter(f => f.q.toLowerCase().includes(q) || f.a.toLowerCase().includes(q))
+          : c.items,
       }))
       .filter(c => c.items.length > 0);
-  }, [query]);
+  }, [query, category]);
 
   const resultCount = filtered.reduce((n, c) => n + c.items.length, 0);
 
@@ -255,23 +279,60 @@ export default function HelpPage() {
             className="w-full rounded-xl border border-white/15 bg-black/10 px-10 py-3 text-sm outline-none focus:border-[#5A9E6F]/60"
           />
         </div>
+        {/* Category bar — the way into a category without scrolling past the
+            other seven. Same bazaar-tab idiom as the Market and Profile bars,
+            so the app has one tab shape rather than three. */}
+        <nav aria-label="Help categories" className="-mx-4 mb-3 px-4 sm:mx-0 sm:px-0">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            <button
+              onClick={() => setCategory(ALL_CATEGORIES)}
+              aria-current={category === ALL_CATEGORIES ? 'page' : undefined}
+              className={`bazaar-tab shrink-0 ${category === ALL_CATEGORIES ? 'is-on' : ''}`}
+            >
+              All
+            </button>
+            {FAQS.map(c => (
+              <button
+                key={c.title}
+                onClick={() => setCategory(c.title)}
+                aria-current={category === c.title ? 'page' : undefined}
+                className={`bazaar-tab shrink-0 ${category === c.title ? 'is-on' : ''}`}
+              >
+                {c.short}
+              </button>
+            ))}
+          </div>
+        </nav>
         <p className="text-[11px] uppercase tracking-widest opacity-50 mb-6">
           {resultCount} answer{resultCount === 1 ? '' : 's'} {query ? 'matching' : 'available'}
         </p>
 
         {resultCount === 0 && (
           <div className="rounded-xl border border-white/10 p-6 text-sm opacity-80 mb-6">
-            Nothing matches “{query}”. Try a broader word — or ask the Assistant inside the app.
+            {query ? (
+              <>
+                Nothing matches “{query}”
+                {category !== ALL_CATEGORIES && <> in {category}</>}. Try a broader word
+                {category !== ALL_CATEGORIES && (
+                  <>
+                    , or tap <b className="opacity-100">All</b> to search every category
+                  </>
+                )}{' '}
+                — or ask the Assistant inside the app.
+              </>
+            ) : (
+              'No answers in this category yet.'
+            )}
           </div>
         )}
 
         <div className="space-y-8">
-          {filtered.map(category => (
-            <section key={category.title}>
-              <h2 className="text-[11px] font-black uppercase tracking-widest opacity-60 mb-3">{category.title}</h2>
+          {filtered.map(cat => (
+            <section key={cat.title}>
+              <h2 className="text-[11px] font-black uppercase tracking-widest opacity-60 mb-3">{cat.title}</h2>
               <div className="rounded-xl border border-white/10 divide-y divide-white/10 overflow-hidden">
-                {category.items.map(faq => {
-                  const key = category.title + '|' + faq.q;
+                {cat.items.map(faq => {
+                  const key = cat.title + '|' + faq.q;
                   const isOpen = openKey === key;
                   return (
                     <div key={key}>
