@@ -26,7 +26,10 @@ import {
   ArrowUpRight,
   RefreshCw,
   Coins,
-  CloudUpload as CloudUp
+  CloudUpload as CloudUp,
+  Download,
+  Share2,
+  X
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db, type SeedTransaction } from '../db/database';
@@ -39,6 +42,7 @@ import { MigrationService } from '../services/migrationService';
 import PageWrapper from '../components/home/PageWrapper';
 import { usePageTransition } from '../components/home/PageTransitionContext';
 import { useToast } from '../components/Toast';
+import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import { triggerHaptic, playAudio } from '../utils/hapticAudio';
 import {
   evaluateProfileBadges,
@@ -52,6 +56,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const { transitionTo } = usePageTransition();
   const { success, error } = useToast();
+  const { canInstall, standalone, isIOS, install } = useInstallPrompt();
   const userId = GameService.getUserId();
   // Set when the records below could not be created, so the loading guard can
   // say so instead of spinning forever.
@@ -109,6 +114,10 @@ export default function Profile() {
   const [audioEnabled, setAudioEnabled] = useState(() => parseSettingToggle(localStorage.getItem('botanical_audio_enabled'), true));
   const [hapticEnabled, setHapticEnabled] = useState(() => parseSettingToggle(localStorage.getItem('botanical_haptic_enabled'), true));
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => parseSettingToggle(localStorage.getItem('botanical_notifications_enabled'), true));
+
+  // The iOS install hint carries no browser event, so its dismissal is the
+  // only thing standing between the visitor and a permanent nag. Persisted.
+  const [dismissedInstall, setDismissedInstall] = useState(() => localStorage.getItem('phyto_install_hint_dismissed') === '1');
 
   // Upgrading feedback
   const [isUpgrading, setIsUpgrading] = useState(false);
@@ -1089,6 +1098,51 @@ export default function Profile() {
                     <span className="passport-toggle-nub" />
                   </button>
                 </div>
+
+                {/* Install the app. Chrome/Android give us a real install
+                    prompt; iOS Safari only offers the Share menu, so it gets
+                    the one-line hint instead. Hidden entirely when already
+                    running installed, or when the visitor dismissed the
+                    offer — nagging an installed user is noise. */}
+                {!standalone && !dismissedInstall && (canInstall || isIOS) && (
+                  <div className="mt-6 p-4 rounded-2xl border border-[#c5a059]/50 bg-[#c5a059]/10 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="w-10 h-10 rounded-xl bg-[#c5a059]/25 text-[#4d3714] dark:text-[#faebd7] flex items-center justify-center shrink-0">
+                        {canInstall ? <Download size={18} /> : <Share2 size={18} />}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-text-bark">Take the garden with you</p>
+                        <p className="text-xs text-text-stone leading-snug">
+                          {canInstall
+                            ? 'Install PhytoDoctor — full screen, home-screen icon, works offline.'
+                            : isIOS
+                              ? 'In Safari: tap Share, then "Add to Home Screen".'
+                              : null}
+                        </p>
+                      </div>
+                    </div>
+                    {canInstall ? (
+                      <button
+                        onClick={async () => {
+                          if (hapticEnabled) triggerHaptic('light');
+                          const outcome = await install();
+                          if (outcome === 'accepted') success('PhytoDoctor installed');
+                        }}
+                        className="shrink-0 min-h-[44px] px-4 rounded-xl bg-[#2e4a34] hover:bg-[#395c41] text-[#f4eee1] text-[10px] font-mono font-bold uppercase tracking-wider flex items-center"
+                      >
+                        Install
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => { setDismissedInstall(true); localStorage.setItem('phyto_install_hint_dismissed', '1'); }}
+                        aria-label="Dismiss install hint"
+                        className="shrink-0 w-11 h-11 flex items-center justify-center text-text-stone hover:text-text-bark"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {/* Sign Out Danger Zone */}
                 <div className="mt-6 pt-4 border-t border-[#d8ccb8] dark:border-[#382d22]">
