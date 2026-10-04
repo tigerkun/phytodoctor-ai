@@ -28,6 +28,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/database';
 import { GameService } from '../services/gameService';
+import { canSyncMarketLedger, pullServerLedger, pushServerLedger, resolveLedger } from '../services/marketLedgerSync';
 import EnhancedWalletDisplay from '../components/market/EnhancedWalletDisplay';
 import ProductFilters from '../components/market/ProductFilters';
 import CheckoutSummary from '../components/market/CheckoutSummary';
@@ -1657,6 +1658,36 @@ export default function GardenMarket() {
         setWishlist(row.wishlist ?? []);
         setCartItems((row.cart ?? []) as any[]);
       }
+      // Cross-device reconciliation, after the local side is settled: the
+      // server mirror may hold purchases made on another device, or this row
+      // may be the newer one and need pushing up. Last-writer-wins on the
+      // row's own updatedAt; every failure degrades to device-local, which is
+      // exactly what the pre-sync behaviour was.
+      if (canSyncMarketLedger(userId)) {
+        const serverRow = await pullServerLedger(userId);
+        if (cancelled) return;
+        const resolution = resolveLedger(row ?? null, serverRow);
+        if (resolution?.winner === 'server') {
+          const server = resolution.row;
+          await db.marketLedger.put({
+            ...server,
+            userId,
+            refunds: server.refunds ?? [],
+            claimedItemIds: server.claimedItemIds ?? [],
+            tickets: server.tickets ?? [],
+            wishlist: server.wishlist ?? [],
+            cart: server.cart ?? [],
+          });
+          setClaimedRefunds(server.refunds ?? []);
+          setClaimedItems(server.claimedItemIds ?? []);
+          setRedeemedTickets(server.tickets ?? []);
+          setWishlist(server.wishlist ?? []);
+          setCartItems((server.cart ?? []) as any[]);
+        } else if (row) {
+          void pushServerLedger(userId, row);
+        }
+      }
+      if (cancelled) return;
       setLedgerReadyFor(userId);
     })();
     return () => { cancelled = true; };
@@ -1666,9 +1697,10 @@ export default function GardenMarket() {
   // and this effect mirrors the whole ledger row after each change. Guarded
   // on ledgerReadyFor so the empty initial state cannot overwrite the row (or
   // the legacy import) before it has been read — for THIS user.
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (ledgerReadyFor !== userId) return;
-    void db.marketLedger.put({
+    const row: MarketLedgerRow = {
       userId,
       refunds: claimedRefunds,
       claimedItemIds: claimedItems,
@@ -1676,7 +1708,15 @@ export default function GardenMarket() {
       wishlist,
       cart: cartItems as Array<Record<string, unknown>>,
       updatedAt: Date.now(),
-    });
+    };
+    void db.marketLedger.put(row);
+    // Mirror to the server on a short trailing debounce: a basket tweak bursts
+    // several state writes, and none of them is urgent enough to need a POST
+    // each. A missed push self-heals — the next write pushes, and every visit
+    // reconciles against the mirror before anything is shown.
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => { void pushServerLedger(userId, row); }, 1500);
+    return () => { if (syncTimer.current) clearTimeout(syncTimer.current); };
   }, [ledgerReadyFor, userId, claimedRefunds, claimedItems, redeemedTickets, wishlist, cartItems]);
   // Filter + sort products. The 'drops' tab previously handed MOCK_PRODUCTS
   // straight to .sort()/.reverse(), which reorder the module-level array in

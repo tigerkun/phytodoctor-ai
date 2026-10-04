@@ -668,6 +668,10 @@ const OPTIONAL_TABLES = [
   // cap is per instance rather than shared, which is a cost problem, not an
   // outage -- so it is reported and never counted against readiness.
   'guest_scan_quota',
+  // Absent until sql/market_ledger.sql is run. Without it purchased market
+  // state stays device-local exactly as before the sync existed -- a feature
+  // that quietly does not turn on, not an outage.
+  'market_ledger',
 ] as const;
 
 const ALL_TABLES = [...REQUIRED_TABLES, ...OPTIONAL_TABLES] as const;
@@ -1645,6 +1649,65 @@ app.get("/api/market/requests", apiGate, async (req, res) => {
   } catch (err: any) {
     log.error('market requests list failed', { err });
     fail(res, 500, "Could not load the request board.");
+  }
+});
+
+// ── Market ledger: cross-device sync of purchased state ────────────────────
+//
+// The client's marketLedger row (punched tickets, claimed seed-refund codes,
+// basket, wishlist) is bought with seeds and used to be device-local. The
+// client reconciles: pull on visit, push after each change, last-writer-wins
+// on the row's own updatedAt. The server is a dumb, per-user mirror — it
+// never merges, because the resolution belongs where the clocks are.
+app.get("/api/market/ledger", apiGate, async (req, res) => {
+  try {
+    const userId = (req as any).authUserId;
+    if (!userId || !supabaseAdmin) return fail(res, 503, "Market service is temporarily unavailable.");
+    const { data, error } = await supabaseAdmin
+      .from('market_ledger')
+      .select('data')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) {
+      log.error('market ledger read failed', { err: error.message });
+      return fail(res, 500, "Could not load your market ledger.");
+    }
+    res.json({ ledger: data?.data ?? null });
+  } catch (err: any) {
+    log.error('market ledger read failed', { err });
+    fail(res, 500, "Could not load your market ledger.");
+  }
+});
+
+app.post("/api/market/ledger", express.json({ limit: '64kb' }), apiGate, async (req, res) => {
+  try {
+    const userId = (req as any).authUserId;
+    if (!userId || !supabaseAdmin) return fail(res, 503, "Market service is temporarily unavailable.");
+    const ledger = req.body?.ledger;
+    const updatedAt = req.body?.updatedAt;
+    if (typeof ledger !== 'object' || ledger === null || Array.isArray(ledger)) {
+      return fail(res, 400, "Malformed ledger.");
+    }
+    const fields = ['refunds', 'claimedItemIds', 'tickets', 'wishlist', 'cart'];
+    if (!fields.every((f) => Array.isArray(ledger[f]))) {
+      return fail(res, 400, "Malformed ledger.");
+    }
+    if (typeof updatedAt !== 'number' || !Number.isFinite(updatedAt)) {
+      return fail(res, 400, "Malformed ledger timestamp.");
+    }
+    const { error } = await supabaseAdmin
+      .from('market_ledger')
+      .upsert({ user_id: userId, data: { ...ledger, updatedAt }, updated_at: new Date().toISOString() }, {
+        onConflict: 'user_id'
+      });
+    if (error) {
+      log.error('market ledger write failed', { err: error.message });
+      return fail(res, 500, "Could not save your market ledger.");
+    }
+    res.json({ ok: true });
+  } catch (err: any) {
+    log.error('market ledger write failed', { err });
+    fail(res, 500, "Could not save your market ledger.");
   }
 });
 
