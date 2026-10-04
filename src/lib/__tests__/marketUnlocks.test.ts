@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { marketPrivilegesFor, nextMarketUnlock, seedPriceFor, voucherCostFor } from '../marketUnlocks';
 import { LEVEL_TIERS, VOUCHERS } from '../../game/REWARD_CONFIG';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readSource, stripJsComments } from '../../test/helpers';
 
 /**
  * The shop's side of the level ladder.
@@ -131,7 +130,7 @@ describe('seedPriceFor and voucherCostFor', () => {
 });
 
 describe('the vouchers are a single source of truth', () => {
-  const market = readFileSync(join(process.cwd(), 'src/pages/Market.tsx'), 'utf8');
+  const market = readSource('src/pages/Market.tsx');
 
   it('the market imports VOUCHERS rather than keeping its own copy', () => {
     expect(market).toContain("from '../game/REWARD_CONFIG'");
@@ -147,7 +146,7 @@ describe('the vouchers are a single source of truth', () => {
   });
 
   it('the rulebook and the shop render the same array', () => {
-    const rulebook = readFileSync(join(process.cwd(), 'src/components/game/RuleBook.tsx'), 'utf8');
+    const rulebook = readSource('src/components/game/RuleBook.tsx');
     expect(rulebook).toMatch(/VOUCHERS\.map/);
     expect(market).toMatch(/TICKETS_FOR_SALE/);
   });
@@ -171,11 +170,8 @@ describe('the vouchers are a single source of truth', () => {
 });
 
 describe('the market page acts on the privileges', () => {
-  function stripJsComments(source: string): string {
-    return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
-  }
-  const market = stripJsComments(readFileSync(join(process.cwd(), 'src/pages/Market.tsx'), 'utf8'));
-  const checkout = stripJsComments(readFileSync(join(process.cwd(), 'src/components/market/CheckoutSummary.tsx'), 'utf8'));
+  const market = stripJsComments(readSource('src/pages/Market.tsx'));
+  const checkout = stripJsComments(readSource('src/components/market/CheckoutSummary.tsx'));
 
   it('gates the stalls on the resolver, not a hardcoded level', () => {
     expect(market).toContain('marketPrivilegesFor(level)');

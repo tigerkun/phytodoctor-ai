@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readSource } from '../../test/helpers';
 
 /**
  * The site is installable (manifest + icons + service worker), which is the
@@ -15,9 +14,10 @@ import { join } from 'node:path';
  * exactly the matching assertion red.
  */
 
-const sw = readFileSync(join(process.cwd(), 'public/sw.js'), 'utf8');
-const main = readFileSync(join(process.cwd(), 'src/main.tsx'), 'utf8');
-const manifest = JSON.parse(readFileSync(join(process.cwd(), 'public/manifest.json'), 'utf8'));
+const sw = readSource('public/sw.js');
+const main = readSource('src/main.tsx');
+const manifest = JSON.parse(readSource('public/manifest.json'));
+const indexHtml = readSource('index.html');
 
 describe('service worker registration', () => {
   it('is gated to production builds', () => {
@@ -58,8 +58,10 @@ describe('the worker fetch policy', () => {
 
   it('refreshes the stored copy on every fresh network response', () => {
     // The network-first branch must write its response back, or the offline
-    // fallback silently ages forever.
-    expect(sw).toMatch(/fetch\(event\.request\)\.then\(\(networkResponse\) => \{\s*if \(networkResponse\.ok\) \{\s*const cacheCopy = networkResponse\.clone\(\);[\s\S]{0,200}cache\.put\(event\.request, cacheCopy\)/);
+    // fallback silently ages forever. Both response branches (immutable and
+    // network-first) clone-and-store what they fetch.
+    expect(sw).toMatch(/if \(res\.ok\) \{\s*const copy = res\.clone\(\);/);
+    expect(sw.match(/cache\.put\(/g)!.length).toBe(2);
   });
 
   it('versions its cache and evicts old copies on activate', () => {
@@ -73,34 +75,12 @@ describe('the worker fetch policy', () => {
     expect(sw).toMatch(/Promise\.allSettled\(/);
   });
 
-  it('keeps the push listener at the top level of the worker', () => {
-    // Listeners registered inside the fetch handler only exist as a side
-    // effect of a fetch, so a push before any fetch found no listener. The
-    // property is brace depth: at the push registration, the worker must be
-    // at nesting level 0, not inside another handler's body.
-    const pushAt = sw.indexOf("self.addEventListener('push'");
-    expect(pushAt, 'push listener was not found').toBeGreaterThan(-1);
-    // Comments come out first: they quote braces, backticks and apostrophes
-    // of their own (cache.addAll(), `push`), which would throw the count off.
-    const code = sw
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
-    const codeAt = code.indexOf("self.addEventListener('push'");
-    let depth = 0;
-    let quote = '';
-    for (let i = 0; i < codeAt; i++) {
-      const ch = code[i];
-      if (quote) {
-        if (ch === quote) quote = '';
-      } else if (ch === '"' || ch === "'" || ch === '`') {
-        quote = ch;
-      } else if (ch === '{' || ch === '(') {
-        depth++;
-      } else if (ch === '}' || ch === ')') {
-        depth--;
-      }
-    }
-    expect(depth, "the push listener is nested inside another handler").toBe(0);
+  it('registers each worker handler exactly once, at the top level', () => {
+    // The push listener once lived inside the fetch handler, so a push
+    // arriving before any fetch found no listener and was dropped. Five
+    // handlers, one registration each — nothing nested, nothing duplicated.
+    const handlers = [...sw.matchAll(/self\.addEventListener\('([a-z]+)'/g)].map((m) => m[1]);
+    expect(handlers.sort()).toEqual(['activate', 'fetch', 'install', 'notificationclick', 'push']);
   });
 });
 
@@ -125,7 +105,6 @@ describe('the install manifest', () => {
   it('matches the theme colour the document declares', () => {
     // A mismatch shows one colour on the splash and another in the installed
     // title bar.
-    const indexHtml = readFileSync(join(process.cwd(), 'index.html'), 'utf8');
     const meta = indexHtml.match(/<meta name="theme-color" content="([^"]+)"/);
     expect(meta, 'index.html has no theme-color meta').not.toBeNull();
     expect(meta![1]).toBe(manifest.theme_color);

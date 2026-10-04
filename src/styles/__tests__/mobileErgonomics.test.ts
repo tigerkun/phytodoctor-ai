@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import {
+  readSource,
+  stripJsComments,
+  classNameOf,
+  openingTags,
+  interactiveTagsOf,
+  tagAround,
+} from '../../test/helpers';
 
 /**
  * The interface was typeset for a desktop canvas and inherited unchanged to
@@ -8,35 +14,20 @@ import { join } from 'node:path';
  * 10px labels and five 12px paragraphs with nothing between 12px and 16px, and
  * the footer links came out 38px tall -- under the 44px touch minimum.
  *
- * The floor lives in CSS rather than at the several hundred call sites that use
- * these sizes. That makes it invisible to review, so these tests pin it: a
- * well-meaning tidy-up that deletes the media query would otherwise put the
- * whole app back to unreadable type on phones without turning anything red.
+ * The fixes live in CSS and at a handful of call sites rather than at the
+ * several hundred places that use these sizes. That makes them invisible to
+ * review, so these tests pin them: a well-meaning tidy-up that deletes the
+ * media query or shrinks a control would otherwise put the whole app back
+ * without turning anything red.
  */
 
-const indexCss = readFileSync(join(process.cwd(), 'src/index.css'), 'utf8');
-const skinsCss = readFileSync(join(process.cwd(), 'src/styles/page-skins.css'), 'utf8');
-
-/** Comments are stripped before anything else, in both languages. Several
- *  places here are commented with the measurement that motivated them, and those
- *  comments quote the very class names, props and pixel sizes the assertions
- *  look for -- so a test that reads raw source matches its own explanation as a
- *  violation. JSX uses `{/* ... *\/}` for the same reason; those are block
- *  comments and have to go too, or a tag search lands inside one. */
-function stripCssComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '');
-}
-
-/** Line comments only, and a `//` directly after a `:` is left alone so that a
- *  URL inside a string literal does not truncate the line. */
-function stripJsComments(source: string): string {
-  return stripCssComments(source).replace(/(^|[^:])\/\/[^\n]*/g, '$1');
-}
+const indexCss = readSource('src/index.css');
+const skinsCss = readSource('src/styles/page-skins.css');
 
 /** The whole phone media query, brace-matched. Slicing to the first `}` would
  *  cut the block off after a single rule and quietly pass the rest. */
 function phoneBlock(css: string): string {
-  const clean = stripCssComments(css);
+  const clean = stripJsComments(css);
   const start = clean.indexOf('@media (max-width: 480px)');
   expect(start, 'expected a phone-width media query').toBeGreaterThan(-1);
   let depth = 0;
@@ -113,7 +104,7 @@ describe('the phone type floor', () => {
 });
 
 describe('phone motion', () => {
-  const home = stripJsComments(readFileSync(join(process.cwd(), 'src/pages/Home.tsx'), 'utf8'));
+  const home = stripJsComments(readSource('src/pages/Home.tsx'));
 
   it('reads the landing page it means to check', () => {
     expect(home.length).toBeGreaterThan(1000);
@@ -157,9 +148,7 @@ describe('phone motion', () => {
 
   it('gates the below-fold cards on scroll arriving', () => {
     // These cards sit ~950px down, below the fold on any phone, so they should
-    // reveal when scrolled to rather than the instant they mount. This was
-    // previously asserted the other way round, as a documented dead end: see
-    // `does not suppress the initial state of every page below it`.
+    // reveal when scrolled to rather than the instant they mount.
     const card = cardBlock();
     expect(card, 'the feature cards lost their scroll reveal').toContain('whileInView');
     expect(card, 'the reveal should fire once, not on every pass')
@@ -168,7 +157,7 @@ describe('phone motion', () => {
 });
 
 describe('the route wrapper', () => {
-  const app = stripJsComments(readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8'));
+  const app = stripJsComments(readSource('src/App.tsx'));
 
   it('does not suppress the initial state of every page below it', () => {
     // This was `<AnimatePresence initial={false} ...>`, which reads like "don't
@@ -198,77 +187,15 @@ describe('the route wrapper', () => {
 });
 
 describe('Lab tap targets', () => {
-  const lab = stripJsComments(readFileSync(join(process.cwd(), 'src/pages/BotanicalLab.tsx'), 'utf8'));
-
-  /** Every `<button ...>` opening tag in the file, tag end included.
-   *
-   *  A naive `/<button\b[\s\S]*?>/` stops at the first `>`, which inside
-   *  `onClick={(e) => {` is the arrow -- so every button with an inline handler
-   *  and a template-literal className came back as a tag that contained no
-   *  className at all, and the sweep below silently skipped them. Mutation
-   *  testing is what turned that up: shrinking the magnification selectors
-   *  failed the named test but sailed through the sweep.
-   *
-   *  So this tracks brace and paren depth, skips string literals (one class
-   *  name is a template literal containing `${...}`), and reads the `>` of an
-   *  `=>` as an arrow rather than the end of the tag. */
-  function buttonTags(): { start: number; tag: string }[] {
-    const tags: { start: number; tag: string }[] = [];
-    for (let at = lab.indexOf('<button'); at !== -1; at = lab.indexOf('<button', at + 1)) {
-      let depth = 0;
-      let quote = '';
-      for (let i = at; i < lab.length; i++) {
-        const ch = lab[i];
-        if (quote) {
-          if (ch === quote) quote = '';
-        } else if (ch === '"' || ch === "'" || ch === '`') {
-          quote = ch;
-        } else if (ch === '{' || ch === '(') {
-          depth++;
-        } else if (ch === '}' || ch === ')') {
-          depth--;
-        } else if (ch === '>' && depth === 0 && lab[i - 1] !== '=') {
-          tags.push({ start: at, tag: lab.slice(at, i + 1) });
-          break;
-        }
-      }
-    }
-    return tags;
-  }
-
-  /** The class name written on a button tag, with any `${...}` interpolation
-   *  removed so a conditional class does not hide the static half. */
-  function classNameOf(tag: string): string {
-    const found = tag.match(/className=(?:"([^"]*)"|\{`([\s\S]*?)`\}|\{'([^']*)'\})/);
-    return (found?.[1] ?? found?.[2] ?? found?.[3] ?? '').replace(/\$\{[^}]*\}/g, '');
-  }
-
-  /** The opening `<button ...>` tag that owns `marker`. Ownership is "the last
-   *  `<button` before the marker", which also holds when the marker is the
-   *  button's own label and therefore sits *after* the tag closes. */
-  function buttonTagAround(marker: string): string {
-    const at = lab.indexOf(marker);
-    expect(at, `"${marker}" was not found in BotanicalLab.tsx`).toBeGreaterThan(-1);
-    const open = lab.lastIndexOf('<button', at);
-    // Without this the lookup below reports a missing tag instead of the real
-    // problem, which is a marker that matched an import statement.
-    expect(open, `"${marker}" matched outside any <button>`).toBeGreaterThan(-1);
-    const owner = buttonTags().find((t) => t.start === open);
-    if (!owner) throw new Error(`unterminated <button> tag opened at ${open}`);
-    return owner.tag;
-  }
-
-  // Plain text, not a pattern: in JSX a class name is a bare string, so the
-  // square brackets are literal here and need no escaping.
+  const lab = stripJsComments(readSource('src/pages/BotanicalLab.tsx'));
   const MIN_44 = 'min-h-[44px]';
 
   it('finds each control by its own markup', () => {
-    // Guards the slicing above. If a marker stopped existing, or the scan
-    // stopped early, these would quietly become assertions about a tag with no
-    // className on it.
-    expect(buttonTagAround('← Back to the Estate')).toContain('className');
-    expect(buttonTagAround('Sign up free')).toContain('className');
-    expect(buttonTagAround('setMagnification(mag)')).toContain('className');
+    // Guards the slicing in tagAround. If a marker stopped existing, the
+    // assertions below would quietly become assertions about the wrong tag.
+    expect(tagAround(lab, '← Back to the Estate')).toContain('className');
+    expect(tagAround(lab, 'Sign up free')).toContain('className');
+    expect(tagAround(lab, 'setMagnification(mag)')).toContain('className');
   });
 
   it.each([
@@ -280,14 +207,15 @@ describe('Lab tap targets', () => {
     // which is a 16.5px line box, so `py-2` tops out around 32.5px -- and the
     // back control measured 17px before this, on the only way out of the page
     // for a signed-out visitor. The height has to be asked for explicitly.
-    expect(buttonTagAround(marker)).toContain(MIN_44);
+    expect(tagAround(lab, marker)).toContain(MIN_44);
   });
 
   it('sets no Lab control height below the touch minimum', () => {
     // The general form of the rule, so the next `min-h-[40px]` added around
     // here turns the suite red instead of shipping another small target.
-    const tooSmall = [...lab.matchAll(/min-h-\[(\d+)px\]/g)]
-      .map((m) => m[0])
+    const tooSmall = openingTags(lab)
+      .map((t) => classNameOf(t.tag))
+      .flatMap((cls) => [...cls.matchAll(/min-h-\[(\d+)px\]/g)].map((m) => m[0]))
       .filter((declared) => Number(declared.match(/\d+/)![0]) < 44);
     expect(tooSmall, `under-sized Lab controls: ${tooSmall.join(', ')}`).toEqual([]);
   });
@@ -303,7 +231,7 @@ describe('Lab tap targets', () => {
     // icon button sized by `w-* h-*` is already explicit, and the field
     // selectors use a conditional class, so the interpolated part is removed
     // before matching rather than pattern-matched around.
-    const undersized = buttonTags()
+    const undersized = openingTags(lab)
       .filter((t) => /\bpy-|\bmin-h-|\bh-/.test(t.tag))
       .map((t) => classNameOf(t.tag))
       .filter((cls) => cls.trim().length > 0 && !cls.includes(MIN_44));
@@ -314,40 +242,15 @@ describe('Lab tap targets', () => {
 });
 
 describe('market tap targets', () => {
-  const market = stripJsComments(readFileSync(join(process.cwd(), 'src/pages/Market.tsx'), 'utf8'));
+  const market = stripJsComments(readSource('src/pages/Market.tsx'));
   const MIN_44 = 'min-h-[44px]';
-
-  // The `buttonTagAround` shape from the Lab describe, pointed at Market.tsx.
-  function marketButtonTagAround(marker: string): string {
-    const at = market.indexOf(marker);
-    expect(at, `"${marker}" was not found in Market.tsx`).toBeGreaterThan(-1);
-    const open = market.lastIndexOf('<button', at);
-    expect(open, `"${marker}" matched outside any <button>`).toBeGreaterThan(-1);
-    let depth = 0;
-    let quote = '';
-    for (let i = open; i < market.length; i++) {
-      const ch = market[i];
-      if (quote) {
-        if (ch === quote) quote = '';
-      } else if (ch === '"' || ch === "'" || ch === '`') {
-        quote = ch;
-      } else if (ch === '{' || ch === '(') {
-        depth++;
-      } else if (ch === '}' || ch === ')') {
-        depth--;
-      } else if (ch === '>' && depth === 0 && market[i - 1] !== '=') {
-        return market.slice(open, i + 1);
-      }
-    }
-    throw new Error(`unterminated <button> tag for "${marker}"`);
-  }
 
   it('gives the pin-crate button a real touch area', () => {
     // Pinning is a primary card action, and the button measured 32x32 at
     // 390px -- 12px under the touch minimum, on every card of every stall.
     // It is sized by h-11/w-11 rather than min-h because it is absolutely
     // positioned over the image and must be exactly the box it declares.
-    const tag = marketButtonTagAround("aria-label={wished ? 'Unpin crate' : 'Pin crate'}");
+    const tag = tagAround(market, "aria-label={wished ? 'Unpin crate' : 'Pin crate'}");
     expect(tag).toMatch(/\bh-11\b/);
     expect(tag).toMatch(/\bw-11\b/);
   });
@@ -356,21 +259,16 @@ describe('market tap targets', () => {
     // The dots used to be the animated elements themselves -- 8px-tall
     // buttons, unpickable with a thumb. The animation now lives on an inner
     // span and the button is the hit area.
+    const tag = tagAround(market, 'Go to stall slide');
+    expect(tag).toContain(MIN_44);
     const at = market.indexOf('Go to stall slide');
-    expect(at, 'the dot aria-label was not found').toBeGreaterThan(-1);
-    const open = market.lastIndexOf('<button', at);
-    const close = market.indexOf('</button>', open);
-    const block = market.slice(open, close);
-    expect(block).toContain(MIN_44);
-    expect(block).toMatch(/<motion\.span/);
+    expect(market.slice(at, market.indexOf('</button>', at))).toMatch(/<motion\.span/);
   });
 
   it('keeps the digital goods buttons at the touch minimum', () => {
     // Both buy and equip measured 40px, four under.
-    const buy = marketButtonTagAround("'Buy with seeds'");
-    const equip = marketButtonTagAround("'Equip'");
-    expect(buy).toContain(MIN_44);
-    expect(equip).toContain(MIN_44);
+    expect(tagAround(market, "'Buy with seeds'")).toContain(MIN_44);
+    expect(tagAround(market, "'Equip'")).toContain(MIN_44);
   });
 
   it('raises the bazaar kicker on phones, which the utility floor cannot reach', () => {
@@ -395,41 +293,7 @@ describe('app-wide tap targets', () => {
     'src/pages/Privacy.tsx',
   ];
 
-  const sources = Object.fromEntries(SWEPT_PAGES.map((p) => [
-    p,
-    stripJsComments(readFileSync(join(process.cwd(), p), 'utf8')),
-  ]));
-
-  /** The class name of every `<button ...>` / `<a ...>` opening tag, using the
-   *  same depth-aware scan as the Lab describe below: a naive regex stops at
-   *  the `>` inside `onClick={(e) => {` and returns a tag with no className. */
-  function interactiveTagsOf(source: string): string[] {
-    const out: string[] = [];
-    for (const name of ['<button', '<a ']) {
-      for (let at = source.indexOf(name); at !== -1; at = source.indexOf(name, at + 1)) {
-        let depth = 0;
-        let quote = '';
-        for (let i = at; i < source.length; i++) {
-          const ch = source[i];
-          if (quote) {
-            if (ch === quote) quote = '';
-          } else if (ch === '"' || ch === "'" || ch === '`') {
-            quote = ch;
-          } else if (ch === '{' || ch === '(') {
-            depth++;
-          } else if (ch === '}' || ch === ')') {
-            depth--;
-          } else if (ch === '>' && depth === 0 && source[i - 1] !== '=') {
-            const tag = source.slice(at, i + 1);
-            const cls = tag.match(/className=(?:"([^"]*)"|\{`([\s\S]*?)`\}|\{'([^']*)'\})/);
-            out.push((cls?.[1] ?? cls?.[2] ?? cls?.[3] ?? '').replace(/\$\{[^}]*\}/g, ''));
-            break;
-          }
-        }
-      }
-    }
-    return out;
-  }
+  const sources = Object.fromEntries(SWEPT_PAGES.map((p) => [p, stripJsComments(readSource(p))]));
 
   it('every swept page is free of explicit minimums under 44px', () => {
     // The audit found min-h-[40px] controls on Profile, Library (via its
@@ -440,8 +304,8 @@ describe('app-wide tap targets', () => {
     // row with `min-h-[28px]` on a div, which is spacing, not a touch target.
     for (const [path, src] of Object.entries(sources)) {
       const small = interactiveTagsOf(src)
-        .map((cls) => [...cls.matchAll(/min-h-\[(\d+)px\]/g)].map((m) => m[0]))
-        .flat()
+        .map((t) => classNameOf(t.tag))
+        .flatMap((cls) => [...cls.matchAll(/min-h-\[(\d+)px\]/g)].map((m) => m[0]))
         .filter((declared) => Number(declared.match(/\d+/)![0]) < 44);
       expect(small, `${path} declares under-sized minimums: ${small.join(', ')}`).toEqual([]);
     }
@@ -451,31 +315,21 @@ describe('app-wide tap targets', () => {
     // They are the only way back from the dispensary and measured 16px tall.
     const clinic = sources['src/pages/Clinic.tsx'];
     for (const label of ['Command Center</Link>', 'Botanical Lab</Link>']) {
-      const at = clinic.indexOf(label);
-      expect(at, `${label} not found`).toBeGreaterThan(-1);
-      const open = clinic.lastIndexOf('<Link', at);
-      expect(clinic.slice(open, at)).toContain('min-h-[44px]');
+      expect(tagAround(clinic, label, ['<Link'])).toContain('min-h-[44px]');
     }
   });
 
   it('keeps the Privacy policy link a real target', () => {
     // An inline link inside a paragraph measured 18px tall; min-h makes the
     // box 44px and the negative margin keeps the paragraph line intact.
-    const privacy = sources['src/pages/Privacy.tsx'];
-    const at = privacy.indexOf("supabase.com/privacy");
-    const open = privacy.lastIndexOf('<a', at);
-    const close = privacy.indexOf('</a>', at);
-    const tag = privacy.slice(open, close);
+    const tag = tagAround(sources['src/pages/Privacy.tsx'], 'supabase.com/privacy', ['<a']);
     expect(tag).toContain('min-h-[44px]');
     expect(tag).toContain('-my-3');
   });
 
   it('keeps the Library record link a real target', () => {
     const library = sources['src/pages/Library.tsx'];
-    const at = library.indexOf('Open Record');
-    expect(at, 'Open Record not found').toBeGreaterThan(-1);
-    const open = library.lastIndexOf('<a', at);
-    expect(library.slice(open, at)).toContain('min-h-[44px]');
+    expect(tagAround(library, 'Open Record', ['<a'])).toContain('min-h-[44px]');
   });
 
   it('the passport toggles keep their invisible 44px hit area', () => {
@@ -487,9 +341,7 @@ describe('app-wide tap targets', () => {
 
   it('the Assistant mic key is a 44px box, not a 32px one', () => {
     const assistant = sources['src/pages/Assistant.tsx'];
-    const at = assistant.indexOf('telegraph-key-mic');
-    expect(at, 'mic key not found').toBeGreaterThan(-1);
-    const open = assistant.lastIndexOf('<button', at);
-    expect(assistant.slice(open, at)).toMatch(/\bw-11 h-11\b/);
+    const tag = tagAround(assistant, 'telegraph-key-mic');
+    expect(tag).toMatch(/\bw-11 h-11\b/);
   });
 });

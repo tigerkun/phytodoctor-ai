@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readSource, stripJsComments } from '../../test/helpers';
 
 /**
  * The market's purchased state — punched tickets, claimed refunds, basket,
@@ -20,13 +19,9 @@ import { join } from 'node:path';
  * behaviour turns exactly the matching assertion red.
  */
 
-function stripJsComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
-}
-
-const dbSource = stripJsComments(readFileSync(join(process.cwd(), 'src/db/database.ts'), 'utf8'));
-const typesSource = stripJsComments(readFileSync(join(process.cwd(), 'src/types.ts'), 'utf8'));
-const market = stripJsComments(readFileSync(join(process.cwd(), 'src/pages/Market.tsx'), 'utf8'));
+const dbSource = stripJsComments(readSource('src/db/database.ts'));
+const typesSource = stripJsComments(readSource('src/types.ts'));
+const market = stripJsComments(readSource('src/pages/Market.tsx'));
 
 const LEGACY_KEYS = ['phyto_stall_cart', 'phyto_stall_wish', 'phyto_stall_tickets', 'phyto_stall_refunds'];
 
