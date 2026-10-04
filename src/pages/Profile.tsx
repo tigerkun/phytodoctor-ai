@@ -52,6 +52,18 @@ import {
   parseSettingToggle
 } from '../services/profileUtils';
 
+export type ProfileFolio = 'passport' | 'mastery' | 'badges' | 'treasury' | 'settings';
+
+/** The five parts of the passport, in the order they appear in the document.
+ *  Exported so the phone tab bar and its test cannot drift apart. */
+export const PROFILE_FOLIOS: ReadonlyArray<{ id: ProfileFolio; label: string }> = [
+  { id: 'passport', label: 'Passport' },
+  { id: 'mastery', label: 'Mastery' },
+  { id: 'badges', label: 'Badges' },
+  { id: 'treasury', label: 'Treasury' },
+  { id: 'settings', label: 'Settings' },
+];
+
 export default function Profile() {
   const navigate = useNavigate();
   const { transitionTo } = usePageTransition();
@@ -109,6 +121,14 @@ export default function Profile() {
 
   // Folio 3 dual ledger view: Seed ledger vs Check-in visas
   const [ledgerTab, setLedgerTab] = useState<'seeds' | 'checkins'>('seeds');
+
+  // Which part of the passport is open on a phone. Measured at 390px the whole
+  // page is one flat 4849px scroll — 5.7 screens — with the level and seed
+  // totals two screens down and settings four and a half down, so reaching any
+  // one part meant scrolling past the other four. At lg the two-column booklet
+  // layout already puts everything within reach, so the tab bar is phone-only
+  // and the desktop arrangement is untouched.
+  const [folio, setFolio] = useState<ProfileFolio>('passport');
 
   // Hardware and notification settings
   const [audioEnabled, setAudioEnabled] = useState(() => parseSettingToggle(localStorage.getItem('botanical_audio_enabled'), true));
@@ -406,11 +426,30 @@ export default function Profile() {
           </div>
         </header>
 
+        {/* ── PHONE FOLIO NAV ──
+            Hidden from lg up, where the two-column booklet layout below already
+            shows every folio at once. Reuses bazaar-tab so the tab bar keeps the
+            same 44px touch target and the same look as the Market tabs. */}
+        <nav aria-label="Passport sections" className="lg:hidden -mx-4 mb-6 px-4">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {PROFILE_FOLIOS.map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => setFolio(id)}
+                aria-current={folio === id ? 'page' : undefined}
+                className={`bazaar-tab ${folio === id ? 'is-on' : ''}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </nav>
+
         {/* ── MAIN TWO-COLUMN PASSPORT LAYOUT ── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
 
           {/* ════════ LEFT COLUMN: THE GUILD PASSPORT BOOKLET COVER (5 COLS) ════════ */}
-          <div className="lg:col-span-5 space-y-8">
+          <div className={`lg:col-span-5 ${folio === 'passport' ? 'space-y-8' : 'hidden lg:block'}`}>
             <motion.div
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
@@ -726,10 +765,13 @@ export default function Profile() {
           </div>
 
           {/* ════════ RIGHT COLUMN: VISA PAGES & FELLOWSHIP FOLIOS (7 COLS) ════════ */}
-          <div className="lg:col-span-7 space-y-8">
+          {/* space-y-8 only from lg up: on a phone four of the five folios are
+              display:none, and space-y would still apply margin-top to those
+              hidden siblings, opening a gap above the one that is showing. */}
+          <div className="lg:col-span-7 space-y-0 lg:space-y-8">
 
             {/* ── FOLIO 1: LEVEL ACCREDITATION & CANOPY VIGILANCE ── */}
-            <section className="passport-visa-folio rounded-3xl p-6 sm:p-8 relative">
+            <section className={`passport-visa-folio rounded-3xl p-6 sm:p-8 relative ${folio === 'mastery' ? '' : 'hidden lg:block'}`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6 pb-3 border-b border-[#c5a059]/30">
                 <div>
                   <span className="text-[9px] font-mono uppercase tracking-[0.25em] text-[#8c7355] dark:text-[#baa07c]">
@@ -833,7 +875,7 @@ export default function Profile() {
             </section>
 
             {/* ── FOLIO 2: CONSULAR DISTINCTIONS & GUILD SEALS (BADGES) ── */}
-            <section className="passport-visa-folio rounded-3xl p-6 sm:p-8 relative">
+            <section className={`passport-visa-folio rounded-3xl p-6 sm:p-8 relative ${folio === 'badges' ? '' : 'hidden lg:block'}`}>
               <div className="flex items-center justify-between mb-6 pb-3 border-b border-[#c5a059]/30">
                 <div>
                   <span className="text-[9px] font-mono uppercase tracking-[0.25em] text-[#8c7355] dark:text-[#baa07c]">
@@ -856,7 +898,7 @@ export default function Profile() {
             </section>
 
             {/* ── FOLIO 3: SEED TREASURY & DIURNAL CHECK-IN VISAS ── */}
-            <section className="passport-visa-folio rounded-3xl p-6 sm:p-8 relative">
+            <section className={`passport-visa-folio rounded-3xl p-6 sm:p-8 relative ${folio === 'treasury' ? '' : 'hidden lg:block'}`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-3 border-b border-[#c5a059]/30">
                 <div>
                   <span className="text-[9px] font-mono uppercase tracking-[0.25em] text-[#8c7355] dark:text-[#baa07c]">
@@ -1014,7 +1056,7 @@ export default function Profile() {
             </section>
 
             {/* ── FOLIO 4: FIELD INSTRUMENTS & DISPATCH SETTINGS ── */}
-            <section className="passport-visa-folio rounded-3xl p-6 sm:p-8 relative">
+            <section className={`passport-visa-folio rounded-3xl p-6 sm:p-8 relative ${folio === 'settings' ? '' : 'hidden lg:block'}`}>
               <div className="flex items-center justify-between mb-6 pb-3 border-b border-[#c5a059]/30">
                 <div>
                   <span className="text-[9px] font-mono uppercase tracking-[0.25em] text-[#8c7355] dark:text-[#baa07c]">
