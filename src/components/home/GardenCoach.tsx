@@ -31,6 +31,17 @@ interface DynamicPlan {
   steps: { text: string; done: boolean }[];
 }
 
+/** The four dispatches, in the order they appear in the grid.
+ *  Exported so the phone folio bar and its test cannot drift apart. */
+export const DISPATCH_FOLIOS: ReadonlyArray<{ id: DispatchFolio; label: string }> = [
+  { id: 'plan', label: 'Plan' },
+  { id: 'apothecary', label: 'Apothecary' },
+  { id: 'forecast', label: 'Forecast' },
+  { id: 'lore', label: 'Lore' }
+];
+
+export type DispatchFolio = 'plan' | 'apothecary' | 'forecast' | 'lore';
+
 const getDynamicPlan = (plant: any): DynamicPlan => {
   const name = plant?.nickname || plant?.name || 'your plant';
   const species = (plant?.species || '').toLowerCase();
@@ -118,6 +129,12 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
 
   // Card 4: Trivia state
   const [triviaIdx, setTriviaIdx] = useState(0);
+
+  // On a phone these four dispatches stacked to 1312px — 1.5 screens — with the
+  // treatment plan, the shop, the forecast and a trivia line all reading as one
+  // undifferentiated column. A phone shows one at a time; the grid takes over
+  // from `lg` up, where there is room for all four.
+  const [folio, setFolio] = useState<DispatchFolio>('plan');
 
   // Handle single checkbox toggle
   const handleStepToggle = async (index: number) => {
@@ -207,13 +224,30 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
           </p>
         </div>
 
-        {/* Horizontal Snapping Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          
+        <nav aria-label="Head gardener's dispatches" className="lg:hidden mb-5">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {DISPATCH_FOLIOS.map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => setFolio(id)}
+                aria-current={folio === id ? 'page' : undefined}
+                className={`bazaar-tab shrink-0 ${folio === id ? 'is-on' : ''}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </nav>
+
+        {/* Horizontal Snapping Cards Grid — one column until the folio bar hands
+            over to the grid at `lg`. A two-column grid from `md` up would put
+            the single visible card beside an empty cell all the way to 1024px. */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
           {/* Card 1: Treatment Suggestions */}
           <motion.div
             whileHover={!shouldDisableAnimations ? { y: -4 } : {}}
-            className="p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between shadow-xs"
+            className={`p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between shadow-xs ${folio === 'plan' ? '' : 'hidden lg:flex'}`}
           >
             <div>
               <div className="flex items-center justify-between mb-4">
@@ -265,7 +299,7 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
           <motion.div
             whileHover={!shouldDisableAnimations ? { y: -4, scale: 1.01 } : {}}
             onClick={() => transitionTo('/market', 'Garden Market')}
-            className="p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between cursor-pointer relative overflow-hidden group shadow-xs hover:shadow-md"
+            className={`p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between cursor-pointer relative overflow-hidden group shadow-xs hover:shadow-md ${folio === 'apothecary' ? '' : 'hidden lg:flex'}`}
           >
             {/* Shimmer Border Overlay */}
             {!shouldDisableAnimations && (
@@ -324,7 +358,7 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
           {/* Card 3: Climate-Based Care */}
           <motion.div
             whileHover={!shouldDisableAnimations ? { y: -4 } : {}}
-            className="p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between shadow-xs"
+            className={`p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between shadow-xs ${folio === 'forecast' ? '' : 'hidden lg:flex'}`}
           >
             <div>
               <div className="flex items-center justify-between mb-4">
@@ -374,7 +408,7 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
           <motion.div
             whileHover={!shouldDisableAnimations ? { y: -4 } : {}}
             onClick={rotateTrivia}
-            className="p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between cursor-pointer group shadow-xs"
+            className={`p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between cursor-pointer group shadow-xs ${folio === 'lore' ? '' : 'hidden lg:flex'}`}
           >
             <div>
               <Lightbulb size={20} className="mb-4 text-moss" strokeWidth={1.75} aria-hidden="true" />
