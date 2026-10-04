@@ -21,7 +21,8 @@ import {
   Lock,
   Flame,
   Ear,
-  TreePine
+  TreePine,
+  ChevronDown
 } from 'lucide-react';
 import { getPlantPhoto } from '../utils/plantImage';
 import { GameService } from '../services/gameService';
@@ -667,6 +668,12 @@ function seededShuffle(indices: number[], seed: number): number[] {
 export default function Library() {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<'All' | 'Species Profile' | 'Pathology' | 'Pest'>('All');
+  // Measured at 390px the 16 folio plates rendered fully open — about 550px each
+  // in a single 358px column — for a 10014px page, 11.8 phone screens, with the
+  // search box and filters 3 screens above the last plate. One plate at a time
+  // turns the page into a scannable list, the same accordion the Help centre
+  // already uses, so the two read alike.
+  const [openPlate, setOpenPlate] = useState<string | null>(null);
   const dayNumber = getDayNumber();
   // Today's draws — stable all day, completely different tomorrow.
   const todaysQuizOrder = useMemo(() => seededShuffle(DAILY_QUIZZES.map((_, i) => i), dayNumber), [dayNumber]);
@@ -1301,15 +1308,17 @@ export default function Library() {
           >
             {filtered.map((disease, i) => {
               const isDailyFeatured = disease.name === dailyFeaturedSpecimen.name;
+              const key = `${disease.name}-${i}`;
+              const isOpen = openPlate === key;
               return (
                 <motion.div
-                  key={`${disease.name}-${i}`}
+                  key={key}
                   variants={cardVariants}
                   className="
                     relative
                     antique-folio-plate
                     flex flex-col
-                    h-full
+                    self-start
                     transition-all duration-300
                     hover:-translate-y-1.5
                   "
@@ -1329,21 +1338,73 @@ export default function Library() {
                     <span>{disease.type}</span>
                   </div>
 
+                  {/* Plate header — the tap target. Carries the identifying facts
+                      (name, Latin name, severity, organ) so a closed plate is
+                      still worth reading in a list; the photograph and the
+                      clinical detail live behind it. */}
+                  <button
+                    onClick={() => setOpenPlate(k => (k === key ? null : key))}
+                    aria-expanded={isOpen}
+                    className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] transition-colors"
+                  >
+                    <div className="card-media-frame w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-bg-secondary border border-[#8c7355]/20">
+                      <img
+                        src={disease.image || getPlantPhoto(null, disease.name)}
+                        alt=""
+                        width={112}
+                        height={112}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.opacity = '0';
+                        }}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-serif text-base sm:text-lg font-bold text-text-bark leading-tight truncate">
+                        {disease.name}
+                      </h3>
+                      <p className="text-[10px] uppercase font-mono tracking-widest text-moss/90 mt-0.5 truncate">
+                        {disease.scientific}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className="px-2 py-0.5 bg-black/5 dark:bg-white/5 text-text-bark text-[8px] font-mono font-bold uppercase tracking-wider rounded whitespace-nowrap flex-shrink-0 border border-[#8c7355]/30">
+                          {disease.severity}
+                        </span>
+                        <span className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider text-text-muted">
+                          {organIcons[disease.organ] ?? <Sprout className="text-moss" size={11} />}
+                          {disease.organ}
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronDown
+                      size={18}
+                      className={`shrink-0 opacity-60 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+
+                  {/* Severity Pulse line */}
+                  <div
+                    className="h-[3px] w-full"
+                    style={{
+                      backgroundColor: severityStripColor[disease.severity] ?? 'var(--moss)',
+                    }}
+                  />
+
+                  {isOpen && (
+                  <>
                   {/* Image Header */}
                   <div className="card-media-frame w-full h-44 relative overflow-hidden bg-bg-secondary border-b border-[#8c7355]/20">
-                    <img 
+                    <img
                       src={disease.image || getPlantPhoto(null, disease.name)}
                       alt={`${disease.name} — botanical specimen`}
                       width={600}
                       height={450}
-                      loading="lazy"
                       decoding="async"
-                      className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
-                      onError={(e) => {
-                        e.currentTarget.style.opacity = '0';
-                      }}
+                      className="w-full h-full object-cover"
                     />
-                    
+
                     {/* target badge */}
                     <div className="absolute top-3 left-3 flex items-center gap-1.5
                       px-2.5 py-1.5 bg-bg-glass/95 backdrop-blur-sm rounded-md
@@ -1355,39 +1416,8 @@ export default function Library() {
                     </div>
                   </div>
 
-                  {/* Severity Pulse line */}
-                  <div
-                    className="h-[3px] w-full"
-                    style={{
-                      backgroundColor: severityStripColor[disease.severity] ?? 'var(--moss)',
-                    }}
-                  />
-
-                  {/* Body Content */}
-                  <div className="p-5 flex-grow flex flex-col justify-between space-y-4">
-                    <div className="flex justify-between items-start gap-3">
-                      <div className="min-w-0">
-                        <h3 className="font-serif text-base sm:text-lg font-bold text-text-bark leading-tight truncate">
-                          {disease.name}
-                        </h3>
-                        <p className="text-[10px] uppercase font-mono tracking-widest text-moss/90 mt-0.5 truncate">
-                          {disease.scientific}
-                        </p>
-                      </div>
-                      <div
-                        className="
-                          px-2 py-0.5
-                          bg-black/5 dark:bg-white/5
-                          text-text-bark
-                          text-[8px] font-mono font-bold uppercase tracking-wider
-                          rounded whitespace-nowrap flex-shrink-0 border border-[#8c7355]/30
-                        "
-                      >
-                        {disease.severity}
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 flex-grow">
+                  {/* Clinical detail */}
+                  <div className="p-5 space-y-3">
                       <div className="p-3.5 bg-black/[0.03] dark:bg-white/[0.03] rounded-lg space-y-2.5 border border-[#8c7355]/20">
                         <div>
                           <h5 className="text-[8px] font-mono font-bold uppercase tracking-widest text-text-muted mb-1">
@@ -1407,8 +1437,9 @@ export default function Library() {
                           </p>
                         </div>
                       </div>
-                    </div>
                   </div>
+                  </>
+                  )}
 
                   {/* Evidence grade footer */}
                   <div
