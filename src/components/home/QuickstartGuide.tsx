@@ -15,6 +15,20 @@ export function QuickstartGuide({ onAddPlant, onRefreshProfile }: QuickstartGuid
   const { transitionTo } = usePageTransition();
   const [claimedBonus, setClaimedBonus] = useState(() => localStorage.getItem('claimed_starter_bonus') === 'true');
   const [activeTab, setActiveTab] = useState<number>(0);
+  // This manual took 1351px — 1.6 phone screens — of every dashboard visit,
+  // for every signed-in keeper, long after they had followed it once. It now
+  // folds away behind its own title and stays folded across visits. Open on a
+  // first visit, because the walkthrough is the point of arriving.
+  const [open, setOpen] = useState(() => localStorage.getItem('quickstart_guide_hidden') !== '1');
+
+  const toggleOpen = () => setOpen(o => {
+    const next = !o;
+    // '1' means folded, matching the useState initialiser above. Writing `next`
+    // here instead would store '1' on *opening*, so folding would silently
+    // reset on the next visit — the manual would never actually stay away.
+    localStorage.setItem('quickstart_guide_hidden', next ? '0' : '1');
+    return next;
+  });
 
   const steps = [
     {
@@ -85,21 +99,38 @@ export function QuickstartGuide({ onAddPlant, onRefreshProfile }: QuickstartGuid
         animate={{ opacity: 1, y: 0 }}
         className="rounded-3xl p-8 linen-guide shadow-xl relative overflow-hidden"
       >
-        {/* Header */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8 pb-6 border-b border-[#c8bba8]/40 dark:border-white/10">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="px-3 py-1 rounded-sm text-[10px] font-black uppercase tracking-[0.2em] bg-moss/10 text-moss border border-moss/25">
-                NURSERY COMPENDIUM · PROTOCOLS
-              </span>
-            </div>
-            <h2 className="text-3xl font-serif font-bold text-text-bark">
+        {/* Header — always visible, and the thing that folds the manual */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-[#c8bba8]/40 dark:border-white/10">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="px-3 py-1 rounded-sm text-[10px] font-black uppercase tracking-[0.2em] bg-moss/10 text-moss border border-moss/25">
+              NURSERY COMPENDIUM · PROTOCOLS
+            </span>
+            <h2 className="font-serif font-bold text-text-bark text-xl sm:text-2xl">
               Conservatory Guide for Guardians
             </h2>
-            <p className="text-sm text-text-stone mt-1 font-medium">
-              Four fundamental methods to master botanical diagnostics and build your sanctuary.
-            </p>
           </div>
+          <button
+            onClick={toggleOpen}
+            aria-expanded={open}
+            aria-label={open ? 'Hide the Conservatory Guide' : 'Show the Conservatory Guide'}
+            className="shrink-0 inline-flex items-center gap-2 min-h-[44px] px-4 rounded-xl border border-[#c8bba8]/40 dark:border-white/10 text-xs font-bold uppercase tracking-wider text-text-stone hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors"
+          >
+            {open ? 'Hide guide' : 'Show guide'}
+            <ChevronRight size={16} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
+          </button>
+        </div>
+
+        {!open ? (
+          /* Folded: the four protocol titles, so the manual still says something
+             at a glance. The detail, the voucher and the steps return on Show. */
+          <p className="mt-4 text-sm text-text-stone font-medium">
+            Four methods — {steps.map(s => s.title).join(' · ')}.
+          </p>
+        ) : (
+          <>
+          <p className="text-sm text-text-stone mt-4 font-medium">
+            Four fundamental methods to master botanical diagnostics and build your sanctuary.
+          </p>
 
           {/* Seed Allocation Voucher */}
           <motion.div
@@ -130,7 +161,6 @@ export function QuickstartGuide({ onAddPlant, onRefreshProfile }: QuickstartGuid
               {claimedBonus ? '✓ Credited' : 'Claim Grant'}
             </motion.button>
           </motion.div>
-        </div>
 
         {/* Numbered Linen Nursery Tabs */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -221,6 +251,8 @@ export function QuickstartGuide({ onAddPlant, onRefreshProfile }: QuickstartGuid
             </motion.button>
           </motion.div>
         </AnimatePresence>
+          </>
+        )}
       </motion.div>
     </section>
   );
