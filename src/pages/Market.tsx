@@ -81,7 +81,7 @@ interface MarketProduct {
 const MOCK_PRODUCTS: MarketProduct[] = [
   {
     id: 'drop-1',
-    category: 'drops',
+    category: 'home',
     name: "Ceramic Self-Watering Planter (6\")",
     subtitle: "Premium terracotta with reservoir",
     image: "https://images.unsplash.com/photo-1485955900006-10f4d324d411?auto=format&fit=crop&w=800&q=80",
@@ -763,6 +763,16 @@ function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish, seed
     </motion.div>
   );
 }
+
+// The shop's category chips. One chip per aisle; 'seeds-tools' groups the two
+// small ones. The stray 'drops' category on the ceramic planter was a data
+// mistake — it is a planter — so that value no longer exists.
+const SHOP_CHIPS: [string, string][] = [
+  ['all', 'All crates'],
+  ['home', 'Pots & hangers'],
+  ['care', 'Oils & soil'],
+  ['seeds-tools', 'Seeds & tools'],
+];
 
 // ── TIER LADDER STRIP ──
 // Every market promise LEVEL_TIERS makes, shown where the spending happens
@@ -1550,7 +1560,10 @@ function RequestBoard({ userId, notify }: { userId: string; notify: (ok: boolean
 export default function GardenMarket() {
   const { toasts, success, error, warning, reward } = useToast();
   const { theme } = useDayNightTheme();
-  const [activeTab, setActiveTab] = useState<'sanctuary' | 'drops' | 'home' | 'care' | 'digital' | 'requests' | 'vouchers' | 'saved'>('sanctuary');
+  // Six stalls, not eight: "Open stall", "Pots & hangers" and "Oils & soil"
+  // rendered the same grid three times over, differing only by category —
+  // which is what the shop's chip row does in one place.
+  const [activeTab, setActiveTab] = useState<'sanctuary' | 'shop' | 'digital' | 'vouchers' | 'requests' | 'saved'>('sanctuary');
   // Purchased state mirrors the user's marketLedger row (Dexie v22). They
   // start empty and hydrate once the row resolves — or once from the legacy
   // localStorage keys if the player predates the ledger. Kept as state rather
@@ -1683,10 +1696,16 @@ export default function GardenMarket() {
   const filteredProducts = useMemo(() => {
     let products = activeTab === 'saved'
       ? pricedProducts.filter(p => wishlist.includes(p.id))
-      : activeTab === 'drops'
-        ? [...pricedProducts]
-        : pricedProducts.filter(p => p.category === activeTab);
-    if (activeTab !== 'saved') products = products.filter(p => inStockIds.has(p.id));
+      : [...pricedProducts];
+    // The shop's chip row. 'seeds-tools' groups the two small aisles under one
+    // chip; 'drops' arrives from the filter panel's legacy option and reads as
+    // "everything".
+    if (activeTab === 'shop' && filters.category !== 'all') {
+      products = filters.category === 'seeds-tools'
+        ? products.filter(p => p.category === 'seeds' || p.category === 'tools')
+        : products.filter(p => p.category === filters.category);
+    }
+    if (activeTab === 'shop') products = products.filter(p => inStockIds.has(p.id));
 
     if (filters.limitedOnly) products = products.filter(p => p.isLimited);
     if (filters.search) products = products.filter(p =>
@@ -1704,11 +1723,11 @@ export default function GardenMarket() {
       case 'new': return [...products].reverse();
       default: return products;
     }
-  }, [activeTab, wishlist, filters.limitedOnly, filters.search, filters.priceRange, filters.minRating, filters.sort, pricedProducts, inStockIds]);
+  }, [activeTab, wishlist, filters.category, filters.limitedOnly, filters.search, filters.priceRange, filters.minRating, filters.sort, pricedProducts, inStockIds]);
 
-  // What each crate card needs to know about the ladder. One helper so all
-  // five render sites — the three stall grids, the audit card and the harvest
-  // — pass the same gate, and a fourth tab cannot forget it.
+  // What each crate card needs to know about the ladder. One helper so every
+  // render site — the stall grid, the audit card and the harvest — passes the
+  // same gate, and a future grid cannot forget it.
   const cardGates = (p: MarketProduct) => ({
     legendaryLocked: isLegendaryDrop(p.id) && !privileges.legendaryDrops,
     legendaryLevel: LEVEL_TIERS.find(t => t.unlocks.market?.legendaryDrops)?.level ?? 18,
@@ -1869,12 +1888,10 @@ export default function GardenMarket() {
         <div className="px-4 md:px-8 py-4 flex gap-2 overflow-x-auto items-center border-b border-[#e8dcc8]" style={{ background: '#f7f0e4' }}>
           {([
             ['sanctuary', 'Sanctuary'],
+            ['shop', 'Shop'],
             ['digital', 'Digital goods'],
-            ['requests', 'Ask the bazaar'],
-            ['drops', 'Open stall'],
-            ['home', 'Pots & hangers'],
-            ['care', 'Oils & soil'],
             ['vouchers', 'Tickets'],
+            ['requests', 'Ask the bazaar'],
             ['saved', `Pinned (${wishlist.length})`],
           ] as const).map(([tab, label]) => (
             <button
@@ -1925,11 +1942,14 @@ export default function GardenMarket() {
               exit={{ opacity: 0, height: 0 }}
               className="px-6 md:px-8 py-6 border-b border-border-light bg-bg-secondary"
             >
-              <ProductFilters 
+              <ProductFilters
                 onFilterChange={(newFilters) => setFilters({
                   search: newFilters.search,
                   sort: newFilters.sortBy,
-                  category: newFilters.category === 'vouchers' ? 'drops' : newFilters.category,
+                  // The panel's legacy 'vouchers'/'drops' options have no
+                  // aisle any more; both read as "everything", which is what
+                  // the chips' All crate shows.
+                  category: newFilters.category === 'vouchers' || newFilters.category === 'drops' ? 'all' : newFilters.category,
                   priceRange: [newFilters.priceMin, newFilters.priceMax],
                   minRating: newFilters.ratingMin,
                   limitedOnly: newFilters.limitedOnly,
@@ -1979,9 +1999,9 @@ export default function GardenMarket() {
               </motion.div>
             )}
 
-            {activeTab === 'drops' && (
+            {activeTab === 'shop' && (
               <motion.div
-                key="drops-section"
+                key="shop-section"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -2010,156 +2030,71 @@ export default function GardenMarket() {
                     <MarketPulse day={stallDay} />
                     <TodaysHarvest onClaim={handleClaim} onAddToCart={handleAddToCart} seeds={seeds} products={pricedProducts} day={stallDay} />
                     <FreshFindsAudit onClaim={handleClaim} seeds={seeds} products={pricedProducts} day={stallDay} />
+
+                    {/* The stall grid. One grid, one chip row — the old layout
+                        rendered this three times over as three tabs that
+                        differed only by category. */}
+                    <div>
+                      <motion.h2
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="font-serif text-3xl font-semibold mb-2 text-[#3d2a1c]"
+                      >
+                        On the stall today
+                      </motion.h2>
+                      <p className="text-sm text-[#7a6a50] mb-4">Buy on Amazon or Flipkart. Spend seeds at this stall to clip a rupee refund. Stalls restock every morning.</p>
+                      <div className="flex flex-wrap gap-2 mb-8">
+                        {SHOP_CHIPS.map(([value, label]) => (
+                          <button
+                            key={value}
+                            onClick={() => setFilters({ ...filters, category: value })}
+                            aria-pressed={filters.category === value}
+                            className={`bazaar-tab ${filters.category === value ? 'is-on' : ''}`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ staggerChildren: 0.08, delayChildren: 0.3 }}
+                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+                      >
+                        {filteredProducts.length === 0 ? (
+                          <EmptyState
+                            compact
+                            className="col-span-full"
+                            icon={ShoppingBag}
+                            title="Nothing on this stall"
+                            body={
+                              filters.search || filters.category !== 'all' || filters.limitedOnly || filters.inStockOnly || filters.minRating > 0
+                                ? "No crate here matches what you've asked for. Clearing the filters brings the whole stall back."
+                                : 'This stall is between restocks. The bazaar audits and refills every morning.'
+                            }
+                            action={{
+                              label: 'Clear filters',
+                              onClick: clearAllFilters
+                            }}
+                          />
+                        ) : filteredProducts.map((product) => (
+                          <ProductCard
+                            key={product.id}
+                            product={product}
+                            onClaim={handleClaim}
+                            onAddToCart={handleAddToCart}
+                            wished={wishlist.includes(product.id)}
+                            onToggleWish={toggleWish}
+                            seeds={seeds}
+                            {...cardGates(product)}
+                          />
+                        ))}
+                      </motion.div>
+                    </div>
                   </>
                 )}
 
-                {/* Featured Section */}
-                {!privileges.shopUnlocked ? null : (
-                <div>
-                  <motion.h2
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="font-serif text-3xl font-semibold mb-2 text-[#3d2a1c]"
-                  >
-                    On the stall today
-                  </motion.h2>
-                  <p className="text-sm text-[#7a6a50] mb-8">Buy on Amazon or Flipkart. Spend seeds at this stall to clip a rupee refund. Stalls restock every morning.</p>
-                  
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ staggerChildren: 0.08, delayChildren: 0.3 }}
-                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-                  >
-                    {filteredProducts.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        onClaim={handleClaim}
-                        onAddToCart={handleAddToCart}
-                        wished={wishlist.includes(product.id)}
-                        onToggleWish={toggleWish}
-                        seeds={seeds}
-                        {...cardGates(product)}
-                      />
-                    ))}
-                  </motion.div>
-                </div>
-                )}
-
                 <ProBanner />
-              </motion.div>
-            )}
-
-            {activeTab === 'home' && (
-              <motion.div
-                key="home-section"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <motion.h2
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="font-serif text-3xl font-semibold mb-8 text-[#3d2a1c]"
-                >
-                  Pottery aisle
-                </motion.h2>
-                {!privileges.shopUnlocked ? (
-                  <StallLock level={level} xpToNext={xpToNext} xpProgress={levelProgress?.xpProgress ?? 0} nextUnlock={nextUnlock} />
-                ) : (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ staggerChildren: 0.08, delayChildren: 0.2 }}
-                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-                >
-                    {filteredProducts.length === 0 ? (
-                      <EmptyState
-                        compact
-                        className="col-span-full"
-                        icon={ShoppingBag}
-                        title="Nothing on this stall"
-                        body={
-                          filters.search || filters.category !== 'all' || filters.limitedOnly || filters.inStockOnly || filters.minRating > 0
-                            ? "No crate here matches what you've asked for. Clearing the filters brings the whole stall back."
-                            : 'This stall is between restocks. The bazaar audits and refills every morning.'
-                        }
-                        action={{
-                          label: 'Clear filters',
-                          onClick: clearAllFilters
-                        }}
-                      />
-                    ) : filteredProducts.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        onClaim={handleClaim}
-                        onAddToCart={handleAddToCart}
-                        wished={wishlist.includes(product.id)}
-                        onToggleWish={toggleWish}
-                        seeds={seeds}
-                        {...cardGates(product)}
-                      />
-                    ))}
-                </motion.div>
-                )}
-              </motion.div>
-            )}
-
-            {activeTab === 'care' && (
-              <motion.div
-                key="care-section"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <motion.h2
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="font-serif text-3xl font-semibold mb-8 text-[#3d2a1c]"
-                >
-                  Apothecary aisle
-                </motion.h2>
-                {!privileges.shopUnlocked ? (
-                  <StallLock level={level} xpToNext={xpToNext} xpProgress={levelProgress?.xpProgress ?? 0} nextUnlock={nextUnlock} />
-                ) : (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ staggerChildren: 0.08, delayChildren: 0.2 }}
-                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-                >
-                    {filteredProducts.length === 0 ? (
-                      <EmptyState
-                        compact
-                        className="col-span-full"
-                        icon={ShoppingBag}
-                        title="Nothing on this stall"
-                        body={
-                          filters.search || filters.category !== 'all' || filters.limitedOnly || filters.inStockOnly || filters.minRating > 0
-                            ? "No crate here matches what you've asked for. Clearing the filters brings the whole stall back."
-                            : 'This stall is between restocks. The bazaar audits and refills every morning.'
-                        }
-                        action={{
-                          label: 'Clear filters',
-                          onClick: clearAllFilters
-                        }}
-                      />
-                    ) : filteredProducts.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        onClaim={handleClaim}
-                        onAddToCart={handleAddToCart}
-                        wished={wishlist.includes(product.id)}
-                        onToggleWish={toggleWish}
-                        seeds={seeds}
-                        {...cardGates(product)}
-                      />
-                    ))}
-                </motion.div>
-                )}
               </motion.div>
             )}
 
@@ -2294,7 +2229,17 @@ export default function GardenMarket() {
                 ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {filteredProducts.length === 0 ? (
-                    <p className="text-sm text-[#7a6a50] col-span-full py-12">Pin a crate from the stall to keep it here.</p>
+                    <EmptyState
+                      compact
+                      className="col-span-full"
+                      icon={Bookmark}
+                      title="Nothing pinned yet"
+                      body="Pin a crate from the stall to keep it here — pinned crates ignore the daily restock."
+                      action={{
+                        label: 'Browse the stall',
+                        onClick: () => setActiveTab('shop')
+                      }}
+                    />
                   ) : filteredProducts.map((product) => (
                     <ProductCard
                       key={product.id}
