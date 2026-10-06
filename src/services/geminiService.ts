@@ -65,6 +65,7 @@ const IDENTIFY_TIMEOUT_MS = 120_000;
  */
 export interface IdentifySubject {
   kind: string;
+  subjectKind?: string;
   confidence: number;
   description?: string;
 }
@@ -85,6 +86,7 @@ export type IdentifyResult = PlantCare & {
   /** Absent on payloads from before the triage existed; treated as plant. */
   route?: 'plant' | 'non_living' | 'living_non_plant';
   subject?: IdentifySubject;
+  subjectKind?: string;
   provenance?: IdentifyProvenance;
   /** Human-readable explanation, present on the non-plant routes. */
   message?: string;

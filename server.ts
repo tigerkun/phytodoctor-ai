@@ -5,7 +5,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import webpush from "web-push";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHmac, timingSafeEqual } from "node:crypto";
 import { createUserScopedClient } from "./src/lib/supabaseUserClient";
 import { clampTo, clampPercent, clampUnit, hasScore, orderRange } from "./src/lib/scoreGuards";
 import { cooldownFor, selectModels as chooseModels } from "./src/lib/modelCooldown";
@@ -954,7 +954,7 @@ BEFORE ANYTHING ELSE, triage the subject of this image:
 - subjectKind: "plant" if the main subject is a plant, tree, flower, moss or other botanical specimen; "fungus" for mushrooms and moulds; "animal" for any animal; "human" for a person; "other_living" for any other living organism; "non_living" for objects, products, food, rooms, screenshots, artwork, landscapes without a clear subject, or text. If the subject genuinely cannot be determined, use "uncertain".
 - subjectConfidence: your confidence in that classification, 0 to 1.
 - subjectDescription: one or two sentences on what the image actually shows.
-If the subject is NOT a plant, do not invent plant findings: fill the botanical fields with honest placeholders (commonName "Not a plant", diagnosis summarising what is actually visible) and say so in subjectDescription. Only a confident, clearly botanical subject gets a full clinical analysis.
+If the subject is NOT a plant, keep honest kind and species naming (e.g. commonName "Human" and scientificName "Homo sapiens" for a person, or the real animal/fungus name). For fungus, fill environmental care fields mycology-style (soil as substrate, watering as moisture/humidity, temperature, light). For human/animal/non-living, summarise what is visible honestly in diagnosis and subjectDescription without forcing plant diseases onto it. Only a confident, clearly botanical subject gets a full clinical analysis.
 
 ALSO, judge the image's provenance (provenanceJudgment): from the visual evidence alone — rendering artefacts, uncanny texture regularity, impossible detail, studio-perfect lighting, watermark style — say whether this looks like an AI-generated image or a genuine photograph, and how confident you are. Judge only the image, not the user.
 
@@ -1151,9 +1151,9 @@ LOCATION-AWARE FIELDS (required if location provided):
     // plant flow, because a misrouted fern is worse than an odd routing for a
     // marginal photo.
     const subject = result.subject || {};
-    const kind = String(subject.subjectKind || 'uncertain').toLowerCase();
-    const subjectConfidence = clampUnit(Number(subject.subjectConfidence ?? 0));
-    const subjectDescription = strLimit(subject.subjectDescription, 400) || '';
+    const kind = String(subject.subjectKind || subject.kind || result.subjectKind || 'uncertain').toLowerCase();
+    const subjectConfidence = clampUnit(Number(subject.subjectConfidence ?? subject.confidence ?? result.subjectConfidence ?? 0));
+    const subjectDescription = strLimit(subject.subjectDescription || subject.description || result.subjectDescription, 400) || '';
     const LIVING_NON_PLANT = new Set(['fungus', 'animal', 'human', 'other_living']);
 
     // ── provenance: checks 1 and 2 run on the raw bytes, check 3 came back in the payload ──
@@ -1170,11 +1170,12 @@ LOCATION-AWARE FIELDS (required if location provided):
     if (kind === 'non_living' && subjectConfidence >= 0.6) {
       return res.json({
         route: 'non_living',
-        subject: { kind, confidence: subjectConfidence, description: subjectDescription },
+        subject: { kind, confidence: subjectConfidence, description: subjectDescription, subjectKind: kind },
+        commonName: result.commonName || 'Inanimate Object',
         message: 'Only living specimens are analysed. PhytoDoctor AI diagnoses plants — point the lens at a plant, leaf, flower or tree and scan again.',
       });
     }
-    if (LIVING_NON_PLANT.has(kind) && subjectConfidence >= 0.6) {
+    if (LIVING_NON_PLANT.has(kind) && subjectConfidence >= 0.45) {
       const names: Record<string, string> = {
         fungus: 'a fungus',
         animal: 'an animal',
@@ -1183,8 +1184,35 @@ LOCATION-AWARE FIELDS (required if location provided):
       };
       return res.json({
         route: 'living_non_plant',
-        subject: { kind, confidence: subjectConfidence, description: subjectDescription },
+        subject: { kind, confidence: subjectConfidence, description: subjectDescription, subjectKind: kind },
+        commonName: result.commonName,
+        scientificName: result.scientificName,
+        soil: result.soil,
+        watering: result.watering,
+        temperature: result.temperature,
+        light: result.light,
+        careTips: result.careTips,
         message: `That looks like ${names[kind]}. PhytoDoctor AI diagnoses plants only, so there is no botanical verdict here — but the Sanctuary is always open for a plant scan.`,
+        provenance: {
+          verdict: provenance.verdict,
+          checks: provenance.checks,
+          reasons: provenance.reasons.slice(0, 4),
+          container: signals.container,
+          resolution: signals.width && signals.height ? `${signals.width}x${signals.height}` : null,
+        },
+      });
+    }
+
+    // Belt-and-braces: if the payload would fall through as 'plant' but subject.subjectKind is a known non-plant kind at >=0.45 confidence, divert anyway
+    const fallbackKind = String(result.subject?.subjectKind || result.subject?.kind || result.subjectKind || kind).toLowerCase();
+    const fallbackConf = clampUnit(Number(result.subject?.subjectConfidence ?? result.subject?.confidence ?? subjectConfidence));
+    if ((LIVING_NON_PLANT.has(fallbackKind) && fallbackConf >= 0.45) || (fallbackKind === 'non_living' && fallbackConf >= 0.6)) {
+      return res.json({
+        route: fallbackKind === 'non_living' ? 'non_living' : 'living_non_plant',
+        subject: { kind: fallbackKind, confidence: fallbackConf, description: subjectDescription, subjectKind: fallbackKind },
+        commonName: result.commonName,
+        scientificName: result.scientificName,
+        message: 'Non-plant subject diverted. PhytoDoctor AI diagnoses plants only.',
       });
     }
 
@@ -1776,9 +1804,9 @@ app.post("/api/billing/webhook", express.raw({ type: 'application/json', limit: 
     const raw = (req as any).body as Buffer;
     const signature = req.headers['x-razorpay-signature'] as string | undefined;
     if (!signature) return fail(res, 400, "Missing signature.");
-    const expected = require('crypto').createHmac('sha256', RAZORPAY_WEBHOOK_SECRET).update(raw).digest('hex');
+    const expected = createHmac('sha256', RAZORPAY_WEBHOOK_SECRET).update(raw).digest('hex');
     const a = Buffer.from(expected), b = Buffer.from(signature);
-    if (a.length !== b.length || !require('crypto').timingSafeEqual(a, b)) {
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
       log.warn('Webhook signature mismatch');
       return fail(res, 401, "Invalid signature.");
     }

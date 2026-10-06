@@ -41,12 +41,14 @@ import { usePageTransition } from '../components/home/PageTransitionContext';
 import { getPlantPhoto } from '../utils/plantImage';
 import PageWrapper from '../components/home/PageWrapper';
 import { useGeolocation } from '../hooks/useGeolocation';
+import { prepareScanImage } from '../utils/imagePipeline';
 import { fetchWeather } from '../utils/weatherIntegration';
 import { updateUploadStreak } from '../game/rewardUtils';
 import { useToast } from '../components/Toast';
 import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 import { triggerHaptic } from '../utils/hapticAudio';
 import { rememberAuthReturn, stashPendingScan, takePendingScan, clearPendingScan } from '../lib/guestHandoff';
+import NonPlantReport from '../components/scan/NonPlantReport';
 
 // Rarity mapping helper
 function getRarityFromSpecies(species: string): 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' {
@@ -95,43 +97,7 @@ const SCAN_STAGE_ORDER: ScanStage[] = SCAN_STAGES.map(s => s.id);
  * deflection (something alive was seen, but there is no botanical verdict for
  * it). Neither awards seeds, and neither saves a specimen.
  */
-function NonPlantResult({ result, onScanAgain }: { result: any; onScanAgain: () => void }) {
-  const isNonLiving = result?.route === 'non_living';
-  const subject = result?.subject || {};
-  const headline = isNonLiving ? 'That is not a living specimen' : 'That is alive — but not a plant';
-  const glyph = isNonLiving ? '⚖' : subject.kind === 'animal' ? '🐾' : subject.kind === 'human' ? '🙂' : subject.kind === 'fungus' ? '🍄' : '🌿';
 
-  return (
-    <div className="rounded-2xl border border-[#b4a58c]/40 bg-bg-secondary p-6 sm:p-8 text-center">
-      <div className="mx-auto w-16 h-16 rounded-full bg-moss/10 border border-moss/20 flex items-center justify-center text-3xl mb-4" aria-hidden>
-        {glyph}
-      </div>
-      <h2 className="text-2xl font-serif font-black text-text-bark">{headline}</h2>
-      {subject.description && (
-        <p className="mt-3 text-sm text-text-stone leading-relaxed max-w-md mx-auto">
-          {subject.description}
-        </p>
-      )}
-      <p className="mt-4 text-xs text-text-muted leading-relaxed max-w-md mx-auto">
-        {result?.message}
-      </p>
-      <div className="mt-6 flex flex-wrap justify-center gap-3">
-        <button
-          onClick={onScanAgain}
-          // Measured 40px at 390px: 12px padding a side plus a 16px line box at
-          // 12px type. It renders only in the post-scan state, which the tab
-          // URLs do not reach -- the audit that found the other three missed it.
-          className="min-h-[44px] inline-flex items-center justify-center px-6 py-3 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-md active:scale-95"
-        >
-          📷 Scan a Plant
-        </button>
-      </div>
-      <p className="mt-5 text-[10px] font-mono uppercase tracking-widest text-text-muted/70">
-        Subject read as {subject.kind || 'uncertain'} · confidence {Math.round((subject.confidence || 0) * 100)}% · no seeds awarded
-      </p>
-    </div>
-  );
-}
 
 /**
  * The three-check provenance readout for a plant scan. Shown compactly so it
@@ -323,6 +289,17 @@ export default function BotanicalLab() {
     const photo = photoUrl || dexImage;
     if (!target || !photo) return;
 
+    // Hard gate: non-plant scans cannot be indexed or award seeds
+    const isNonPlant = Boolean(
+      (target.route && target.route !== 'plant') ||
+      (target.subject?.kind && target.subject.kind !== 'plant' && target.subject.kind !== 'uncertain') ||
+      (target.subject?.subjectKind && target.subject.subjectKind !== 'plant' && target.subject.subjectKind !== 'uncertain')
+    );
+    if (isNonPlant) {
+      error('Only botanical specimens can be indexed to your sanctuary.');
+      return;
+    }
+
     // The conversion moment. A guest just saw the product work -- the save is
     // where an account starts to matter, so this is where the ask happens,
     // with the diagnosis still on screen and the seeds promised on the other
@@ -478,14 +455,20 @@ export default function BotanicalLab() {
     setProvenanceHold(null);
     setAttested(false);
 
-    const reader = new FileReader();
-    reader.onerror = () => {
-      setScanError("Failed to read the selected photo file.");
-      setUploading(false);
-      setScanStage('idle');
-    };
-    reader.onloadend = async () => {
-      const base64 = reader.result as string;
+    const runScan = async () => {
+      let base64: string;
+      try {
+        // Downscaled in-browser first: a raw phone photo is 4-11MB of base64,
+        // which crawls on mobile data and dies at the server's 6MB cap before
+        // the AI ever sees it. The model reads symptoms, not lens detail.
+        const prepared = await prepareScanImage(file);
+        base64 = prepared.dataUrl;
+      } catch {
+        setScanError("Failed to read the selected photo file.");
+        setUploading(false);
+        setScanStage('idle');
+        return;
+      }
       setDexImage(base64);
 
       try {
@@ -512,7 +495,7 @@ export default function BotanicalLab() {
         setScanStage('idle');
       }
     };
-    reader.readAsDataURL(file);
+    void runScan();
   };
 
   const handleUpdateFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -523,17 +506,30 @@ export default function BotanicalLab() {
     setIsUpdatingPhoto(true);
     setScanError(null);
 
-    const reader = new FileReader();
-    reader.onerror = () => {
-      setScanError("Failed to read the selected photo file.");
-      setIsUpdatingPhoto(false);
-      setUpdatingPlantId(null);
-    };
-
-    reader.onloadend = async () => {
+    const runUpdate = async () => {
+      let base64: string;
       try {
-        const base64 = reader.result as string;
-        const result = await identifyPlant(base64);
+        // Same preparation as the first scan; the archived copy that goes to
+        // cloud storage below keeps the original file untouched.
+        const prepared = await prepareScanImage(file);
+        base64 = prepared.dataUrl;
+      } catch {
+        setScanError("Failed to read the selected photo file.");
+        setIsUpdatingPhoto(false);
+        setUpdatingPlantId(null);
+        return;
+      }
+
+      try {
+        // The check-in re-diagnosis gets the Keeper's place too — the
+        // location-aware fields on the payload used to come back empty here.
+        let locationCtx: any;
+        if (location?.latitude && location?.longitude) {
+          locationCtx = { city, latitude: location.latitude, longitude: location.longitude };
+        } else if (city) {
+          locationCtx = { city };
+        }
+        const result = await identifyPlant(base64, locationCtx);
         const plant = await db.plants.get(targetPlantId);
         if (!plant) throw new Error("Specimen record not found in Sanctuary.");
 
@@ -652,7 +648,7 @@ export default function BotanicalLab() {
         }
       }
     };
-    reader.readAsDataURL(file);
+    void runUpdate();
   };
 
   const handleUpdatePhoto = (plantId: string, e: React.MouseEvent) => {
@@ -756,7 +752,7 @@ export default function BotanicalLab() {
                 >
                   {tab === 'dex' ? <Compass size={12} /> : <Heart size={12} />}
                   {tab === 'dex' ? 'Plant Database' : 'Garden Sanctuary'}
-                  {activeTab === tab && <motion.div layoutId="labTabIndicator" className="absolute inset-0 bg-moss rounded-full -z-10" />}
+                  {activeTab === tab && <motion.div layoutId="labTabIndicator" className="absolute inset-0 bg-moss-deep rounded-full -z-10" />}
                 </button>
               ))}
             </div>
@@ -764,7 +760,7 @@ export default function BotanicalLab() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => setShowLedger(true)}
-              className="flex items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 min-h-[44px] rounded-full bg-terracotta hover:bg-terracotta-light text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md shrink-0"
+              className="flex items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 min-h-[44px] rounded-full bg-terracotta-deep hover:bg-terracotta text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md shrink-0"
             >
               <Coins size={12} /> Rewards
             </motion.button>
@@ -787,7 +783,7 @@ export default function BotanicalLab() {
               // 11px type -- `py-2` is 8px a side plus a ~18px line box. The phone
               // type floor raises the type, not the padding, so the height has to
               // be asked for explicitly.
-              className="shrink-0 min-h-[44px] inline-flex items-center justify-center px-4 py-2 rounded-full bg-moss hover:brightness-110 text-white font-black uppercase tracking-widest text-[11px] transition-all active:scale-95 font-mono whitespace-nowrap"
+              className="shrink-0 min-h-[44px] inline-flex items-center justify-center px-4 py-2 rounded-full bg-moss-deep hover:brightness-110 text-white font-black uppercase tracking-widest text-[11px] transition-all active:scale-95 font-mono whitespace-nowrap"
             >
               Sign up free
             </button>
@@ -825,7 +821,7 @@ export default function BotanicalLab() {
                         onClick={() => setScanMode('consult')}
                         className={`min-h-[44px] flex-1 py-2 px-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
                           scanMode === 'consult'
-                            ? 'bg-moss text-white shadow-md'
+                            ? 'bg-moss-deep text-white shadow-md'
                             : 'text-text-stone hover:text-text-bark hover:bg-bg-tertiary'
                         }`}
                       >
@@ -836,7 +832,7 @@ export default function BotanicalLab() {
                         onClick={() => setScanMode('index')}
                         className={`min-h-[44px] flex-1 py-2 px-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
                           scanMode === 'index'
-                            ? 'bg-moss text-white shadow-md'
+                            ? 'bg-moss-deep text-white shadow-md'
                             : 'text-text-stone hover:text-text-bark hover:bg-bg-tertiary'
                         }`}
                       >
@@ -862,7 +858,9 @@ export default function BotanicalLab() {
                             // inside it without the group growing.
                             className={`px-3 py-2 min-h-[44px] inline-flex items-center justify-center rounded-full text-[10px] font-mono font-black tracking-widest uppercase transition-all ${
                               magnification === mag
-                                ? 'bg-[#b89552] text-white shadow-xs'
+                                ? /* Deep brass, not brass: white on #b89552 is 2.8:1.
+                                     #8a6c33 is the rim colour already in this optic. */
+                                  'bg-[#8a6c33] text-white shadow-xs'
                                 : 'text-[#7a602f] dark:text-[#d4af37] hover:bg-[#b89552]/15'
                             }`}
                           >
@@ -879,7 +877,13 @@ export default function BotanicalLab() {
                         className="w-40 h-40 sm:w-48 sm:h-48 rounded-full brass-eyepiece cursor-pointer relative flex items-center justify-center p-2 group transition-shadow duration-300"
                         role="button"
                         tabIndex={0}
-                        aria-label="Activate brass microscope eyepiece to upload specimen"
+                        /* Label in Name (WCAG 2.5.3): the caption rendered inside
+                           the eyepiece must appear verbatim in the accessible
+                           name, or speech input users can't target it by what
+                           they see. */
+                        aria-label={`Activate the microscope eyepiece to upload a specimen — current optic: ${
+                          magnification === '100x' ? 'OIL 1.25' : magnification === '10x' ? '10× FIELD' : 'APERTURE'
+                        }`}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
@@ -892,7 +896,13 @@ export default function BotanicalLab() {
                         <div className="absolute inset-2.5 rounded-full border border-dashed border-[#b89552]/40 pointer-events-none" />
 
                         {/* Etched Millimeter Crosshairs & Concentric Reticle SVG */}
+                        {/* Etched Millimeter Crosshairs & Concentric Reticle SVG.
+                            aria-hidden: the calibration numerals ("0.0mm", "+2mm")
+                            are etched decoration, not content — left exposed they
+                            end up in the accessible name computation and break
+                            Label-in-Name for the whole eyepiece. */}
                         <svg
+                          aria-hidden="true"
                           className="absolute inset-0 w-full h-full pointer-events-none text-[#2d4a33] dark:text-[#8fb58f] opacity-65 group-hover:opacity-90 transition-opacity duration-300"
                           viewBox="0 0 160 160"
                         >
@@ -939,14 +949,19 @@ export default function BotanicalLab() {
                               <circle cx="80" cy="80" r="18" fill="none" stroke="#b89552" strokeWidth="1" strokeDasharray="3 2" opacity="0.8" />
                             )}
 
-                            {/* Calibration Coordinates */}
-                            <text x="83" y="24" fontSize="6" fontFamily="monospace" fill="currentColor" fontWeight="bold">0.0mm</text>
-                            <text x="124" y="76" fontSize="6" fontFamily="monospace" fill="currentColor" fontWeight="bold">
-                              {magnification === '10x' ? '+5mm' : magnification === '100x' ? '+0.5mm' : '+2mm'}
-                            </text>
-                            <text x="16" y="76" fontSize="6" fontFamily="monospace" fill="currentColor" fontWeight="bold">
-                              {magnification === '10x' ? '-5mm' : magnification === '100x' ? '-0.5mm' : '-2mm'}
-                            </text>
+                            {/* Calibration coordinate marks. The numeral
+                                <text> elements they replace were the last
+                                thing keeping the eyepiece from passing
+                                Label-in-Name — Lighthouse counts rendered
+                                text even under aria-hidden, so etched
+                                decoration now stays purely graphic: the
+                                tick pairs read as the same ruler marks at
+                                this size. */}
+                            <g strokeWidth="1">
+                              <line x1="80" y1="20" x2="80" y2="26" />
+                              <line x1="122" y1="74" x2="128" y2="74" />
+                              <line x1="32" y1="74" x2="38" y2="74" />
+                            </g>
                           </motion.g>
                         </svg>
 
@@ -971,7 +986,7 @@ export default function BotanicalLab() {
 
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-6 sm:px-8 py-3 sm:py-3.5 min-h-[44px] bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 duration-200 font-mono flex items-center justify-center gap-2"
+                      className="px-6 sm:px-8 py-3 sm:py-3.5 min-h-[44px] bg-moss-deep hover:bg-moss text-white font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 duration-200 font-mono flex items-center justify-center gap-2"
                     >
                       {scanMode === 'consult' ? '🔬 Open Optical Aperture' : '📚 Load Specimen Slide'}
                     </button>
@@ -996,7 +1011,7 @@ export default function BotanicalLab() {
                   </div>
                   <button
                     onClick={() => resetDexScan(true)}
-                    className="min-h-[44px] inline-flex items-center justify-center px-6 py-2.5 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition-all active:scale-95"
+                    className="min-h-[44px] inline-flex items-center justify-center px-6 py-2.5 bg-moss-deep hover:bg-moss text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition-all active:scale-95"
                   >
                     🔄 Try Again
                   </button>
@@ -1078,8 +1093,13 @@ export default function BotanicalLab() {
 
                       {/* Right: Botanical Index Card Board */}
                       <div className="lg:col-span-7 flex flex-col justify-between">
-                        {dexResult?.route && dexResult.route !== 'plant' ? (
-                          <NonPlantResult result={dexResult} onScanAgain={() => resetDexScan(true)} />
+                        {Boolean(
+                          (dexResult?.route && dexResult.route !== 'plant') ||
+                          (dexResult?.subject?.kind && dexResult.subject.kind !== 'plant' && dexResult.subject.kind !== 'uncertain') ||
+                          (dexResult?.subject?.subjectKind && dexResult.subject.subjectKind !== 'plant' && dexResult.subject.subjectKind !== 'uncertain') ||
+                          (dexResult?.subjectKind && dexResult.subjectKind !== 'plant' && dexResult.subjectKind !== 'uncertain')
+                        ) ? (
+                          <NonPlantReport result={dexResult} onScanAgain={() => resetDexScan(true)} />
                         ) : (
                         <>
                         <div>
@@ -1231,7 +1251,7 @@ export default function BotanicalLab() {
                                 // `py-2.5` on an 11px label is 36.5px. This one only
                                 // renders once the quota panel opens, which is why
                                 // auditing the Lab's tab URLs alone does not find it.
-                                className="mt-3 w-full min-h-[44px] py-2.5 bg-moss hover:brightness-110 text-white font-black uppercase tracking-widest text-[11px] rounded-xl transition-all active:scale-95 font-mono"
+                                className="mt-3 w-full min-h-[44px] py-2.5 bg-moss-deep hover:brightness-110 text-white font-black uppercase tracking-widest text-[11px] rounded-xl transition-all active:scale-95 font-mono"
                                 >
                                   Create free account — 20 seconds
                                 </button>
@@ -1303,7 +1323,7 @@ export default function BotanicalLab() {
                         <div className="mt-8 flex flex-wrap sm:flex-nowrap gap-3">
                           <button
                             onClick={() => resetDexScan(true)}
-                            className="min-h-[44px] inline-flex items-center justify-center flex-1 py-3 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-md active:scale-95"
+                            className="min-h-[44px] inline-flex items-center justify-center flex-1 py-3 bg-moss-deep hover:bg-moss text-white font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-md active:scale-95"
                           >
                             📷 Scan Another
                           </button>
@@ -1314,7 +1334,7 @@ export default function BotanicalLab() {
                                 setActiveTab('sanctuary');
                                 setSearchParams({ tab: 'sanctuary' });
                               }}
-                              className="min-h-[44px] flex-1 py-3 bg-moss hover:bg-moss-dark text-white font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 active:scale-95 font-mono"
+                              className="min-h-[44px] flex-1 py-3 bg-moss-deep hover:bg-moss text-white font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 active:scale-95 font-mono"
                             >
                               🔬 View Specimen in Sanctuary <ArrowRight size={12} />
                             </button>
@@ -1534,7 +1554,7 @@ export default function BotanicalLab() {
                           isUpdatingPhoto && updatingPlantId === plant.id
                             ? 'bg-moss/20 border-moss/40 text-moss cursor-wait'
                             : isMissed
-                            ? 'bg-terracotta border-terracotta hover:bg-terracotta-light text-white shadow-md'
+                            ? 'bg-terracotta-deep border-terracotta-deep hover:bg-terracotta text-white shadow-md'
                             : 'bg-bg-secondary border-border-medium hover:bg-bg-tertiary text-text-stone hover:text-text-bark font-bold'
                         }`}
                       >

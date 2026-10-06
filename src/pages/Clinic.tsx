@@ -22,6 +22,9 @@ import { COMMON_REWARDS } from '../game/rewardUtils';
 import PageWrapper from '../components/home/PageWrapper';
 import { useToast } from '../components/Toast';
 import { GameService } from '../services/gameService';
+import { useGeolocation } from '../hooks/useGeolocation';
+import { prepareScanImage } from '../utils/imagePipeline';
+import NonPlantReport from '../components/scan/NonPlantReport';
 import { CaseStudy } from '../components/CaseStudy';
 
 function clamp(n: number, min: number, max: number) {
@@ -125,11 +128,13 @@ function AntiqueBrassScale({ confidencePct }: { confidencePct: number }) {
 
 export default function Clinic() {
   const { info, success, error: toastError } = useToast();
+  // Opt-in place context: a typed city or device fix feeds the scan's
+  // location-aware fields (local pests, seasonal care). Nothing requests
+  // permission on mount.
+  const { location, city } = useGeolocation();
   const [images, setImages] = useState<string[]>([]);
   const [identification, setIdentification] = useState<PlantCare | null>(null);
-  // Set when the scan triaged as something other than a plant: the dispenser
-  // has no botanical verdict to show, so it shows what was seen instead.
-  const [subjectNotice, setSubjectNotice] = useState<{ route: string; message: string; description?: string; kind?: string } | null>(null);
+  const [subjectNotice, setSubjectNotice] = useState<any | null>(null);
   // The provenance gate's hold on this session's reward, with the one-tap
   // release. Same policy as the Lab: the verdict is evidence, never a block.
   const [provenanceHold, setProvenanceHold] = useState<{ verdict: string; withheldSeeds: number } | null>(null);
@@ -182,25 +187,32 @@ export default function Clinic() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Shared by the file input and the drag-and-drop target: one path in, so
+  // no entry point can skip the pipeline again.
+  const processScanFile = async (file: File) => {
+    let base64: string;
+    try {
+      // Downscale before upload: raw phone photos reach the server's 6MB cap
+      // and return 413 before the AI sees anything.
+      base64 = (await prepareScanImage(file)).dataUrl;
+    } catch {
+      setError('Unable to read selected leaf specimen file. Please select another.');
+      return;
+    }
+    setImages((prev) => [...prev, base64].slice(-3));
+    setIdentification(null);
+    setSavedPlantId(null);
+    identify(base64);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     // Reset input value so re-uploading the same file works
     e.target.value = '';
 
-    const reader = new FileReader();
-    reader.onerror = () => {
-      setError('Unable to read selected leaf specimen file. Please select another.');
-    };
-    reader.onloadend = () => {
-      const base64 = reader.result as string;
-      setImages((prev) => [...prev, base64].slice(-3));
-      setIdentification(null);
-      setSavedPlantId(null);
-      identify(base64);
-    };
-    reader.readAsDataURL(file);
+    await processScanFile(file);
   };
 
   const identify = async (base64Image: string) => {
@@ -210,17 +222,27 @@ export default function Clinic() {
     setProvenanceHold(null);
     setAttested(false);
     try {
-      const result = await identifyPlant(base64Image);
+      // The Keeper's place, when chosen, personalises the location-aware
+      // fields on the payload (local pest risks, seasonal care).
+      let locationCtx: any;
+      if (location?.latitude && location?.longitude) {
+        locationCtx = { city, latitude: location.latitude, longitude: location.longitude };
+      } else if (city) {
+        locationCtx = { city };
+      }
+      const result = await identifyPlant(base64Image, locationCtx);
 
       // The scan triaged as something other than a plant. No botanical verdict
       // exists, so nothing is saved and no reward is paid — say what was seen.
-      if (result?.route === 'non_living' || result?.route === 'living_non_plant') {
-        setSubjectNotice({
-          route: result.route,
-          message: result.message || 'PhytoDoctor AI analyses plants only.',
-          description: result.subject?.description,
-          kind: result.subject?.kind,
-        });
+      const isNonPlant = Boolean(
+        result?.route === 'non_living' ||
+        result?.route === 'living_non_plant' ||
+        (result?.subject?.kind && ['fungus', 'animal', 'human', 'other_living', 'non_living'].includes(result.subject.kind)) ||
+        (result?.subject?.subjectKind && ['fungus', 'animal', 'human', 'other_living', 'non_living'].includes(result.subject.subjectKind))
+      );
+
+      if (isNonPlant) {
+        setSubjectNotice(result);
         return;
       }
 
@@ -507,7 +529,8 @@ export default function Clinic() {
           )}
         </AnimatePresence>
 
-        <main className="pb-20">
+        {/* Not a <main>: Layout already provides the page's one main landmark. */}
+        <div className="pb-20">
           {/* INTAKE / UPLOAD STATE: Mounted on the Masonite Triage Clipboard */}
           {images.length === 0 && (
             <div className="w-full max-w-5xl mx-auto my-4">
@@ -524,15 +547,7 @@ export default function Clinic() {
                   e.preventDefault();
                   const file = e.dataTransfer.files?.[0];
                   if (file && file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      const base64 = reader.result as string;
-                      setImages([base64]);
-                      setIdentification(null);
-                      setSavedPlantId(null);
-                      identify(base64);
-                    };
-                    reader.readAsDataURL(file);
+                    void processScanFile(file);
                   }
                 }}
               >
@@ -673,21 +688,17 @@ export default function Clinic() {
                         )}
                       </div>
 
-                      {/* Non-plant triage: no botanical verdict exists for this
-                          image, so the dispenser says what it saw instead. */}
+                      {/* Non-plant triage: replaced with NonPlantReport profile */}
                       {subjectNotice && (
-                        <div className="p-4 rounded-xl bg-[#1c130b]/60 border border-[#b89542]/40 text-center space-y-2" role="status">
-                          <div className="flex items-center justify-center gap-2 font-mono font-black uppercase text-[11px] text-amber-300">
-                            <span aria-hidden>{subjectNotice.route === 'non_living' ? '⚖' : '🌿'}</span>
-                            <span>{subjectNotice.route === 'non_living' ? 'Not a living specimen' : 'Alive — but not a plant'}</span>
-                          </div>
-                          {subjectNotice.description && (
-                            <p className="text-xs text-[var(--text-stone)] leading-relaxed">{subjectNotice.description}</p>
-                          )}
-                          <p className="text-[11px] leading-relaxed text-[var(--text-stone)]/80">{subjectNotice.message}</p>
-                          <p className="text-[9px] font-mono uppercase tracking-widest text-[var(--text-stone)]/50">
-                            Subject read as {subjectNotice.kind || 'uncertain'} · no seeds awarded
-                          </p>
+                        <div className="mb-6">
+                          <NonPlantReport
+                            result={subjectNotice}
+                            onScanAgain={() => {
+                              setSubjectNotice(null);
+                              setImages([]);
+                              fileInputRef.current?.click();
+                            }}
+                          />
                         </div>
                       )}
 
@@ -1033,7 +1044,7 @@ export default function Clinic() {
               </motion.div>
             )}
           </AnimatePresence>
-        </main>
+        </div>
 
         {/* HISTORICAL CASE STUDY DRAWER */}
         <AnimatePresence>
