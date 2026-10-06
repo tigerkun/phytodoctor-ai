@@ -96,7 +96,9 @@ export function QuickstartGuide({ onAddPlant, onRefreshProfile }: QuickstartGuid
     <section className="py-12 px-4 max-w-7xl mx-auto">
       <motion.div
         initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '0px 0px -12% 0px' }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className="rounded-3xl p-8 linen-guide shadow-xl relative overflow-hidden"
       >
         {/* Header — always visible, and the thing that folds the manual */}
@@ -230,9 +232,11 @@ export function QuickstartGuide({ onAddPlant, onRefreshProfile }: QuickstartGuid
                 <div className="text-[10px] font-mono uppercase tracking-widest text-text-stone mb-0.5">
                   Protocol 0{steps[activeTab].num} • {steps[activeTab].badge}
                 </div>
-                <h4 className="text-xl font-serif font-bold text-text-bark mb-1.5">
+                {/* h3, not h4: the section heading above is an h2 and a skip
+                    from h2 to h4 breaks the heading order for screen readers. */}
+                <h3 className="text-xl font-serif font-bold text-text-bark mb-1.5">
                   {steps[activeTab].title}
-                </h4>
+                </h3>
                 <p className="text-sm text-text-stone leading-relaxed max-w-2xl font-medium">
                   {steps[activeTab].desc}
                 </p>

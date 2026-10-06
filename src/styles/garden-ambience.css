@@ -1,5 +1,6 @@
 /* GardenAmbience — the living background behind every screen.
-   Four layers: light pools, botanical silhouettes, drifting motes, vignette.
+   Layers: light pools, botanical silhouettes, drifting motes,
+   celestial & atmospheric period layers, and vignette.
    All animation is transform/opacity so it stays on the compositor. */
 
 .garden-ambience {
@@ -20,65 +21,78 @@
   inset: -20%;
 }
 
+/* Every pool offset used to be in vmax. vmax is the viewport's *larger*
+   dimension, so on a 1440x1000 laptop `46vmax` is 662px of wash measured
+   against a frame 1440px wide — and on a wide monitor the vmax offsets grew
+   with the width while the frame did not grow with them. Measured on a
+   1440x1000 viewport, all four pool centres landed outside the visible
+   area: the layer the design notes rely on for atmosphere was rendering
+   into the margins, off-screen. Placement is now a percentage of the
+   wrapper box (140% of the viewport), and sizes are capped against vh, so
+   a wash lands in the frame at any aspect ratio. */
 .garden-pool {
   position: absolute;
   display: block;
   border-radius: 50%;
   filter: blur(60px);
   will-change: transform;
+  /* Centres a pool on its own coordinates. The drift keyframes repeat the
+     same centring so the two compose instead of overwriting each other —
+     and so the reduced-motion still frame does not sit in a corner. */
+  transform: translate(-50%, -50%);
 }
 
 .garden-pool--moss {
-  width: 46vmax;
-  height: 46vmax;
-  top: -12vmax;
-  left: -8vmax;
+  width: min(46vmax, 70vh);
+  height: min(46vmax, 70vh);
+  top: 25.7%;
+  left: 21.4%;
   background: radial-gradient(circle, rgba(122, 168, 122, 0.34) 0%, transparent 70%);
   animation: garden-drift-a 78s ease-in-out infinite;
 }
 
 .garden-pool--gold {
-  width: 38vmax;
-  height: 38vmax;
-  top: 8vmax;
-  right: -10vmax;
+  width: min(38vmax, 58vh);
+  height: min(38vmax, 58vh);
+  top: 28.6%;
+  left: 75.7%;
   background: radial-gradient(circle, rgba(226, 190, 106, 0.30) 0%, transparent 70%);
   animation: garden-drift-b 92s ease-in-out infinite;
 }
 
 .garden-pool--sage {
-  width: 40vmax;
-  height: 40vmax;
-  bottom: -14vmax;
-  left: 24vmax;
+  width: min(40vmax, 60vh);
+  height: min(40vmax, 60vh);
+  top: 72.9%;
+  left: 32.9%;
   background: radial-gradient(circle, rgba(168, 190, 168, 0.30) 0%, transparent 70%);
   animation: garden-drift-c 66s ease-in-out infinite;
 }
 
 .garden-pool--clay {
-  width: 30vmax;
-  height: 30vmax;
-  bottom: 4vmax;
-  left: -6vmax;
+  width: min(30vmax, 46vh);
+  height: min(30vmax, 46vh);
+  top: 77.1%;
+  left: 20%;
   background: radial-gradient(circle, rgba(206, 146, 112, 0.22) 0%, transparent 70%);
   animation: garden-drift-b 84s ease-in-out infinite reverse;
 }
 
 @keyframes garden-drift-a {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  33%      { transform: translate3d(6vmax, 4vmax, 0) scale(1.08); }
-  66%      { transform: translate3d(-3vmax, 7vmax, 0) scale(0.95); }
+  0%, 100% { transform: translate3d(-50%, -50%, 0) scale(1); }
+  33%      { transform: translate3d(calc(-50% + 6vmax), calc(-50% + 4vmax), 0) scale(1.08); }
+  66%      { transform: translate3d(calc(-50% - 3vmax), calc(-50% + 7vmax), 0) scale(0.95); }
 }
 
 @keyframes garden-drift-b {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50%      { transform: translate3d(-7vmax, 6vmax, 0) scale(1.12); }
+  0%, 100% { transform: translate3d(-50%, -50%, 0) scale(1); }
+  50%      { transform: translate3d(calc(-50% - 7vmax), calc(-50% + 6vmax), 0) scale(1.12); }
 }
 
 @keyframes garden-drift-c {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1.02); }
-  40%      { transform: translate3d(8vmax, -5vmax, 0) scale(0.94); }
-  75%      { transform: translate3d(2vmax, -8vmax, 0) scale(1.06); }
+  0%, 100% { transform: translate3d(-50%, -50%, 0) scale(1.02); }
+  40%      { transform: translate3d(calc(-50% + 8vmax), calc(-50% - 5vmax), 0) scale(0.94); }
+  75%      { transform: translate3d(calc(-50% + 2vmax), calc(-50% - 8vmax), 0) scale(1.06); }
 }
 
 /* Night: the same layers, dimmer and cooler. */
@@ -103,7 +117,7 @@
   width: min(30vw, 340px);
   height: min(62vh, 620px);
   color: var(--moss);
-  opacity: 0.16;
+  opacity: 0.20;
   will-change: transform;
 }
 
@@ -115,12 +129,12 @@
 .garden-foliage--right {
   right: 0;
   color: var(--sage);
-  opacity: 0.13;
+  opacity: 0.16;
   animation: garden-sway-right 21s ease-in-out infinite;
 }
 
 .garden-ambience[data-scene='night'] .garden-ambience__foliage {
-  opacity: 0.09;
+  opacity: 0.13;
 }
 
 @keyframes garden-sway-left {
@@ -153,7 +167,8 @@
 }
 
 .garden-ambience[data-scene='night'] .garden-mote {
-  background: #cfd9a8;
+  background: #dcecb0;
+  box-shadow: 0 0 6px rgba(220, 236, 176, 0.45);
 }
 
 @keyframes garden-mote-rise {
@@ -170,7 +185,192 @@
   }
 }
 
-/* ── 4. Vignette ────────────────────────────────────────────────── */
+/* ── 4. Celestial & Atmospheric Period Layers ───────────────────── */
+
+/* Night sky: Stars */
+.garden-ambience__stars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.garden-star {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  background: #FFFFFF;
+  box-shadow: 0 0 5px 1px rgba(255, 255, 255, 0.85);
+  will-change: transform, opacity;
+  animation: garden-star-twinkle ease-in-out infinite alternate;
+}
+
+@keyframes garden-star-twinkle {
+  0%   { opacity: 0.25; transform: scale(0.8); }
+  50%  { opacity: 1;    transform: scale(1.3); }
+  100% { opacity: 0.4;  transform: scale(0.9); }
+}
+
+/* Night sky: Moon disc */
+.garden-moon {
+  position: absolute;
+  top: 9%;
+  right: 14%;
+  width: min(13vmax, 68px);
+  height: min(13vmax, 68px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 38%, #FFFDF2 0%, #F8E8C0 55%, rgba(240, 220, 175, 0.3) 100%);
+  box-shadow: 0 0 35px 12px rgba(248, 232, 192, 0.22), 0 0 85px 35px rgba(160, 220, 205, 0.10);
+  opacity: 0.90;
+  will-change: transform;
+  animation: garden-moon-drift 110s ease-in-out infinite alternate;
+}
+
+@keyframes garden-moon-drift {
+  0%   { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-18px, 14px, 0); }
+}
+
+/* Night sky: Fireflies */
+.garden-ambience__fireflies {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.garden-firefly {
+  position: absolute;
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #E8F596;
+  box-shadow: 0 0 10px 4px rgba(220, 250, 140, 0.55);
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: garden-firefly-flight ease-in-out infinite;
+}
+
+@keyframes garden-firefly-flight {
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: 0; }
+  15%      { opacity: 0.85; }
+  50%      { transform: translate3d(var(--ff-x, 30px), var(--ff-y, -40px), 0); opacity: 0.95; }
+  85%      { opacity: 0.7; }
+}
+
+/* Night sky: Shooting star */
+.garden-shooting-star {
+  position: absolute;
+  top: 10%;
+  left: 22%;
+  width: 90px;
+  height: 1.5px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.95) 100%);
+  transform: rotate(-35deg) translate3d(0, 0, 0);
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: garden-shooting-star-cycle 26s ease-in-out infinite;
+}
+
+@keyframes garden-shooting-star-cycle {
+  0%, 93%, 100% { transform: rotate(-35deg) translate3d(0, 0, 0); opacity: 0; }
+  94%           { opacity: 0.95; }
+  96%           { transform: rotate(-35deg) translate3d(210px, 145px, 0); opacity: 0; }
+}
+
+/* Dawn / Morning: Sun disc & Conic ray wheel */
+.garden-ambience__sun-group {
+  position: absolute;
+  top: -40px;
+  right: 8%;
+  pointer-events: none;
+}
+
+.garden-sun-bloom {
+  position: absolute;
+  top: -60px;
+  right: -60px;
+  width: min(38vmax, 240px);
+  height: min(38vmax, 240px);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 235, 175, 0.32) 0%, rgba(255, 220, 140, 0.15) 50%, transparent 75%);
+  filter: blur(28px);
+}
+
+.garden-sun-disc {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(15vmax, 92px);
+  height: min(15vmax, 92px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 45% 45%, #FFFDF5 0%, #FEE8A2 45%, #F5C66C 85%);
+  box-shadow: 0 0 55px 22px rgba(254, 219, 130, 0.38);
+  opacity: 0.88;
+}
+
+.garden-sun-rays {
+  position: absolute;
+  top: -85px;
+  right: -85px;
+  width: min(44vmax, 260px);
+  height: min(44vmax, 260px);
+  border-radius: 50%;
+  background: conic-gradient(from 0deg,
+    rgba(255, 230, 160, 0.14) 0deg, transparent 25deg,
+    rgba(255, 230, 160, 0.16) 50deg, transparent 75deg,
+    rgba(255, 230, 160, 0.14) 100deg, transparent 130deg,
+    rgba(255, 230, 160, 0.16) 160deg, transparent 190deg,
+    rgba(255, 230, 160, 0.14) 230deg, transparent 265deg,
+    rgba(255, 230, 160, 0.18) 305deg, transparent 335deg,
+    rgba(255, 230, 160, 0.14) 360deg
+  );
+  opacity: 0.65;
+  will-change: transform;
+  animation: garden-ray-wheel 140s linear infinite;
+}
+
+@keyframes garden-ray-wheel {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Afternoon: Drifting clouds */
+.garden-ambience__clouds {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.garden-cloud {
+  position: absolute;
+  border-radius: 999px;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.42) 0%, rgba(255, 253, 248, 0.18) 60%, transparent 80%);
+  filter: blur(28px);
+  opacity: 0.55;
+  will-change: transform;
+  animation-name: garden-cloud-drift;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes garden-cloud-drift {
+  0%   { transform: translate3d(-20vw, 0, 0); }
+  100% { transform: translate3d(120vw, 0, 0); }
+}
+
+/* Dusk: Horizon glow */
+.garden-ambience__dusk-glow {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 38vh;
+  background: linear-gradient(0deg, rgba(196, 112, 75, 0.20) 0%, rgba(220, 140, 90, 0.08) 55%, transparent 100%);
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+/* ── 5. Vignette ────────────────────────────────────────────────── */
 
 .garden-ambience__vignette {
   position: absolute;
@@ -192,13 +392,39 @@
   );
 }
 
-/* ── Reduced motion / eco mode: hold a single still frame ───────── */
+/* ── Reduced motion / eco mode: hold a single still frame ─────────
+   Two release hatches keep the three Profile positions truthful:
+   [data-motion='full'] means the Keeper explicitly chose motion, which
+   beats their OS switch inside this app; [data-still='true'] stills it
+   regardless of the OS. 'auto' matches the plain media query. */
 
 @media (prefers-reduced-motion: reduce) {
-  .garden-pool,
-  .garden-foliage--left,
-  .garden-foliage--right,
-  .garden-mote {
+  .garden-ambience:not([data-motion='full']) .garden-pool,
+  .garden-ambience:not([data-motion='full']) .garden-foliage--left,
+  .garden-ambience:not([data-motion='full']) .garden-foliage--right,
+  .garden-ambience:not([data-motion='full']) .garden-mote,
+  .garden-ambience:not([data-motion='full']) .garden-star,
+  .garden-ambience:not([data-motion='full']) .garden-moon,
+  .garden-ambience:not([data-motion='full']) .garden-firefly,
+  .garden-ambience:not([data-motion='full']) .garden-shooting-star,
+  .garden-ambience:not([data-motion='full']) .garden-sun-rays,
+  .garden-ambience:not([data-motion='full']) .garden-cloud {
     animation: none !important;
   }
+}
+
+/* CSS cannot read the in-app switch's localStorage key, so GardenAmbience
+   publishes the resolved preference as data attributes and the still frame
+   rule is repeated here rather than smuggled through a style prop. */
+.garden-ambience[data-still='true'] .garden-pool,
+.garden-ambience[data-still='true'] .garden-foliage--left,
+.garden-ambience[data-still='true'] .garden-foliage--right,
+.garden-ambience[data-still='true'] .garden-mote,
+.garden-ambience[data-still='true'] .garden-star,
+.garden-ambience[data-still='true'] .garden-moon,
+.garden-ambience[data-still='true'] .garden-firefly,
+.garden-ambience[data-still='true'] .garden-shooting-star,
+.garden-ambience[data-still='true'] .garden-sun-rays,
+.garden-ambience[data-still='true'] .garden-cloud {
+  animation: none !important;
 }

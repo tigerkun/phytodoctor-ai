@@ -84,3 +84,43 @@ Constraints it holds to, so it doesn't regress into the noise it replaced:
 - ~24 animated nodes total, versus the 700+ removed
 
 Everything else in this document still stands.
+
+---
+
+## Addendum — 2026-10: placement fix, in-app motion switch, home entrances
+
+**The pools were not on screen.** Every pool offset in `garden-ambience.css`
+was written in `vmax`, which is the viewport's *longer* axis; on a landscape
+screen the offsets grew with viewport width while the percentage-sized wrapper
+did not, and all four centres measured outside the frame — the atmosphere this
+document describes was rendering into the margins. Placement is now a
+percentage of the wrapper box and sizes are capped against `vh`, pinned by
+`src/styles/__tests__/gardenAmbiencePools.test.ts` at five viewport sizes.
+
+**Stilling has three paths now, not two.** Besides `prefers-reduced-motion`
+and eco mode, Profile › Settings exposes an explicit Auto / Reduced / Full
+switch (`src/utils/motionPreference.ts`, consumed by `useEcoMode`). CSS cannot
+read localStorage, so `GardenAmbience` publishes the resolution as
+`data-still` / `data-motion`; the stylesheet stills on the former and releases
+the media query for the latter, so **Full truthfully means full**. Low
+battery still stills everything in every position.
+
+**Home sections gained one-shot entrances.** The coach grid, sanctuary cards,
+quickstart steps, hero status panel and footer CTA reveal once on scroll into
+view (0.55–0.7s, `whileInView`, stagger 0.12s), plus one scroll-*linked*
+transform on the sanctuary watermark glyph riding an inner node to respect the
+single-transform-owner rule. These are transient, not loops: the ambient
+budget above still counts ~24 nodes, and the entrances add ~11 more that fire
+once and settle. All of them resolve to visible final states — verified by a
+full-scroll pass asserting nothing is left at opacity 0.
+
+## Addendum — 2026-10: rich garden ambience (night sky / morning sun) node budget
+
+**Ambient looping budget extended from ~24 to ~45 nodes under explicit sign-off.**
+To support period-rich atmospheric scenes (twinkling stars, wandering fireflies, drifting moon, sun conic ray wheel, and soft afternoon clouds based on the six time-of-day periods), the background layer node count expands to at most ~45 concurrently animated nodes.
+
+All new ambient layers adhere strictly to the established core constraints:
+- **Compositor-only animation:** properties are restricted exclusively to `transform` and `opacity` (no repaint, reflow, or layout thrashing).
+- **Three-path stilling intact:** the layers remain fully gated under `data-still='true'` (low battery, eco mode, Profile Reduced) and `@media (prefers-reduced-motion: reduce)` unless Profile Full explicitly releases them via `data-motion='full'`.
+- **Pool geometry untouched:** pool radial wash placement and capping remain strictly preserved.
+

@@ -1,11 +1,21 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useRef } from 'react';
+import { motion, useScroll, useTransform, type Variants } from 'framer-motion';
 import { Archive, MessageSquare, ArrowRight, ShieldCheck, Sparkles, Sprout } from 'lucide-react';
 import { usePageTransition } from './PageTransitionContext';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/database';
 import { GameService } from '@/services/gameService';
+
+const hubVariants: Variants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.12, delayChildren: 0.1 } },
+};
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
+};
 
 export default function SanctuaryHub() {
   const { transitionTo } = usePageTransition();
@@ -16,12 +26,29 @@ export default function SanctuaryHub() {
   const cardCount = useLiveQuery(() => db.cards.count()) ?? 0;
   const profile = useLiveQuery(() => GameService.getProfile());
 
+  // The two enormous background glyphs were the largest unused depth on the
+  // page: 300px and 250px of dead-ink shape that only ever scaled on hover.
+  // They now drift against the scroll. The MotionValue rides an inner node
+  // because the outer one already owns a transform via Tailwind and
+  // group-hover — two owners of one property means the scroll value is
+  // silently dropped, which is the bug the crest in the landing records.
+  const hubRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({ target: hubRef, offset: ['start end', 'end start'] });
+  const glyphY = useTransform(scrollYProgress, [0, 1], [30, -30]);
+
   return (
-    <div className="max-w-7xl mx-auto px-4 mb-16">
-      <div className="flex flex-col md:flex-row gap-8 items-stretch">
-        
+    <div className="max-w-7xl mx-auto px-4 mb-16" ref={hubRef}>
+      <motion.div
+        className="flex flex-col md:flex-row gap-8 items-stretch"
+        variants={hubVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: '0px 0px -12% 0px' }}
+      >
+
         {/* Asymmetrical Column 1: Sim Lab (60% width on large screens) */}
         <motion.div
+          variants={cardVariants}
           whileHover={{ y: -6, scale: 1.01 }}
           transition={{ type: 'spring', stiffness: 300, damping: 20 }}
           className="flex-grow md:w-[58%] rounded-[2rem] oiled-teak-frame p-8 flex flex-col justify-between relative overflow-hidden group cursor-pointer shadow-xs hover:shadow-lg transition-shadow duration-300"
@@ -32,7 +59,9 @@ export default function SanctuaryHub() {
 
           {/* Subtle background graphics */}
           <div className="absolute right-0 bottom-0 translate-y-1/4 translate-x-1/4 opacity-[0.03] text-moss pointer-events-none group-hover:scale-110 transition-transform duration-1000">
-            <Archive size={300} />
+            <motion.div style={{ y: glyphY }}>
+              <Archive size={300} />
+            </motion.div>
           </div>
 
           <div>
@@ -79,6 +108,7 @@ export default function SanctuaryHub() {
 
         {/* Asymmetrical Column 2: The Chat (42% width on large screens) */}
         <motion.div
+          variants={cardVariants}
           whileHover={{ y: -6, scale: 1.01 }}
           transition={{ type: 'spring', stiffness: 300, damping: 20 }}
           className="flex-grow md:w-[42%] rounded-[2rem] oiled-teak-frame p-8 flex flex-col justify-between relative overflow-hidden group cursor-pointer shadow-xs hover:shadow-lg transition-shadow duration-300"
@@ -89,7 +119,9 @@ export default function SanctuaryHub() {
 
           {/* Subtle background graphics */}
           <div className="absolute right-0 bottom-0 translate-y-1/4 translate-x-1/4 opacity-[0.03] text-moss pointer-events-none group-hover:scale-110 transition-transform duration-1000">
-            <MessageSquare size={250} />
+            <motion.div style={{ y: glyphY }}>
+              <MessageSquare size={250} />
+            </motion.div>
           </div>
 
           <div>
@@ -129,7 +161,7 @@ export default function SanctuaryHub() {
           </div>
         </motion.div>
 
-      </div>
+      </motion.div>
     </div>
   );
 }

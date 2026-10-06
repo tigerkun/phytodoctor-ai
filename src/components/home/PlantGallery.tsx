@@ -101,7 +101,11 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
                   <div className="h-1.5 w-full bg-gradient-to-r from-[#4d321d] via-[#785333] to-[#4d321d] opacity-80" />
 
                   {/* Image Container */}
-                  <div className="relative h-48 bg-gradient-to-b from-gray-300 to-gray-400 overflow-hidden">
+                  {/* The only cold, off-palette grey left on the home page: a plant loading
+                      or missing its photo got a colour found nowhere else in
+                      the design system, which read as an unfinished slot rather
+                      than a botanical one. Warm paper-to-moss instead. */}
+                  <div className="relative h-48 bg-gradient-to-b from-[#F3EDE2] to-[#DCE5D8] dark:from-[#2a2620] dark:to-[#232b23] overflow-hidden">
                     <motion.img
                       src={plant.image}
                       alt={plant.nickname}

@@ -138,16 +138,19 @@ export function HeroSection({
               <div className="w-16 h-16 rounded-full bg-moss/10 flex items-center justify-center mb-6 border border-moss/20">
                 <Sprout size={28} className="text-moss" strokeWidth={1.5} aria-hidden="true" />
               </div>
-              <h2 className="text-2xl font-serif font-bold text-text-bark mb-3">
+              {/* The page's h1 in the empty-garden state. This panel and the
+                  featured-specimen panel below are exclusive, so exactly one
+                  of the two is ever the page's single top-level heading. */}
+              <h1 className="text-2xl font-serif font-bold text-text-bark mb-3">
                 Your sanctuary is empty
-              </h2>
+              </h1>
               <p className="text-sm text-text-stone max-w-md mb-8 leading-relaxed font-medium">
                 Add your first plant to start tracking its health, get diagnoses, and earn seeds for its care.
               </p>
               <button
                 onClick={onAddPlant}
                 className="px-6 py-3 rounded-[var(--radius-sm)] font-semibold text-sm text-white flex items-center gap-2 cursor-pointer transition-colors active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-moss focus-visible:ring-offset-2"
-                style={{ background: 'var(--moss)' }}
+                style={{ background: 'var(--moss-deep)' }}
               >
                 <Plus size={16} aria-hidden="true" /> Add your first plant
               </button>
@@ -262,11 +265,13 @@ export function HeroSection({
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm zinc-stake font-serif tracking-widest text-[10px] uppercase font-bold shadow-xs">
                       Specimen no. 0{plantIndex + 1}
                     </span>
-                    <h2
+                    {/* h1: with a garden, the featured specimen is what this
+                        page is about. */}
+                    <h1
                       className="text-3xl font-serif font-bold text-text-bark"
                     >
                       {plantName}
-                    </h2>
+                    </h1>
                   </div>
                   <motion.button
                     whileHover={{ scale: 1.2 }}
@@ -331,16 +336,26 @@ export function HeroSection({
           transition={{ delay: 0.4, duration: 0.6 }}
           className="flex flex-col gap-6"
         >
-          <section className="rounded-[var(--radius-md)] border border-border-light bg-bg-secondary p-6 shadow-[var(--shadow-sm)]">
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            className="rounded-[var(--radius-md)] border border-border-light bg-bg-secondary p-6 shadow-[var(--shadow-sm)]"
+          >
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Garden status</p>
-            <h3 className="mt-2 text-xl font-serif font-semibold text-text-bark">
-              {greeting.salutation}, <span className="text-moss">{greeting.name}</span>
-            </h3>
+            {/* text-moss-dark, not text-moss: the pale moss span measures
+                4.09:1 on the card ground — under the 4.5:1 text minimum. */}
+            <h2 className="mt-2 text-xl font-serif font-semibold text-text-bark">
+              {greeting.salutation}, <span className="text-moss-dark">{greeting.name}</span>
+            </h2>
             <p className="mt-1 text-sm text-text-stone">{greeting.detail}</p>
             <dl className="mt-6 grid grid-cols-2 border-t border-border-light">
               {[
-                { label: 'Temperature', value: weather?.temp != null ? `${Math.round(weather.temp)}°C` : '28°C' },
-                { label: 'Humidity', value: weather?.humidity != null ? `${Math.round(weather.humidity)}%` : '62%' },
+                // An em dash, not a plausible number. These used to read 28°C and
+                // 62% whenever no place was chosen, which is Delhi's July in a
+                // stat tile — indistinguishable from a real reading.
+                { label: 'Temperature', value: weather?.temp != null ? `${Math.round(weather.temp)}°C` : '—' },
+                { label: 'Humidity', value: weather?.humidity != null ? `${Math.round(weather.humidity)}%` : '—' },
                 { label: 'Plants', value: totalPlants.toString() },
                 { label: 'Current streak', value: `${profile?.currentStreak || 0}d` }
               ].map((stat) => (
@@ -350,7 +365,7 @@ export function HeroSection({
                 </div>
               ))}
             </dl>
-          </section>
+          </motion.section>
 
           {/* Add Plant Button */}
           <motion.button
@@ -360,7 +375,7 @@ export function HeroSection({
             aria-label="Add a new plant to your garden"
             className="w-full min-h-11 py-3 rounded-[var(--radius-sm)] font-semibold text-white transition-colors flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2 active:scale-[0.99]"
             style={{
-              background: 'var(--moss)',
+              background: 'var(--moss-deep)',
               boxShadow: 'var(--shadow-sm)'
             }}
             initial={{ opacity: 0, y: 20 }}

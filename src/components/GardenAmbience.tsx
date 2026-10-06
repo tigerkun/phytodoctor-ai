@@ -1,16 +1,22 @@
 import { memo } from 'react';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
 import { useEcoMode } from '@/hooks/useEcoMode';
+import { useTimeOfDay } from '@/hooks/useTimeOfDay';
 
 /**
  * GardenAmbience — the app's living background.
  *
- * Four stacked, GPU-cheap layers that give the garden depth without ever
+ * Stacked, GPU-cheap layers that give the garden depth without ever
  * competing with the content:
  *   1. light pools   — large soft radial washes that drift on 50-90s cycles
  *   2. foliage       — botanical silhouettes framing the edges, gently swaying
  *   3. motes         — fine drifting dust catching the light
- *   4. vignette      — pulls the eye back to the centre column
+ *   4. celestial & atmospheric layers:
+ *      - night / late-night: twinkling stars, drifting moon disc, wandering fireflies, shooting star
+ *      - dawn / morning: warm sun disc with rotating conic ray wheel and soft bloom
+ *      - afternoon: soft drifting blurred clouds
+ *      - dusk: horizon glow plus first stars
+ *   5. vignette      — pulls the eye back to the centre column
  *
  * Everything animates with `transform`/`opacity` only, so it stays on the
  * compositor. Under eco mode or `prefers-reduced-motion` the layers render
@@ -46,11 +52,56 @@ const DAY_MOTES: MoteSpec[] = [
   { left: '97%', size: 2, delay: 33,   duration: 40, drift: -24, opacity: 0.35 },
 ];
 
+const NIGHT_STARS = [
+  { top: '8%',  left: '12%', size: 2,   delay: '0.2s', duration: '2.5s', opacity: 0.85 },
+  { top: '14%', left: '26%', size: 1.5, delay: '1.2s', duration: '3.2s', opacity: 0.7 },
+  { top: '6%',  left: '38%', size: 2.5, delay: '0.6s', duration: '2.8s', opacity: 0.95 },
+  { top: '18%', left: '48%', size: 1.5, delay: '1.9s', duration: '3.6s', opacity: 0.75 },
+  { top: '10%', left: '60%', size: 2,   delay: '0.4s', duration: '2.7s', opacity: 0.9 },
+  { top: '22%', left: '72%', size: 1.5, delay: '1.5s', duration: '3.3s', opacity: 0.65 },
+  { top: '9%',  left: '84%', size: 2,   delay: '2.1s', duration: '3.0s', opacity: 0.85 },
+  { top: '16%', left: '94%', size: 1.5, delay: '0.8s', duration: '3.7s', opacity: 0.7 },
+  { top: '27%', left: '16%', size: 1.5, delay: '1.1s', duration: '2.9s', opacity: 0.75 },
+  { top: '31%', left: '34%', size: 2,   delay: '1.7s', duration: '2.6s', opacity: 0.9 },
+  { top: '25%', left: '56%', size: 1.5, delay: '2.4s', duration: '3.4s', opacity: 0.65 },
+  { top: '33%', left: '68%', size: 2,   delay: '0.5s', duration: '2.8s', opacity: 0.85 },
+  { top: '29%', left: '82%', size: 1.5, delay: '1.8s', duration: '3.5s', opacity: 0.75 },
+  { top: '12%', left: '76%', size: 2.5, delay: '1.0s', duration: '2.4s', opacity: 0.95 },
+];
+
+const DUSK_STARS = [
+  { top: '8%',  left: '20%', size: 2,   delay: '0.5s', duration: '3.0s', opacity: 0.55 },
+  { top: '12%', left: '45%', size: 1.5, delay: '1.6s', duration: '3.5s', opacity: 0.45 },
+  { top: '7%',  left: '70%', size: 2,   delay: '0.8s', duration: '2.8s', opacity: 0.6 },
+  { top: '15%', left: '85%', size: 1.5, delay: '2.0s', duration: '3.2s', opacity: 0.5 },
+  { top: '20%', left: '35%', size: 1.5, delay: '1.2s', duration: '3.8s', opacity: 0.4 },
+];
+
+const FIREFLIES = [
+  { top: '62%', left: '16%', duration: '14s', delay: '0s',  driftX: 35,  driftY: -45 },
+  { top: '74%', left: '38%', duration: '18s', delay: '3s',  driftX: -40, driftY: -35 },
+  { top: '56%', left: '72%', duration: '16s', delay: '7s',  driftX: 30,  driftY: -50 },
+  { top: '82%', left: '54%', duration: '20s', delay: '2s',  driftX: -35, driftY: -40 },
+  { top: '66%', left: '86%', duration: '15s', delay: '5s',  driftX: 25,  driftY: -30 },
+];
+
+const AFTERNOON_CLOUDS = [
+  { top: '11%', width: 'min(36vw, 340px)', height: '60px', duration: '74s', delay: '0s' },
+  { top: '24%', width: 'min(44vw, 420px)', height: '75px', duration: '88s', delay: '28s' },
+  { top: '8%',  width: 'min(28vw, 280px)', height: '50px', duration: '64s', delay: '48s' },
+];
+
 export const GardenAmbience = memo(function GardenAmbience() {
   const { theme } = useDayNightTheme();
-  const { shouldDisableAnimations } = useEcoMode();
+  const { shouldDisableAnimations, motionPreference } = useEcoMode();
+  const { timeOfDay: timePeriod } = useTimeOfDay();
   const still = shouldDisableAnimations;
   const isDay = theme === 'day';
+
+  const isNightScene = timePeriod === 'night' || timePeriod === 'late-night';
+  const isSunScene = timePeriod === 'dawn' || timePeriod === 'morning';
+  const isAfternoonScene = timePeriod === 'afternoon';
+  const isDuskScene = timePeriod === 'dusk';
 
   const motes = isDay ? DAY_MOTES : DAY_MOTES.slice(0, 10);
 
@@ -59,8 +110,11 @@ export const GardenAmbience = memo(function GardenAmbience() {
       aria-hidden="true"
       className="garden-ambience"
       data-scene={isDay ? 'day' : 'night'}
+      data-period={timePeriod}
+      data-motion={motionPreference}
+      data-still={still ? 'true' : undefined}
     >
-      {/* 1 — light pools */}
+      {/* 1 — light pools (untouched geometry) */}
       <div className="garden-ambience__pools">
         <span className="garden-pool garden-pool--moss" />
         <span className="garden-pool garden-pool--gold" />
@@ -68,7 +122,97 @@ export const GardenAmbience = memo(function GardenAmbience() {
         <span className="garden-pool garden-pool--clay" />
       </div>
 
-      {/* 2 — botanical silhouettes framing the content column */}
+      {/* 2 — celestial & atmospheric periods */}
+      {isNightScene && (
+        <>
+          <div className="garden-moon" />
+          <div className="garden-shooting-star" style={{ animationDelay: still ? undefined : '6s' }} />
+          <div className="garden-ambience__stars">
+            {NIGHT_STARS.map((s, i) => (
+              <span
+                key={i}
+                className="garden-star"
+                style={{
+                  top: s.top,
+                  left: s.left,
+                  width: s.size,
+                  height: s.size,
+                  opacity: s.opacity,
+                  animationDelay: still ? undefined : s.delay,
+                  animationDuration: still ? undefined : s.duration,
+                }}
+              />
+            ))}
+          </div>
+          <div className="garden-ambience__fireflies">
+            {FIREFLIES.map((ff, i) => (
+              <span
+                key={i}
+                className="garden-firefly"
+                style={{
+                  top: ff.top,
+                  left: ff.left,
+                  animationDelay: still ? undefined : ff.delay,
+                  animationDuration: still ? undefined : ff.duration,
+                  ['--ff-x' as string]: `${ff.driftX}px`,
+                  ['--ff-y' as string]: `${ff.driftY}px`,
+                }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {isSunScene && (
+        <div className="garden-ambience__sun-group">
+          <div className="garden-sun-bloom" />
+          <div className="garden-sun-rays" style={{ animationDuration: still ? undefined : '140s' }} />
+          <div className="garden-sun-disc" />
+        </div>
+      )}
+
+      {isAfternoonScene && (
+        <div className="garden-ambience__clouds">
+          {AFTERNOON_CLOUDS.map((c, i) => (
+            <span
+              key={i}
+              className="garden-cloud"
+              style={{
+                top: c.top,
+                width: c.width,
+                height: c.height,
+                animationDelay: still ? undefined : c.delay,
+                animationDuration: still ? undefined : c.duration,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {isDuskScene && (
+        <>
+          <div className="garden-ambience__dusk-glow" />
+          <div className="garden-ambience__stars">
+            {DUSK_STARS.map((s, i) => (
+              <span
+                key={i}
+                className="garden-star"
+                style={{
+                  top: s.top,
+                  left: s.left,
+                  width: s.size,
+                  height: s.size,
+                  opacity: s.opacity,
+                  animationDelay: still ? undefined : s.delay,
+                  animationDuration: still ? undefined : s.duration,
+                }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* 3 — botanical silhouettes framing the content column */}
       <svg
         className="garden-ambience__foliage garden-foliage--left"
         viewBox="0 0 220 420"
@@ -97,7 +241,7 @@ export const GardenAmbience = memo(function GardenAmbience() {
         </g>
       </svg>
 
-      {/* 3 — drifting motes */}
+      {/* 4 — drifting motes */}
       <div className="garden-ambience__motes">
         {motes.map((m, i) => (
           <span
@@ -116,7 +260,7 @@ export const GardenAmbience = memo(function GardenAmbience() {
         ))}
       </div>
 
-      {/* 4 — vignette to hold the centre column */}
+      {/* 5 — vignette to hold the centre column */}
       <div className="garden-ambience__vignette" />
     </div>
   );
