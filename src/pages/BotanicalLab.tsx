@@ -31,7 +31,7 @@ import {
 import StreakPopup from '../components/game/StreakPopup';
 import { db } from '../db/database';
 import { GameService } from '../services/gameService';
-import { identifyPlant } from '../services/geminiService';
+import { identifyPlant, coerceLegacyToReport, type PlantScanReport } from '../services/geminiService';
 import { PlantService, onPlantsChange } from '../services/plantService';
 import { StorageService } from '../services/storageService';
 import { analyzePlantHealth, type PlantSignature } from '../services/driftDetector';
@@ -214,7 +214,10 @@ export default function BotanicalLab() {
     const pending = takePendingScan();
     if (!pending) return;
     setDexImage(pending.image);
-    setDexResult(pending.result);
+    // A scan stashed before the report contract shipped has no `report` —
+    // coerce it so the restored payload satisfies the same shape as a live one.
+    const restored: any = pending.result;
+    setDexResult(restored?.report ? restored : { ...restored, report: coerceLegacyToReport(restored) });
     setScanMode('consult');
     success('Your diagnosis was waiting for you — index it to keep it.');
   }, []);
@@ -285,17 +288,13 @@ export default function BotanicalLab() {
   };
 
   const handleIndexSpecimen = async (resultToUse?: any, photoUrl?: string) => {
-    const target = resultToUse || dexResult;
+    const target = (resultToUse || dexResult)?.report;
     const photo = photoUrl || dexImage;
     if (!target || !photo) return;
 
-    // Hard gate: non-plant scans cannot be indexed or award seeds
-    const isNonPlant = Boolean(
-      (target.route && target.route !== 'plant') ||
-      (target.subject?.kind && target.subject.kind !== 'plant' && target.subject.kind !== 'uncertain') ||
-      (target.subject?.subjectKind && target.subject.subjectKind !== 'plant' && target.subject.subjectKind !== 'uncertain')
-    );
-    if (isNonPlant) {
+    // Hard gate: non-plant scans cannot be indexed or award seeds. The report
+    // carries the server's one canonical verdict — no client-side guessing.
+    if (target.kind !== 'plant') {
       error('Only botanical specimens can be indexed to your sanctuary.');
       return;
     }
@@ -311,10 +310,11 @@ export default function BotanicalLab() {
       // Carry the diagnosis across the sign-up wall so coming back does not
       // cost the visitor a second scan.
       rememberAuthReturn('/lab?tab=dex');
-      stashPendingScan(photo, target);
+      stashPendingScan(photo, resultToUse || dexResult);
       return;
     }
-    const species = target.speciesName || target.scientificName || target.commonName;
+    const plantReport = target as PlantScanReport;
+    const species = plantReport.scientificName || plantReport.displayName;
     const rarity = getRarityFromSpecies(species);
     let finalPhotoUrl = photo;
     if (photo && photo.startsWith('data:')) {
@@ -331,17 +331,7 @@ export default function BotanicalLab() {
     }
 
     setScanStage('saving');
-    const plant = await GameService.indexScannedPlant({
-      photoUrl: finalPhotoUrl,
-      species,
-      commonName: target.commonName || species,
-      healthStatus: target.healthStatus,
-      severity: target.severity,
-      diagnosis: target.diagnosis,
-      watering: target.watering,
-      light: target.light,
-      temperature: target.temperature,
-    }, userId);
+    const plant = await GameService.indexScannedPlant(plantReport, finalPhotoUrl, userId);
 
     setScanStage('rewarding');
     const alreadyDiscovered = profile?.discoveredSpecies?.includes(species);
@@ -536,21 +526,28 @@ export default function BotanicalLab() {
         // The new photo must show the same specimen. A photo of something else
         // (or of nothing alive) is not a check-in for this plant, so neither
         // the photo, the seeds nor the streak move.
-        if (result?.route === 'non_living') {
-          setScanError(result.message || 'Only living specimens are analysed — this photo does not update the record.');
+        if (result?.report?.kind === 'non_living') {
+          setScanError(result.report.message || 'Only living specimens are analysed — this photo does not update the record.');
           return;
         }
-        if (result?.route === 'living_non_plant') {
-          setScanError(`That photo shows ${result.subject?.kind || 'something living'}, not the registered plant. Photo not updated.`);
+        if (result?.report?.kind !== 'plant') {
+          setScanError(`That photo shows ${result.report.displayName || 'something living'}, not the registered plant. Photo not updated.`);
           return;
         }
 
-        const resultSpecies = result.speciesName || result.commonName;
-        const oldGenus = (plant.species || '').split(' ')[0].toLowerCase();
-        const newGenus = (resultSpecies || '').split(' ')[0].toLowerCase();
-        
-        if (oldGenus && newGenus && oldGenus !== newGenus && !resultSpecies.toLowerCase().includes(oldGenus)) {
-          setScanError(`Identification mismatch: specimen appears to be ${resultSpecies}, differing from registered ${plant.species}.`);
+        // BUG-13: Compare genus using scientificName (a real binomial) on both
+        // sides. Using displayName / common name produces false mismatches:
+        // "Swiss Cheese Plant" gives genus "swiss" which never equals "monstera".
+        // Only treat plant.species as a genus source when it contains a space
+        // (i.e. looks like a binomial), otherwise skip the check.
+        const newScientific = result?.report?.scientificName || '';
+        const newGenus = newScientific.split(' ')[0].toLowerCase();
+        const oldSpecies = (plant.species || '');
+        const oldGenus = oldSpecies.includes(' ') ? oldSpecies.split(' ')[0].toLowerCase() : '';
+
+        if (oldGenus && newGenus && oldGenus !== newGenus) {
+          const displayResult = result?.report?.displayName || newScientific || 'another species';
+          setScanError(`Identification mismatch: specimen appears to be ${displayResult}, differing from registered ${plant.species}.`);
           return;
         }
 
@@ -1093,13 +1090,8 @@ export default function BotanicalLab() {
 
                       {/* Right: Botanical Index Card Board */}
                       <div className="lg:col-span-7 flex flex-col justify-between">
-                        {Boolean(
-                          (dexResult?.route && dexResult.route !== 'plant') ||
-                          (dexResult?.subject?.kind && dexResult.subject.kind !== 'plant' && dexResult.subject.kind !== 'uncertain') ||
-                          (dexResult?.subject?.subjectKind && dexResult.subject.subjectKind !== 'plant' && dexResult.subject.subjectKind !== 'uncertain') ||
-                          (dexResult?.subjectKind && dexResult.subjectKind !== 'plant' && dexResult.subjectKind !== 'uncertain')
-                        ) ? (
-                          <NonPlantReport result={dexResult} onScanAgain={() => resetDexScan(true)} />
+                        {dexResult?.report && dexResult.report.kind !== 'plant' ? (
+                          <NonPlantReport report={dexResult.report} onScanAgain={() => resetDexScan(true)} />
                         ) : (
                         <>
                         <div>
@@ -1115,20 +1107,20 @@ export default function BotanicalLab() {
                             )}
 
                             {/* Where the photo came from. Hover for the three checks. */}
-                            <ProvenanceBadge provenance={dexResult?.provenance} />
+                            <ProvenanceBadge provenance={dexResult?.report?.provenance} />
                           </div>
 
                           <h2 className="text-3xl font-serif font-black text-text-bark">
-                            {dexResult?.commonName || 'Identifying...'}
+                            {dexResult?.report?.displayName || 'Identifying...'}
                           </h2>
                           <p className="text-xs font-mono uppercase tracking-widest text-moss mt-0.5 font-bold">
-                            {dexResult?.scientificName || ''}
+                            {dexResult?.report?.scientificName || ''}
                           </p>
 
                           {/* Immediate Health Status & Severity */}
                           <div className="mt-3 flex flex-wrap items-center gap-3">
                             {(() => {
-                              const status = dexResult?.healthStatus || 'Healthy';
+                              const status = dexResult?.report?.healthStatus || 'Healthy';
                               let badgeColor = 'bg-emerald-100/80 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800';
                               if (status === 'Stressed') badgeColor = 'bg-amber-100/80 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800';
                               if (status === 'Diseased' || status === 'Infested') badgeColor = 'bg-rose-100/80 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800';
@@ -1141,14 +1133,14 @@ export default function BotanicalLab() {
                             })()}
 
                             {/* Severity Level Indicator */}
-                            {dexResult?.healthStatus && dexResult.healthStatus !== 'Healthy' && (
+                            {dexResult?.report?.healthStatus && dexResult.report.healthStatus !== 'Healthy' && (
                               <div className="flex items-center gap-1.5 px-3 py-1 bg-bg-secondary border border-border-light rounded-full">
                                 <span className="text-[9px] uppercase font-black tracking-wider text-text-muted font-mono">Severity:</span>
                                 <div className="flex gap-1">
                                   {Array.from({ length: 5 }).map((_, i) => (
                                     <div 
                                       key={i} 
-                                      className={`w-2.5 h-2.5 rounded-full border ${i < (dexResult.severity || 1) ? 'bg-rose-500 border-rose-600' : 'bg-black/10 dark:bg-white/10 border-transparent'}`} 
+                                      className={`w-2.5 h-2.5 rounded-full border ${i < (dexResult.report?.severity ?? 1) ? 'bg-rose-500 border-rose-600' : 'bg-black/10 dark:bg-white/10 border-transparent'}`} 
                                     />
                                   ))}
                                 </div>
@@ -1162,7 +1154,7 @@ export default function BotanicalLab() {
                                 № 01 · Clinical Diagnosis &amp; Status
                               </span>
                               <p className="text-xs text-text-stone leading-relaxed font-sans font-medium">
-                                {dexResult?.diagnosis || 'Waiting for diagnostic payload...'}
+                                {dexResult?.report?.diagnosis || 'Waiting for diagnostic payload...'}
                               </p>
                             </div>
 
@@ -1171,13 +1163,13 @@ export default function BotanicalLab() {
                                 <span className="text-[9px] font-black uppercase tracking-wider text-moss block mb-1 font-mono">
                                   № 02 · Light Threshold
                                 </span>
-                                <p className="text-xs font-bold text-text-bark">{dexResult?.light || 'Indirect bright'}</p>
+                                <p className="text-xs font-bold text-text-bark">{dexResult?.report?.care.light || '—'}</p>
                               </div>
                               <div className="botanical-index-card p-4 rounded-2xl relative border border-[#b4a58c]/35 dark:border-[#8fb58f]/20 shadow-xs">
                                 <span className="text-[9px] font-black uppercase tracking-wider text-moss block mb-1 font-mono">
                                   № 03 · Hydration Cadence
                                 </span>
-                                <p className="text-xs font-bold text-text-bark">{dexResult?.watering || 'Moderate'}</p>
+                                <p className="text-xs font-bold text-text-bark">{dexResult?.report?.care.watering || '—'}</p>
                               </div>
                             </div>
 
@@ -1264,14 +1256,16 @@ export default function BotanicalLab() {
                               </div>
                             )}
 
-                            {/* Actionable Care Checklist */}
-                            {(dexResult?.careTips || dexResult?.treatmentInstructions) && (
+                            {/* Actionable Care Checklist — the server's one
+                                canonical step list (instructions, with the
+                                model's care tips as fallback). */}
+                            {dexResult?.report?.treatmentSteps && dexResult.report.treatmentSteps.length > 0 && (
                               <div className="botanical-index-card p-4 sm:p-5 rounded-2xl relative border border-[#b4a58c]/35 dark:border-[#8fb58f]/20 shadow-xs">
                                 <span className="text-[9px] font-black uppercase tracking-wider text-moss block mb-2 font-mono">
                                   № 04 · Actionable Treatment Instructions
                                 </span>
                                 <ul className="space-y-1.5">
-                                  {(dexResult?.treatmentInstructions || dexResult?.careTips || []).map((tip: string, idx: number) => (
+                                  {dexResult.report.treatmentSteps.map((tip: string, idx: number) => (
                                     <li key={idx} className="text-xs text-text-stone flex items-start gap-2">
                                       <span className="text-moss font-bold select-none mt-0.5 font-mono">✓</span>
                                       <span>{tip}</span>
@@ -1282,37 +1276,37 @@ export default function BotanicalLab() {
                             )}
 
                             {/* ── LOCATION INTELLIGENCE ── */}
-                            {(dexResult?.locationAdvice || dexResult?.seasonalCare || dexResult?.localPestRisks || dexResult?.climateCompatibility) && (
+                            {dexResult?.report?.location && (
                               <div className="space-y-3">
                                 <span className="text-[9px] font-black uppercase tracking-wider text-moss flex items-center gap-1.5 font-mono">
                                   <Compass size={10} /> № 05 · Biogeographic Intelligence
                                 </span>
 
-                                {dexResult?.climateCompatibility && (
+                                {dexResult.report.location.climateCompatibility && (
                                   <div className="botanical-index-card p-4 rounded-xl border border-border-light">
                                     <span className="text-[9px] font-black uppercase tracking-wider text-text-stone block mb-1 font-mono">🌍 Climate Compatibility</span>
-                                    <p className="text-xs text-text-bark leading-relaxed">{dexResult.climateCompatibility}</p>
+                                    <p className="text-xs text-text-bark leading-relaxed">{dexResult.report.location.climateCompatibility}</p>
                                   </div>
                                 )}
 
-                                {dexResult?.locationAdvice && (
+                                {dexResult.report.location.locationAdvice && (
                                   <div className="botanical-index-card p-4 rounded-xl border border-border-light">
                                     <span className="text-[9px] font-black uppercase tracking-wider text-text-stone block mb-1 font-mono">📍 Regional Growing Advice</span>
-                                    <p className="text-xs text-text-bark leading-relaxed">{dexResult.locationAdvice}</p>
+                                    <p className="text-xs text-text-bark leading-relaxed">{dexResult.report.location.locationAdvice}</p>
                                   </div>
                                 )}
 
-                                {dexResult?.seasonalCare && (
+                                {dexResult.report.location.seasonalCare && (
                                   <div className="botanical-index-card p-4 rounded-xl border border-border-light">
                                     <span className="text-[9px] font-black uppercase tracking-wider text-text-stone block mb-1 font-mono">🗓️ Seasonal Care Right Now</span>
-                                    <p className="text-xs text-text-bark leading-relaxed">{dexResult.seasonalCare}</p>
+                                    <p className="text-xs text-text-bark leading-relaxed">{dexResult.report.location.seasonalCare}</p>
                                   </div>
                                 )}
 
-                                {dexResult?.localPestRisks && (
+                                {dexResult.report.location.localPestRisks && (
                                   <div className="p-4 rounded-xl bg-rose-500/5 border border-rose-500/15">
                                     <span className="text-[9px] font-black uppercase tracking-wider text-rose-400 block mb-1 font-mono">⚠️ Local Pest &amp; Disease Risks</span>
-                                    <p className="text-xs text-text-bark leading-relaxed">{dexResult.localPestRisks}</p>
+                                    <p className="text-xs text-text-bark leading-relaxed">{dexResult.report.location.localPestRisks}</p>
                                   </div>
                                 )}
                               </div>
@@ -1353,7 +1347,7 @@ export default function BotanicalLab() {
                             onClick={() => {
                               const name = encodeURIComponent(dexResult?.commonName || '');
                               const spec = encodeURIComponent(dexResult?.scientificName || '');
-                              const query = encodeURIComponent(`I just ran a scan on my ${dexResult?.commonName || 'plant'}. The health status is ${dexResult?.healthStatus || 'unknown'} with severity ${dexResult?.severity || 1}/5. Diagnosis: ${dexResult?.diagnosis || 'N/A'}. What is the best treatment plan?`);
+                              const query = encodeURIComponent(`I just ran a scan on my ${dexResult?.report?.displayName || 'plant'}. The health status is ${dexResult?.report?.healthStatus || 'unknown'} with severity ${dexResult?.report?.severity ?? 1}/5. Diagnosis: ${dexResult?.report?.diagnosis || 'N/A'}. What is the best treatment plan?`);
                               transitionTo(`/assistant?plantName=${name}&species=${spec}&query=${query}`, 'AI Assistant');
                             }}
                             className="min-h-[44px] flex-1 py-3 bg-bg-secondary hover:bg-bg-tertiary text-text-bark border border-border-medium font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95 font-mono"

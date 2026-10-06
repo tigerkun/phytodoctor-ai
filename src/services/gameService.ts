@@ -4,6 +4,7 @@ import { SPECIES_PROFILES } from '../forecasting/speciesProfiles';
 import { ECONOMY_CONFIG, SEED_MULTIPLIERS, MARKETPLACE_ITEMS } from '../game/ECONOMY_DATA';
 import { RewardService } from './rewardService';
 import { applySeedDelta, flushSeedSyncOutbox, hasPendingSeedSyncs } from './seedLedger';
+import { guardianScoreFromScan, normalizeHealthStatus, type PlantScanReport } from '../lib/scanReport';
 
 export class GameService {
   static getUserId(): string {
@@ -676,44 +677,44 @@ export class GameService {
     return result;
   }
 
+  /**
+   * Delegates to the lib policy — the score lives in src/lib/scanReport now,
+   * and this wrapper exists for the clinicService.check self-verification.
+   */
   static scoreFromScan(healthStatus?: string, severity?: number): number {
-    if (typeof severity === 'number') return Math.max(8, Math.min(99, 110 - severity * 18));
-    const map: Record<string, number> = { Healthy: 92, Stressed: 68, Diseased: 45, Infested: 28 };
-    return map[healthStatus || ''] ?? 70;
+    return guardianScoreFromScan(
+      normalizeHealthStatus(healthStatus),
+      typeof severity === 'number' ? severity : null,
+    );
   }
 
-  static async indexScannedPlant(input: {
-    photoUrl: string;
-    species: string;
-    commonName: string;
-    healthStatus?: string;
-    severity?: number;
-    diagnosis?: string;
-    watering?: string;
-    light?: string;
-    temperature?: string;
-  }, userId: string = this.getUserId()): Promise<Plant> {
-    const species = (input.species || input.commonName || 'Unknown').trim();
-    const score = this.scoreFromScan(input.healthStatus, input.severity);
-    const status: Plant['status'] = score >= 80 ? 'Stable' : score >= 55 ? 'Watching' : score >= 35 ? 'Recovering' : 'Alert';
+  static async indexScannedPlant(report: PlantScanReport, photoUrl: string, userId: string = this.getUserId()): Promise<Plant> {
+    const species = (report.scientificName || report.displayName).trim() || 'Unknown';
+    // The score and its status label are the server's policy now — the client
+    // no longer re-derives them from status strings.
+    const score = report.vitals.guardianScore;
+    const status: Plant['status'] = report.vitals.statusLabel;
     const now = new Date();
     const owned = await db.plants.where('userId').equals(userId).toArray();
     const key = species.toLowerCase();
     let plant = owned.find(p => !p.isDemo && (p.species || '').toLowerCase() === key);
 
-    const light = /direct/i.test(input.light || '') ? 'Direct' as const : /low/i.test(input.light || '') ? 'Low' as const : 'Indirect' as const;
-    const soilMoisture = /dry|under/i.test(input.watering || '') ? 'Dry' as const : /wet|over/i.test(input.watering || '') ? 'Wet' as const : 'Moist' as const;
-    const tempMatch = (input.temperature || '').match(/-?\d+/);
-    const weatherTemp = tempMatch ? Number(tempMatch[0]) : null;
+    const light = report.careParsed.lightLevel;
+    const soilMoisture = report.careParsed.soilMoisture;
+    const weatherTemp = report.careParsed.temperatureC;
 
-    let finalPhotoUrl = input.photoUrl;
+    let finalPhotoUrl = photoUrl;
     if (finalPhotoUrl && finalPhotoUrl.startsWith('data:')) {
       const { StorageService } = await import('./storageService');
       const cloudUrl = await StorageService.uploadPlantPhotoFromDataUrl(finalPhotoUrl, userId);
       if (!cloudUrl) {
-        throw new Error("Failed to upload photo to secure vault.");
+        // Offline-first: the cloud copy is a mirror, never a gate. Throwing
+        // here used to abort before the Dexie save and lose the diagnosis
+        // entirely — the photo stays local and the record still lands.
+        console.warn('[gameService] Photo upload unavailable — indexing with the local image.');
+      } else {
+        finalPhotoUrl = cloudUrl;
       }
-      finalPhotoUrl = cloudUrl;
     }
 
     if (plant) {
@@ -724,7 +725,9 @@ export class GameService {
         status,
         checkInTime: 'just now',
         updatedAt: now,
-        location: input.diagnosis?.slice(0, 160) || plant.location,
+        // plant.location is the physical room; the diagnosis already lives
+        // in the check-in. Never clobber the room with pathology text.
+        location: plant.location,
       });
       plant = { ...plant, photoUrl: finalPhotoUrl, guardianScore: score, status, updatedAt: now };
     } else {
@@ -732,14 +735,14 @@ export class GameService {
       plant = await PlantService.addPlant({
         id: crypto.randomUUID(),
         userId,
-        name: input.commonName || species.split(' ')[0],
+        name: report.displayName !== 'Botanical Specimen' ? report.displayName : species.split(' ')[0],
         species,
         acquiredAt: now,
         soilType: 'well-draining',
         soilPh: null,
         potSize: '',
         potMaterial: 'plastic',
-        location: input.diagnosis?.slice(0, 160) || '',
+        location: '',
         latitude: null,
         longitude: null,
         hardinessZone: null,
@@ -761,7 +764,7 @@ export class GameService {
       timestamp: now,
       soilMoisture,
       lightLevel: light,
-      changes: input.diagnosis ? [input.diagnosis] : ['Indexed from scan'],
+      changes: report.diagnosis ? [report.diagnosis] : ['Indexed from scan'],
       photoBlob: null,
       photoUrl: finalPhotoUrl,
       signature: null,
@@ -770,7 +773,7 @@ export class GameService {
       driftStatus: score >= 80 ? 'stable' : score >= 55 ? 'watching' : 'alert',
       weatherTemp,
       weatherHumidity: null,
-      weatherDescription: input.healthStatus || null,
+      weatherDescription: report.healthStatus || null,
       synced: 0,
     });
 

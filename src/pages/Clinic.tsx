@@ -16,7 +16,7 @@ import {
   RefreshCw 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { identifyPlant, type PlantCare, type DiagnosticPossibility } from '../services/geminiService';
+import { identifyPlant, type PlantScanReport, type DiagnosticPossibility } from '../services/geminiService';
 import { NotificationContainer, type RewardToast } from '../components/game/RewardNotification';
 import { COMMON_REWARDS } from '../game/rewardUtils';
 import PageWrapper from '../components/home/PageWrapper';
@@ -35,8 +35,10 @@ function clamp(n: number, min: number, max: number) {
  * Antique Brass Balance Scale Gauge
  * Stylizes diagnostic certainty as an authentic mechanical balance scale.
  */
-function AntiqueBrassScale({ confidencePct }: { confidencePct: number }) {
-  const pct = clamp(confidencePct, 10, 100);
+function AntiqueBrassScale({ confidencePct }: { confidencePct: number | null }) {
+  // Null is honest: the model offered no confidence and no differential did
+  // either. The needle rests rather than borrowing the old invented 88.
+  const pct = confidencePct === null ? 10 : clamp(confidencePct, 10, 100);
   // Pointer angle: 50% is center (0 deg), 10% is -24 deg, 100% is +24 deg
   const needleAngle = ((pct - 50) / 50) * 24;
   // Beam tilt: physical equilibrium balancing towards certainty
@@ -133,7 +135,7 @@ export default function Clinic() {
   // permission on mount.
   const { location, city } = useGeolocation();
   const [images, setImages] = useState<string[]>([]);
-  const [identification, setIdentification] = useState<PlantCare | null>(null);
+  const [identification, setIdentification] = useState<PlantScanReport | null>(null);
   const [subjectNotice, setSubjectNotice] = useState<any | null>(null);
   // The provenance gate's hold on this session's reward, with the one-tap
   // release. Same policy as the Lab: the verdict is evidence, never a block.
@@ -234,26 +236,21 @@ export default function Clinic() {
 
       // The scan triaged as something other than a plant. No botanical verdict
       // exists, so nothing is saved and no reward is paid — say what was seen.
-      const isNonPlant = Boolean(
-        result?.route === 'non_living' ||
-        result?.route === 'living_non_plant' ||
-        (result?.subject?.kind && ['fungus', 'animal', 'human', 'other_living', 'non_living'].includes(result.subject.kind)) ||
-        (result?.subject?.subjectKind && ['fungus', 'animal', 'human', 'other_living', 'non_living'].includes(result.subject.subjectKind))
-      );
-
-      if (isNonPlant) {
-        setSubjectNotice(result);
+      if (result?.report?.kind !== 'plant') {
+        setSubjectNotice(result.report);
         return;
       }
 
-      setIdentification(result);
+      // The clinic renders the server-shaped plant report — no client-side
+      // reshaping of raw model fields anymore.
+      setIdentification(result.report);
 
       // Award diagnosis reward, gated by image provenance. Same policy as the
       // Lab: self-captured pays in full, unverified pays half, likely-synthetic
       // pays nothing until the attestation. The clawback is its own ledger line
       // so the withholding is auditable, and payloads that predate the feature
       // carry no verdict and default to permissive.
-      const verdict: string = result?.provenance?.verdict || 'self_captured';
+      const verdict: string = result?.report?.provenance?.verdict || result?.provenance?.verdict || 'self_captured';
       let seeds = 0;
       let xp = 0;
       let capExceeded: boolean | undefined;
@@ -320,18 +317,7 @@ export default function Clinic() {
     setSaving(true);
     try {
       const photoUrl = images[0] || '';
-      const species = identification.speciesName || identification.scientificName || identification.commonName || 'Unknown Specimen';
-      const saved = await GameService.indexScannedPlant({
-        photoUrl,
-        species,
-        commonName: identification.commonName || species,
-        healthStatus: identification.healthStatus,
-        severity: identification.severity,
-        diagnosis: identification.diagnosis,
-        watering: identification.watering,
-        light: identification.light,
-        temperature: identification.temperature,
-      });
+      const saved = await GameService.indexScannedPlant(identification, photoUrl);
       setSavedPlantId(saved.id);
       success(`Specimen admitted to Herbarium records: ${saved.name}`);
     } catch (err: any) {
@@ -352,39 +338,24 @@ export default function Clinic() {
     setActiveTab('diagnosis');
   };
 
-  const ConfidencePct = useMemo(() => {
-    if (!identification) return 0;
-    const anyId = identification as any;
-    if (typeof anyId.confidence === 'number') return clamp(anyId.confidence, 0, 100);
-    const topDiff = identification.differentialDiagnosis?.[0];
-    if (topDiff && typeof topDiff.confidence === 'number') {
-      return clamp(topDiff.confidence, 0, 100);
-    }
-    return 88;
-  }, [identification]);
+  // Both come from the server-shaped report now. confidencePct may genuinely
+  // be null — the old code filled the gap with an invented 88 — and the
+  // severity keyword heuristic lives server-side in src/lib/scanReport.
+  const ConfidencePct = identification ? identification.confidencePct : null;
 
-  const severityLevel = useMemo(() => {
-    if (!identification) return 1;
-    const s = (identification as any).severity;
-    if (typeof s === 'number') return s;
-    const hs = ((identification as any).healthStatus || '').toLowerCase();
-    if (hs.includes('infest') || hs.includes('diseas')) return 4;
-    if (hs.includes('stress')) return 3;
-    return 1;
-  }, [identification]);
+  const severityLevel = identification ? identification.severity : 1;
 
   const isQuarantineRequired = severityLevel >= 3;
 
   const HealthPill = () => {
-    const healthStatus = identification?.healthStatus as string | undefined;
-    const label = healthStatus || 'Vigorous';
-    const isHealthy = label.toLowerCase().includes('healthy');
-    const isSevere = label.toLowerCase().includes('infest') || label.toLowerCase().includes('diseas');
-    
-    const tone = isSevere 
-      ? 'bg-[#dc2626] text-white' 
-      : isHealthy 
-        ? 'bg-[#5f7161] text-white' 
+    const label = identification?.healthStatus;
+    if (!label) return null;
+    // The status is a validated server enum, so the tone mapping is exact
+    // rather than substring-guessed.
+    const tone = label === 'Infested' || label === 'Diseased'
+      ? 'bg-[#dc2626] text-white'
+      : label === 'Healthy'
+        ? 'bg-[#5f7161] text-white'
         : 'bg-[#e07a5f] text-white';
 
     return (
@@ -418,7 +389,7 @@ export default function Clinic() {
     );
   };
 
-  const differentialItems = (identification as any)?.differentialDiagnosis as DiagnosticPossibility[] | undefined;
+  const differentialItems = identification?.differential;
 
   return (
     <PageWrapper className="skin-clinic">
@@ -692,7 +663,7 @@ export default function Clinic() {
                       {subjectNotice && (
                         <div className="mb-6">
                           <NonPlantReport
-                            result={subjectNotice}
+                            report={subjectNotice}
                             onScanAgain={() => {
                               setSubjectNotice(null);
                               setImages([]);
@@ -848,10 +819,10 @@ export default function Clinic() {
                             </div>
 
                             <h2 className="font-serif text-3xl sm:text-4xl font-bold text-[var(--text-bark)] mt-1.5 tracking-tight">
-                              {(identification as any)?.commonName || 'Plant Under Triage'}
+                              {identification?.displayName || 'Plant Under Triage'}
                             </h2>
                             <p className="text-xs italic font-serif text-[#5f7161] dark:text-[#9caf88] mt-0.5">
-                              {(identification as any)?.scientificName || (identification as any)?.scientific || 'Botanical classification pending...'}
+                              {identification?.scientificName || 'Botanical classification pending...'}
                             </p>
                           </div>
 
@@ -890,24 +861,24 @@ export default function Clinic() {
                                 </div>
 
                                 <p className="font-serif text-lg sm:text-xl font-semibold italic text-[var(--text-bark)] leading-relaxed">
-                                  “{(identification as any)?.diagnosis || 'A gentle botanical wellness story is unfolding.'}”
+                                  “{identification?.diagnosis || '—'}”
                                 </p>
 
                                 <div className="mt-4 pt-3 border-t border-dashed border-[#b89542]/20 text-xs text-[var(--text-stone)] font-sans leading-relaxed">
                                   <span className="font-bold text-[#785a1a] dark:text-[#caa651] font-mono uppercase text-[10px] block mb-1">
                                     Vulnerability & Environmental Notes:
                                   </span>
-                                  {(identification as any)?.vulnerabilityNotes || 'Observe leaf margin transpiration and maintain steady ambient illumination.'}
+                                  {identification?.vulnerabilityNotes || '—'}
                                 </div>
                               </div>
 
                               {/* Dispensary Viticultural Measurements */}
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                                 {[
-                                  { label: 'Hydration ʒ', val: (identification as any)?.watering || 'Moist' },
-                                  { label: 'Light Lux', val: (identification as any)?.light || 'Indirect' },
-                                  { label: 'Substrate', val: (identification as any)?.soil || 'Loamy' },
-                                  { label: 'Temp °C', val: (identification as any)?.temperature || '21°C' },
+                                  { label: 'Hydration ʒ', val: identification?.care.watering || '—' },
+                                  { label: 'Light Lux', val: identification?.care.light || '—' },
+                                  { label: 'Substrate', val: identification?.care.soil || '—' },
+                                  { label: 'Temp °C', val: identification?.care.temperature || '—' },
                                 ].map((item) => (
                                   <div key={item.label} className="p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-[#b89542]/20">
                                     <span className="text-[9px] font-mono uppercase tracking-wider text-[#785a1a] dark:text-[#caa651] block font-bold">
@@ -921,8 +892,7 @@ export default function Clinic() {
                               </div>
 
                               {/* Dispensary Compounding Instructions Slip */}
-                              {(((identification as any)?.treatmentInstructions && (identification as any).treatmentInstructions.length > 0) || 
-                                ((identification as any)?.careTips && (identification as any).careTips.length > 0)) && (
+                              {identification?.treatmentSteps && identification.treatmentSteps.length > 0 && (
                                 <div className="apothecary-rx-slip rounded-2xl p-5 sm:p-6 space-y-3">
                                   <div className="flex items-center justify-between border-b border-[#b89542]/20 pb-2">
                                     <div className="flex items-center gap-2">
@@ -937,10 +907,7 @@ export default function Clinic() {
                                   </div>
 
                                   <ul className="space-y-2 text-xs text-[var(--text-stone)] font-sans">
-                                    {(((identification as any)?.treatmentInstructions && (identification as any).treatmentInstructions.length > 0)
-                                      ? (identification as any).treatmentInstructions
-                                      : (identification as any).careTips
-                                    ).map((instr: string, i: number) => (
+                                    {identification.treatmentSteps.map((instr: string, i: number) => (
                                       <li key={i} className="flex items-start gap-2">
                                         <span className="font-mono text-[10px] font-bold text-[#785a1a] dark:text-[#caa651] mt-0.5 shrink-0">
                                           {i + 1}.
@@ -963,13 +930,13 @@ export default function Clinic() {
                           {/* TAB 2: Treatment Timeline styled as Perforated Tear-off Rx Slips */}
                           {activeTab === 'timeline' && (
                             <div className="space-y-3">
-                              {((identification as any)?.treatmentTimeline || []).map((step: any, idx: number) => (
+                              {(identification?.timeline || []).map((step: any, idx: number) => (
                                 <div key={idx} className="apothecary-rx-slip rounded-xl p-4 sm:p-5">
                                   <div className="flex items-center justify-between border-b border-[#b89542]/20 pb-2 mb-2">
                                     <div className="flex items-center gap-2">
                                       <span className="font-serif font-bold text-base text-[#785a1a] dark:text-[#caa651]">℞</span>
                                       <span className="px-2.5 py-0.5 rounded-full bg-[var(--text-bark)] text-white text-[9px] font-mono font-bold uppercase tracking-wider">
-                                        Day {step.day} Dispensary Order
+                                        Day {String(step.day).replace(/^day\s+/i, '')} Dispensary Order
                                       </span>
                                     </div>
                                     <span className="text-[9px] font-mono uppercase tracking-wider text-[#785a1a] dark:text-[#caa651]">
@@ -991,7 +958,7 @@ export default function Clinic() {
                                 </div>
                               ))}
 
-                              {(!((identification as any)?.treatmentTimeline) || (identification as any).treatmentTimeline.length === 0) && (
+                              {(!(identification?.timeline) || identification.timeline.length === 0) && (
                                 <div className="p-6 text-center text-xs text-[var(--text-stone)] font-mono">
                                   No timeline required. Specimen displays vital equilibrium.
                                 </div>
@@ -1013,7 +980,7 @@ export default function Clinic() {
                                         </h4>
                                       </div>
                                       <span className="px-2 py-0.5 rounded-full bg-[#5f7161]/15 text-[#5f7161] dark:text-[#9caf88] text-[9px] font-mono font-bold uppercase shrink-0">
-                                        Match {item.confidence}%
+                                        Match {item.confidencePct}%
                                       </span>
                                     </div>
 
@@ -1024,7 +991,7 @@ export default function Clinic() {
 
                                   <div className="mt-3 pt-2 border-t border-dashed border-[#b89542]/20 flex items-center justify-between text-[9px] font-mono text-[#785a1a] dark:text-[#caa651]">
                                     <span>Formula: ʒ ii Sol. Herbaria</span>
-                                    <span>Score: {item.confidence}/100</span>
+                                    <span>Score: {item.confidencePct}/100</span>
                                   </div>
                                 </div>
                               ))}
