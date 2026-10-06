@@ -46,6 +46,12 @@ export interface LocationContext {
   };
 }
 
+// The report contract lives in src/lib/scanReport — one shape shared by the
+// server (which produces it) and every client surface (which renders it).
+export type { ScanReport, PlantScanReport, NonPlantScanReport } from '../lib/scanReport';
+import { coerceLegacyToReport, type ScanReport } from '../lib/scanReport';
+export { coerceLegacyToReport };
+
 /**
  * Identify a plant from a photo.
  *
@@ -90,6 +96,13 @@ export type IdentifyResult = PlantCare & {
   provenance?: IdentifyProvenance;
   /** Human-readable explanation, present on the non-plant routes. */
   message?: string;
+  /**
+   * The backend-shaped, versioned report. Live responses always carry it —
+   * /api/identify shapes every route server-side, and this is what surfaces
+   * should render. Only the guest pending-scan restore path can lack it,
+   * where identifyPlant coerces the legacy payload instead.
+   */
+  report: ScanReport;
 };
 
 export async function identifyPlant(base64Image: string, location?: LocationContext): Promise<IdentifyResult> {
@@ -117,7 +130,12 @@ export async function identifyPlant(base64Image: string, location?: LocationCont
   }
 
   if (response.ok) {
-    return await response.json();
+    const parsed = await response.json();
+    // Live responses always carry the server-shaped report. A payload without
+    // one can only be a legacy scan restored from the guest handoff — coerce
+    // it once here so every consumer can rely on `.report` existing.
+    if (parsed?.report) return parsed as IdentifyResult;
+    return { ...parsed, report: coerceLegacyToReport(parsed) } as IdentifyResult;
   }
 
   // Surface real error to caller — never swallow it with fake data

@@ -21,14 +21,13 @@ function calcBeamTilt(confidencePct: number): number {
   return clamp(((pct - 50) / 50) * 5, -5, 5);
 }
 
-function resolveCertainty(id: { confidence?: number; differentialDiagnosis?: Array<{ confidence: number }> } | null): number {
+// Mirrors the report contract: the report's confidencePct is server-computed
+// (model level, else the top differential) and may genuinely be null — the
+// old invented 88% baseline is gone.
+function resolveCertainty(id: { confidencePct: number | null } | null): number {
   if (!id) return 0;
-  if (typeof id.confidence === 'number') return clamp(id.confidence, 0, 100);
-  const topDiff = id.differentialDiagnosis?.[0];
-  if (topDiff && typeof topDiff.confidence === 'number') {
-    return clamp(topDiff.confidence, 0, 100);
-  }
-  return 88;
+  if (id.confidencePct === null) return 10; // the scale's honest floor
+  return clamp(id.confidencePct, 0, 100);
 }
 
 async function runCheck() {
@@ -70,11 +69,10 @@ async function runCheck() {
   assert.strictEqual(calcBeamTilt(100), 5, 'Maximum certainty must clamp beam tilt to +5 deg');
   assert.strictEqual(calcBeamTilt(10), -4, 'Minimum clamped certainty must yield negative beam tilt');
 
-  // 5. Dynamic certainty resolution
+  // 5. Dynamic certainty resolution — the report's confidencePct, or the floor
   assert.strictEqual(resolveCertainty(null), 0, 'Null identification must yield 0');
-  assert.strictEqual(resolveCertainty({ confidence: 92 }), 92, 'Top level confidence must be respected');
-  assert.strictEqual(resolveCertainty({ differentialDiagnosis: [{ confidence: 84 }] }), 84, 'Differential diagnosis fallback must be used');
-  assert.strictEqual(resolveCertainty({}), 88, 'Baseline fallback must be 88%');
+  assert.strictEqual(resolveCertainty({ confidencePct: 92 }), 92, 'Report confidence must be respected');
+  assert.strictEqual(resolveCertainty({ confidencePct: null }), 10, 'A null confidence rests the needle at the floor instead of inventing a number');
 
   // 6. Score to Status mapping
   const getStatus = (score: number) => score >= 80 ? 'Stable' : score >= 55 ? 'Watching' : score >= 35 ? 'Recovering' : 'Alert';
