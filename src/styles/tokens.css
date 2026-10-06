@@ -37,9 +37,11 @@
   --color-moss: var(--moss);
   --color-moss-light: var(--moss-light);
   --color-moss-dark: var(--moss-dark);
-  
+  --color-moss-deep: var(--moss-deep);
+
   --color-terracotta: var(--terracotta);
   --color-terracotta-light: var(--terracotta-light);
+  --color-terracotta-deep: var(--terracotta-deep);
   
   --color-gold: var(--gold);
   --color-gold-light: var(--gold-light);
@@ -74,21 +76,29 @@
   --gradient-morning: linear-gradient(180deg, #A8C9A8 0%, #FAF7F2 100%);
   --gradient-afternoon: linear-gradient(180deg, #FAF7F2 0%, #FBE8C4 100%);
   --gradient-dusk: linear-gradient(180deg, #C4704B 0%, #1E2326 100%);
-  --gradient-night: linear-gradient(180deg, #1E2326 0%, #0F1419 100%);
+  --gradient-night: linear-gradient(180deg, #132225 0%, #0A1416 100%);
   --gradient-late-night: linear-gradient(180deg, #0F1419 0%, #161A1D 100%);
   
   /* === TEXT === */
   --text-bark: #2C2419;               /* Rich coffee — headings, primary text */
   --text-stone: #6B5E51;              /* Warm taupe — body text, descriptions */
-  --text-muted: #9C8E80;              /* Soft stone — captions, timestamps, hints */
+  /* #9C8E80 measured 2.97:1 on the #faf7f2 ground — a real WCAG AA failure
+     on every footer and caption. #6B6156 keeps the soft-stone role and holds
+     5.6:1 on both page grounds it is used on. */
+  --text-muted: #6B6156;              /* Soft stone — captions, timestamps, hints */
   --text-inverse: #F5F0E8;            /* Cream on dark — night mode text */
   
   /* === ACCENTS === */
   --moss: #5A7D5A;                    /* Living moss — primary actions, success, nav active */
   --moss-light: #8FB58F;              /* Pale moss — hover states, secondary accents */
   --moss-dark: #3D5A3D;               /* Deep moss — pressed states */
+  /* Fills that carry white text. The base accents brighten in night mode for
+     glow, which drops white text to 2.3–3.6:1 — these stay put in both
+     themes (white on each measures 5.0–7.7:1). */
+  --moss-deep: #3D5A3D;               /* White-text action fill */
   --terracotta: #C4704B;              /* Warm clay — CTAs, alerts, streaks, warmth */
   --terracotta-light: #D98A6B;        /* Light terracotta — hover, glow */
+  --terracotta-deep: #B0552F;         /* White-text warm action fill */
   --gold: #D4A843;                    /* Harvest gold — rewards, seeds, achievements */
   --gold-light: #E8C97A;              /* Pale gold — highlights, shimmer */
   --sage: #A8B5A0;                    /* Soft sage — secondary text, icons, borders */
@@ -142,7 +152,12 @@
   --moss: #8FB58F;                    /* Slightly lighter/more glowing green in night */
   --moss-light: #A8C9A8;
   --moss-dark: #709470;
-  
+  /* White-text fills do not brighten: night's pale moss would hold white at
+     2.3:1. #466B46 holds white at 6.1:1 and keeps a ~3:1 boundary against the
+     night ground, so the button edge still reads. */
+  --moss-deep: #466B46;
+
   --terracotta: #E07A5F;              /* Brighter terracotta for dark background contrast */
   --terracotta-light: #EB9A83;
+  --terracotta-deep: #B0552F;
 }

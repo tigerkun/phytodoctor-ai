@@ -1,6 +1,12 @@
 /* ── Home: The Victorian Estate Conservatory & Oiled Teak Potting Bench ── */
 .skin-conservatory {
+  /* This base was fully opaque, and it covered the entire ambient system.
+     GardenAmbience sits at --z-base behind this page and the time-of-day
+     gradient is painted on #app-shell, one level further back still — both
+     were being paid for in nodes and frames and showing nothing at all. The
+     fallback line above stays for engines without color-mix. */
   background-color: var(--bg-primary);
+  background-color: color-mix(in srgb, var(--bg-primary) 84%, transparent);
   background-image:
     repeating-linear-gradient(90deg, transparent 0 64px, rgba(90, 125, 90, 0.035) 64px 65px),
     repeating-linear-gradient(0deg, transparent 0 80px, rgba(90, 125, 90, 0.03) 80px 81px);
@@ -129,6 +135,15 @@
   background: #3d2a1c;
   color: #f4e4c1;
   border-color: #3d2a1c;
+}
+/* Night: the tab sits on the page's near-black (about #0f1419), and the day
+   ink #7a6a50 measures 3.53:1 there — a real WCAG AA failure axe caught on
+   the help centre (which has no bazaar-mast behind its bar; the mast's own
+   light surface is what makes day mode pass). #b3a07c holds 7.2:1 on the
+   night ground while staying in the same warm-brown family. */
+:root[data-theme="night"] .bazaar-tab {
+  color: #b3a07c;
+  border-color: #5a4a33;
 }
 
 /* ── Library: The Ancient Guild Codex & Naturalist Folio ── */

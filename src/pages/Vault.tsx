@@ -58,7 +58,7 @@ function Field({ k, v }: { k: string; v: string }) {
 
 export default function VaultPage() {
   const { error, success } = useToast();
-  const { location, city } = useGeolocation();
+  const { location, city, locating, requestLocation } = useGeolocation();
   const userId = GameService.getUserId();
   const dbPlants = useLiveQuery(() => db.plants.where('userId').equals(userId).toArray(), [userId]) || [];
 
@@ -84,7 +84,9 @@ export default function VaultPage() {
   }, [userId]);
 
   React.useEffect(() => {
-    if (!cityQuery && city && city !== 'Your Location') {
+    // `city` is now '' until a place is actually chosen, so the old
+    // "Your Location" sentinel this had to guard against is gone with it.
+    if (!cityQuery && city) {
       setCityQuery(city);
     }
   }, [city, cityQuery]);
@@ -119,7 +121,7 @@ export default function VaultPage() {
 
   const loadLocationSite = async () => {
     const q = cityQuery.trim();
-    if (!q && !(location?.latitude && location?.longitude)) return error('Enter a city or allow location.');
+    if (!q && !(location?.latitude && location?.longitude)) return error('Enter a city, or share your device location.');
     setLoadingSite(true);
     try {
       let lat = location?.latitude;
@@ -206,7 +208,9 @@ export default function VaultPage() {
         backgroundImage: 'radial-gradient(ellipse at 20% 0%, rgba(90,125,90,0.18), transparent 50%), radial-gradient(ellipse at 90% 80%, rgba(193,127,89,0.12), transparent 45%)'
       }} />
 
-      <main className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 pt-10 pb-28">
+      {/* Not a <main>: Layout already provides the page's one main landmark,
+          and nesting another inside it split the document in two. */}
+      <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 pt-10 pb-28">
         <header className="mb-10 print:hidden">
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] bg-moss text-white">
@@ -404,6 +408,26 @@ export default function VaultPage() {
             {siteMode === 'location' ? (
               <div className="rounded-3xl border border-border-medium bg-bg-secondary p-6 space-y-3">
                 <input aria-label="City, region, or landmark" value={cityQuery} onChange={(e) => setCityQuery(e.target.value)} placeholder="City, region, or landmark" className="w-full p-4 rounded-2xl bg-bg-primary border border-border-medium font-bold" />
+                {/* The device fix used to be taken on mount, so there was never
+                    a control for it — the app simply demanded the permission.
+                    It is a choice now, and sits under the typing box because
+                    typing a city needs no permission at all. */}
+                <button
+                  onClick={async () => {
+                    try {
+                      const found = await requestLocation();
+                      if (found) setCityQuery(found);
+                    } catch {
+                      // The hook has already put the browser's own wording in
+                      // `locationError`; this surface reports via toast.
+                      error('Could not get your location. Type a city instead.');
+                    }
+                  }}
+                  disabled={locating}
+                  className="w-full py-3 rounded-2xl border border-border-medium font-bold text-xs uppercase tracking-[0.16em] disabled:opacity-50"
+                >
+                  {locating ? 'Finding you…' : 'Or use my device location'}
+                </button>
                 <button onClick={loadLocationSite} disabled={loadingSite} className="w-full py-3.5 rounded-2xl bg-moss text-white font-black uppercase tracking-[0.16em] text-xs disabled:opacity-50">
                   {loadingSite ? 'Reading meteorological sheet…' : 'Lock observed climate'}
                 </button>
@@ -712,7 +736,7 @@ export default function VaultPage() {
             </div>
           </motion.article>
         )}
-      </main>
+      </div>
     </PageWrapper>
   );
 }

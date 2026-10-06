@@ -333,7 +333,10 @@ export default function Auth() {
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#2e4a34] shadow-lg border border-[#c5a059] mb-4">
               <Scroll size={26} className="text-[#c5a059]" />
             </div>
-            <div className="inline-block px-3 py-1 mb-2 rounded-full border border-[#c5a059]/40 bg-[#f0e8d8]/60 text-[10px] uppercase font-bold tracking-[0.25em] text-[#8c6e38]">
+            {/* The brass ink is theme-aware: the day value alone measured
+                4.19:1 on the parchment and 1.56:1 over its own translucent chip
+                at night — both axe findings at phone width. */}
+            <div className="inline-block px-3 py-1 mb-2 rounded-full border border-[#c5a059]/40 bg-[#f0e8d8]/60 dark:bg-[#3a2d1c]/70 text-[10px] uppercase font-bold tracking-[0.25em] text-[#6d5628] dark:text-[#c9a86a]">
               Royal Sanctuary Ledger • Vol. IX
             </div>
             <h2 className="auth-heading text-2xl sm:text-3xl font-serif font-black tracking-tight">
@@ -388,7 +391,7 @@ export default function Auth() {
           {!isRecovery && (
             <div className="relative z-10 flex items-center gap-3 my-6">
               <div className="flex-1 h-px bg-[#dcd2c0] dark:bg-[#3d2e20]" />
-              <span className="text-[10px] uppercase tracking-widest font-mono font-bold text-[#8c6e38]">or ledger folio</span>
+              <span className="text-[10px] uppercase tracking-widest font-mono font-bold text-[#6d5628] dark:text-[#c9a86a]">or ledger folio</span>
               <div className="flex-1 h-px bg-[#dcd2c0] dark:bg-[#3d2e20]" />
             </div>
           )}
@@ -474,7 +477,7 @@ export default function Auth() {
                     type="button"
                     onClick={handleForgotPassword}
                     disabled={resetting}
-                    className="text-[10px] font-serif font-semibold text-[#8c6e38] hover:text-[#5a3d28] dark:hover:text-[#c5a059] transition-colors underline underline-offset-2 decoration-[#c5a059]/40"
+                    className="text-[10px] font-serif font-semibold text-[#6d5628] dark:text-[#c9a86a] hover:text-[#5a3d28] dark:hover:text-[#c5a059] dark:hover:text-[#c5a059] transition-colors underline underline-offset-2 decoration-[#c5a059]/40"
                   >
                     {resetting ? 'Dispatching...' : 'Lost your seal?'}
                   </button>
@@ -570,19 +573,19 @@ export default function Auth() {
                   setIsRecovery(false);
                   resetForm();
                 }}
-                className="text-xs font-serif font-semibold text-[#8c6e38] hover:text-[#5a3d28] dark:hover:text-[#c5a059] transition-colors underline underline-offset-4 decoration-[#c5a059]/40"
+                className="text-xs font-serif font-semibold text-[#6d5628] dark:text-[#c9a86a] hover:text-[#5a3d28] dark:hover:text-[#c5a059] dark:hover:text-[#c5a059] transition-colors underline underline-offset-4 decoration-[#c5a059]/40"
               >
                 Cancel recovery · Return to sign in
               </button>
             ) : (
               <button onClick={resetForm}
-                className="py-3 min-h-[44px] text-xs font-serif font-semibold text-[#8c6e38] hover:text-[#5a3d28] dark:hover:text-[#c5a059] transition-colors underline underline-offset-4 decoration-[#c5a059]/40">
+                className="py-3 min-h-[44px] text-xs font-serif font-semibold text-[#6d5628] dark:text-[#c9a86a] hover:text-[#5a3d28] dark:hover:text-[#c5a059] dark:hover:text-[#c5a059] transition-colors underline underline-offset-4 decoration-[#c5a059]/40">
                 {isLogin ? 'No account on file? Inscribe new record' : 'Already registered? Open folio'}
               </button>
             )}
           </div>
 
-          <div className="mt-6 pt-4 border-t border-[#dcd2c0]/60 dark:border-[#3d2e20] flex items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-widest text-[#8c6e38]">
+          <div className="mt-6 pt-4 border-t border-[#dcd2c0]/60 dark:border-[#3d2e20] flex items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-widest text-[#6d5628] dark:text-[#c9a86a]">
             <ShieldCheck size={13} className="text-[#2e4a34] dark:text-[#8c6e38]" />
             <span>{supabaseConfigured ? 'Sealed & Warded · Entries Verified' : 'Local Keyring · Single-Device Ledger'}</span>
           </div>

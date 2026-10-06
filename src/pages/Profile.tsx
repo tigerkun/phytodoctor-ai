@@ -29,8 +29,12 @@ import {
   CloudUpload as CloudUp,
   Download,
   Share2,
+  Type,
+  Accessibility,
   X
 } from 'lucide-react';
+import { getTextSize, setTextSize, TEXT_SIZES, type TextSize } from '../utils/textSize';
+import { getMotionPreference, setMotionPreference, MOTION_PREFERENCES, type MotionPreference } from '../utils/motionPreference';
 import { useNavigate } from 'react-router-dom';
 import { db, type SeedTransaction } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -134,6 +138,8 @@ export default function Profile() {
   const [audioEnabled, setAudioEnabled] = useState(() => parseSettingToggle(localStorage.getItem('botanical_audio_enabled'), true));
   const [hapticEnabled, setHapticEnabled] = useState(() => parseSettingToggle(localStorage.getItem('botanical_haptic_enabled'), true));
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => parseSettingToggle(localStorage.getItem('botanical_notifications_enabled'), true));
+  const [textSize, setTextSizeState] = useState<TextSize>(() => getTextSize());
+  const [motionPreference, setMotionPreferenceState] = useState<MotionPreference>(() => getMotionPreference());
 
   // The iOS install hint carries no browser event, so its dismissal is the
   // only thing standing between the visitor and a permanent nag. Persisted.
@@ -187,6 +193,22 @@ export default function Profile() {
     const next = !notificationsEnabled;
     setNotificationsEnabled(next);
     localStorage.setItem('botanical_notifications_enabled', String(next));
+    if (hapticEnabled) triggerHaptic('light');
+  };
+
+  const handleTextSize = (size: TextSize) => {
+    setTextSizeState(size);
+    // Persists the choice and rescales <html> in the same call, so every
+    // rem-based size in the app moves at once — no reload needed.
+    setTextSize(size);
+    if (hapticEnabled) triggerHaptic('light');
+  };
+
+  const handleMotionPreference = (preference: MotionPreference) => {
+    setMotionPreferenceState(preference);
+    // Persists and dispatches the change event that live useEcoMode
+    // consumers listen for, so the garden calms without a reload.
+    setMotionPreference(preference);
     if (hapticEnabled) triggerHaptic('light');
   };
 
@@ -1139,6 +1161,76 @@ export default function Profile() {
                   >
                     <span className="passport-toggle-nub" />
                   </button>
+                </div>
+
+                {/* Text size. One value on <html> rescales every rem-based
+                    size in the app; the micro-labels set in px are decorative
+                    stamps and are deliberately left out. */}
+                <div className="p-4 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528]">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#3c6b44]/15 flex items-center justify-center text-[#3c6b44] dark:text-[#79cb91]">
+                      <Type size={18} />
+                    </div>
+                    <div>
+                      <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
+                        Reading Glass (Text Size)
+                      </h4>
+                      <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
+                        Scales the whole interface, from stamps to headings
+                      </p>
+                    </div>
+                  </div>
+                  <div role="group" aria-label="Text size" className="grid grid-cols-4 gap-2">
+                    {TEXT_SIZES.map((size) => (
+                      <button
+                        key={size}
+                        onClick={() => handleTextSize(size)}
+                        aria-pressed={textSize === size}
+                        className={`min-h-11 rounded-xl border text-xs font-mono font-bold uppercase tracking-wider transition-colors ${
+                          textSize === size
+                            ? 'border-[#3d2a1c] bg-[#3d2a1c] text-[#f4e4c1] dark:border-[#c5a059] dark:bg-[#c5a059]/20 dark:text-[#f4e4c1]'
+                            : 'border-[#d8ccb8] text-[#8a7258] hover:border-[#c5a059] dark:border-[#423528] dark:text-[#b6a087] dark:hover:border-[#c5a059]'
+                        }`}
+                      >
+                        {size === 'extra-large' ? 'Extra' : size.charAt(0).toUpperCase() + size.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Motion preference. prefers-reduced-motion alone hides the
+                    switch inside the OS, which many of the people who need it
+                    never find — this is the same control, in the open. */}
+                <div className="p-4 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528]">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#1e3a5f]/15 flex items-center justify-center text-[#1e3a5f] dark:text-[#82b5ed]">
+                      <Accessibility size={18} />
+                    </div>
+                    <div>
+                      <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
+                        Garden Motion
+                      </h4>
+                      <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
+                        Calms ambient drift and reveals — Auto follows your system
+                      </p>
+                    </div>
+                  </div>
+                  <div role="group" aria-label="Garden motion" className="grid grid-cols-3 gap-2">
+                    {MOTION_PREFERENCES.map((preference) => (
+                      <button
+                        key={preference}
+                        onClick={() => handleMotionPreference(preference)}
+                        aria-pressed={motionPreference === preference}
+                        className={`min-h-11 rounded-xl border text-xs font-mono font-bold uppercase tracking-wider transition-colors ${
+                          motionPreference === preference
+                            ? 'border-[#3d2a1c] bg-[#3d2a1c] text-[#f4e4c1] dark:border-[#c5a059] dark:bg-[#c5a059]/20 dark:text-[#f4e4c1]'
+                            : 'border-[#d8ccb8] text-[#8a7258] hover:border-[#c5a059] dark:border-[#423528] dark:text-[#b6a087] dark:hover:border-[#c5a059]'
+                        }`}
+                      >
+                        {preference === 'auto' ? 'Auto' : preference === 'reduced' ? 'Reduced' : 'Full'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Install the app. Chrome/Android give us a real install

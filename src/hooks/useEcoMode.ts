@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getMotionPreference, MOTION_PREFERENCE_EVENT } from '../utils/motionPreference';
 
 interface BatteryStatus {
   level: number; // 0-1
@@ -14,18 +15,37 @@ export function useEcoMode() {
   });
 
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  // The raw Profile choice ('auto' | 'reduced' | 'full'), published so
+  // components can hand it to CSS — which cannot read localStorage itself.
+  const [motionPreference, setMotionPreferenceState] = useState(() => getMotionPreference());
 
+  // The Profile switch layers over the OS setting: 'reduced' forces motion
+  // off, 'full' forces it on, 'auto' (the default) defers to the media query.
+  // Low battery still disables animation in every position — that is power
+  // management, not a preference, and no one overrides their way out of it.
   useEffect(() => {
-    // Check prefers-reduced-motion
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    setPrefersReducedMotion(mediaQuery.matches);
+    const sync = () => {
+      const preference = getMotionPreference();
+      setMotionPreferenceState(preference);
+      setPrefersReducedMotion(
+        preference === 'reduced' || (preference === 'auto' && mediaQuery.matches)
+      );
+    };
+    sync();
 
-    const handleChange = (e: MediaQueryListEvent) => {
-      setPrefersReducedMotion(e.matches);
+    const handleChange = () => {
+      // Re-run the whole resolution: with 'full' chosen, an OS flip to reduce
+      // must not resurrect it mid-session.
+      sync();
     };
 
     mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
+    window.addEventListener(MOTION_PREFERENCE_EVENT, sync);
+    return () => {
+      mediaQuery.removeEventListener('change', handleChange);
+      window.removeEventListener(MOTION_PREFERENCE_EVENT, sync);
+    };
   }, []);
 
   useEffect(() => {
@@ -76,6 +96,7 @@ export function useEcoMode() {
 
   return {
     battery,
+    motionPreference,
     ecoModeActive: prefersReducedMotion || battery.isLow,
     prefersReducedMotion,
     shouldDisableAnimations: prefersReducedMotion || battery.isLow,

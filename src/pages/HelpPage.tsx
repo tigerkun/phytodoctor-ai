@@ -303,7 +303,9 @@ export default function HelpPage() {
             ))}
           </div>
         </nav>
-        <p className="text-[11px] uppercase tracking-widest opacity-50 mb-6">
+        {/* text-text-stone, not opacity-50 — the alpha trick measured 2.93:1
+            on the day ground (axe, phone width); the token passes both themes. */}
+        <p className="text-[11px] uppercase tracking-widest text-text-stone mb-6">
           {resultCount} answer{resultCount === 1 ? '' : 's'} {query ? 'matching' : 'available'}
         </p>
 
@@ -329,7 +331,10 @@ export default function HelpPage() {
         <div className="space-y-8">
           {filtered.map(cat => (
             <section key={cat.title}>
-              <h2 className="text-[11px] font-black uppercase tracking-widest opacity-60 mb-3">{cat.title}</h2>
+              {/* text-text-stone, not opacity-60: the alpha trick composites
+                  to #7f7c78 on the day ground (3.88:1, a measured WCAG AA
+                  failure) while passing at night; the token passes in both. */}
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-text-stone mb-3">{cat.title}</h2>
               <div className="rounded-xl border border-white/10 divide-y divide-white/10 overflow-hidden">
                 {cat.items.map(faq => {
                   const key = cat.title + '|' + faq.q;

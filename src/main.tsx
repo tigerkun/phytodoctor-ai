@@ -5,6 +5,11 @@ import './index.css';
 import { seedIfEmpty, runDbMigration } from './db/seed';
 import { DayNightProvider } from './components/home/DayNightProvider';
 import { GameService } from './services/gameService';
+import { initTextSize } from './utils/textSize';
+
+// The Keeper's text size must land on <html> before the first render, or the
+// app paints at 16px and visibly reflows a moment later.
+initTextSize();
 
 // Initialize DB with demo data & migration
 runDbMigration().catch(console.error);
