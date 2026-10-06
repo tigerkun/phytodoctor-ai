@@ -99,14 +99,9 @@ export function Landing({ onSignIn }: LandingProps) {
     }
   };
 
-  const isNonPlant = Boolean(
-    scanResult && (
-      (scanResult.route && scanResult.route !== 'plant') ||
-      (scanResult.subject?.kind && scanResult.subject.kind !== 'plant' && scanResult.subject.kind !== 'uncertain') ||
-      (scanResult.subject?.subjectKind && scanResult.subject.subjectKind !== 'plant' && scanResult.subject.subjectKind !== 'uncertain') ||
-      (scanResult.subjectKind && scanResult.subjectKind !== 'plant' && scanResult.subjectKind !== 'uncertain')
-    )
-  );
+  // The server's report carries the canonical verdict — the landing no longer
+  // runs its own subject-kind guesses.
+  const isNonPlant = scanResult?.report?.route !== 'plant';
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -438,9 +433,9 @@ export function Landing({ onSignIn }: LandingProps) {
 
             {/* Scan State 4: Diagnosis Result Card or Non-Plant Report */}
             {scanResult && !loading && (
-              isNonPlant ? (
+              scanResult.report.kind !== 'plant' ? (
                 <NonPlantReport
-                  result={scanResult}
+                  report={scanResult.report}
                   onScanAgain={resetScan}
                   alwaysBright
                 />
@@ -452,30 +447,28 @@ export function Landing({ onSignIn }: LandingProps) {
                         ✓ Diagnosis Ready
                       </span>
                       <h3 className="text-2xl font-serif font-black text-[#2C2419]">
-                        {scanResult.commonName || scanResult.speciesName || 'Botanical Specimen'}
+                        {scanResult.report.displayName}
                       </h3>
                       <p className="text-xs font-mono italic text-[#6B5E51]">
-                        {scanResult.scientificName || 'Taxonomic evaluation complete'}
+                        {scanResult.report.scientificName || 'Taxonomic evaluation complete'}
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-mono font-bold uppercase ${
-                          scanResult.healthStatus === 'Healthy'
+                          scanResult.report.healthStatus === 'Healthy'
                             ? 'bg-emerald-100 text-emerald-800'
-                            : scanResult.healthStatus === 'Stressed'
+                            : scanResult.report.healthStatus === 'Stressed'
                             ? 'bg-amber-100 text-amber-800'
                             : 'bg-rose-100 text-rose-800'
                         }`}
                       >
-                        {scanResult.healthStatus || 'Status assessed'}
+                        {scanResult.report.healthStatus}
                       </span>
-                      {scanResult.severity && (
-                        <span className="text-xs font-mono text-[#6B5E51] bg-[#FAF7F2] px-2.5 py-1 rounded-full border border-[#E0D8CB]">
-                          Severity {scanResult.severity}/5
-                        </span>
-                      )}
+                      <span className="text-xs font-mono text-[#6B5E51] bg-[#FAF7F2] px-2.5 py-1 rounded-full border border-[#E0D8CB]">
+                        Severity {scanResult.report.severity}/5
+                      </span>
                     </div>
                   </div>
 
@@ -485,18 +478,18 @@ export function Landing({ onSignIn }: LandingProps) {
                       Clinical Pathology
                     </h4>
                     <p className="text-sm text-[#2C2419] leading-relaxed">
-                      {scanResult.diagnosis || 'Visible leaf structure shows typical botanical patterns.'}
+                      {scanResult.report.diagnosis || '—'}
                     </p>
                   </div>
 
                   {/* First Treatment Steps */}
-                  {Array.isArray(scanResult.treatmentInstructions) && scanResult.treatmentInstructions.length > 0 && (
+                  {scanResult.report.treatmentSteps.length > 0 && (
                     <div>
                       <h4 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#6B6156] mb-2">
                         Immediate Recovery Steps
                       </h4>
                       <ol className="space-y-2 text-xs text-[#2C2419]">
-                        {scanResult.treatmentInstructions.slice(0, 3).map((step, idx) => (
+                        {scanResult.report.treatmentSteps.slice(0, 3).map((step, idx) => (
                           <li key={idx} className="flex items-start gap-2.5">
                             <span className="w-5 h-5 rounded-full bg-[#EAE4D9] text-[#3D5A3D] font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                               {idx + 1}

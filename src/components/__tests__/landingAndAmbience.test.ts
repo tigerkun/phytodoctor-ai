@@ -60,12 +60,18 @@ describe('Species-Aware Scan Reports & Non-Plant Safeguards', () => {
   const server = stripJsComments(readSource('server.ts'));
   const report = stripJsComments(readSource('src/components/scan/NonPlantReport.tsx'));
 
-  it('NonPlantReport covers human, animal, fungus, non_living and other_living profiles', () => {
-    expect(report).toContain('Human Subject Profile');
-    expect(report).toContain('Fauna Specimen Observed');
-    expect(report).toContain('Fungal Specimen Profile');
-    expect(report).toContain('Inanimate Subject Detected');
-    expect(report).toContain('Non-Botanical Organism');
+  it('the report shaper carries the five kind profiles', () => {
+    const shaper = readSource('src/lib/scanReport.ts');
+    expect(shaper).toContain('Human Subject Profile');
+    expect(shaper).toContain('Fauna Specimen Observed');
+    expect(shaper).toContain('Fungal Specimen Profile');
+    expect(shaper).toContain('Inanimate Subject Detected');
+    expect(shaper).toContain('Non-Botanical Organism');
+  });
+
+  it('NonPlantReport renders the server profile without re-deriving it', () => {
+    expect(report).toContain('report.profile');
+    expect(report).not.toContain('subject.kind ||');
   });
 
   it('NonPlantReport supports alwaysBright mode without emitting dark: classes', () => {
@@ -79,15 +85,39 @@ describe('Species-Aware Scan Reports & Non-Plant Safeguards', () => {
     expect(report).toMatch(/Mycology Field Notes/i);
   });
 
-  it('BotanicalLab dispatches NonPlantReport when route or subject.kind or subjectKind is non-plant', () => {
+  it('BotanicalLab dispatches NonPlantReport on the report’s canonical kind', () => {
+    // Four divergent client-side isNonPlant chains collapsed into one check
+    // on the server-shaped report — the client no longer guesses.
     expect(lab).toContain('NonPlantReport');
-    expect(lab).toMatch(/dexResult\?\.route\s*&&\s*dexResult\.route\s*!==\s*'plant'/);
-    expect(lab).toMatch(/subjectKind/);
+    expect(lab).toMatch(/dexResult\?\.report && dexResult\.report\.kind !== 'plant'/);
+    expect(lab).not.toMatch(/dexResult\?\.subject\?\.kind/);
   });
 
   it('BotanicalLab handleIndexSpecimen strictly blocks non-plant scans from being saved', () => {
     expect(lab).toContain('Only botanical specimens can be indexed to your sanctuary.');
-    expect(lab).toMatch(/const isNonPlant = Boolean/);
+    expect(lab).toMatch(/target\.kind !== 'plant'/);
+  });
+
+  it('the server shapes every identify response into a versioned report', () => {
+    const server = stripJsComments(readSource('server.ts'));
+    // All three divert branches plus the plant flow shape + persist.
+    expect(server.match(/shapeScanReport\(/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
+    expect(server.match(/void persistScanReport\(/g)?.length).toBe(4);
+    // Fire-and-forget by contract: a persistence failure can never reject the
+    // scan response, and a missing table disables it for the process lifetime.
+    expect(server).toContain('scanReportStoreDisabled = true');
+    expect(server).toContain("from('scan_reports')");
+    // The photo never reaches the persistence layer — the insert carries the
+    // report and its metadata only, never the image payload.
+    const persistBody = server.match(/async function persistScanReport[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(persistBody).toContain("from('scan_reports')");
+    expect(persistBody).not.toMatch(/base64|image/i);
+  });
+
+  it('predict-growth validates the model JSON instead of passing it raw', () => {
+    const server = stripJsComments(readSource('server.ts'));
+    expect(server).toContain('The growth forecast came back malformed');
+    expect(server).toMatch(/typeof rawForecast\.hasEnoughData === "boolean"/);
   });
 
   it('Clinic renders NonPlantReport instead of a bare amber banner', () => {

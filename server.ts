@@ -5,12 +5,13 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import webpush from "web-push";
-import { randomUUID, createHmac, timingSafeEqual } from "node:crypto";
+import { randomUUID, createHmac, createHash, timingSafeEqual } from "node:crypto";
 import { createUserScopedClient } from "./src/lib/supabaseUserClient";
 import { clampTo, clampPercent, clampUnit, hasScore, orderRange } from "./src/lib/scoreGuards";
 import { cooldownFor, selectModels as chooseModels } from "./src/lib/modelCooldown";
 import { readImageSignals, assessProvenance } from "./src/lib/imageProvenance";
-import { createGuestQuotaStore, MemoryQuotaStore, type GuestQuotaStore } from "./src/lib/guestQuotaStore";
+import { shapeScanReport, type ScanReport } from "./src/lib/scanReport";
+import { createGuestQuotaStore, digestIp, MemoryQuotaStore, type GuestQuotaStore } from "./src/lib/guestQuotaStore";
 import { classifyStaticRequest } from "./src/lib/spaFallback";
 import { clientIpOf as resolveClientIp } from "./src/lib/clientIp";
 import { log, withRequestContext, setRequestUser, currentRequestId } from "./src/lib/logger";
@@ -376,7 +377,25 @@ app.post("/api/predict-growth", express.json({ limit: '16kb' }), aiLimiter, apiG
         }
       }
     });
-    res.json(JSON.parse((response.text || "").replace(/```json|```/gi, "").trim()));
+    // This used to be a raw passthrough: whatever came back was parsed and
+    // handed to the client untouched, so a malformed or hallucinated payload
+    // surfaced as a broken forecast card with no explanation. Validated now —
+    // required keys, the trend/confidence enums, clamped scores.
+    const rawForecast = JSON.parse((response.text || "").replace(/```json|```/gi, "").trim());
+    const TREND_VALUES = ["improving", "stable", "declining", "insufficient_data"];
+    const CONFIDENCE_VALUES = ["low", "medium", "high"];
+    const forecastValid =
+      rawForecast &&
+      typeof rawForecast.hasEnoughData === "boolean" &&
+      TREND_VALUES.includes(rawForecast.currentTrend) &&
+      CONFIDENCE_VALUES.includes(rawForecast.confidence) &&
+      rawForecast.ifUnchanged && typeof rawForecast.ifUnchanged.prediction === "string" &&
+      rawForecast.ifFixed && typeof rawForecast.ifFixed.prediction === "string";
+    if (!forecastValid) {
+      log.error('Growth forecast came back malformed', { snippet: String(response.text || "").slice(0, 200) });
+      return fail(res, 502, 'The growth forecast came back malformed. Please try again in a moment.');
+    }
+    res.json(rawForecast);
   } catch (error: any) {
     log.error('Growth forecast error', { err: error });
     fail(res, 500, AI_GENERIC_ERROR);
@@ -659,6 +678,9 @@ const REQUIRED_TABLES = [
 const OPTIONAL_TABLES = [
   'push_subscriptions',
   'push_alert_log',
+  // Written by the identify handler's fire-and-forget persistence. Missing it
+  // disables report storage gracefully — see persistScanReport.
+  'scan_reports',
   // Written by the purchase_pro_with_seeds RPC, not by this server, so the
   // RPC probe above cannot see it: the function answering proves nothing about
   // whether the table it inserts into was ever created. Pro is bought with
@@ -906,6 +928,53 @@ async function generateWithRetry(params: any, retries = 1, client: GoogleGenAI =
   throw new Error("Gemini API generateContent failed across all models");
 }
 
+// ── Scan report persistence ────────────────────────────────────────────────
+// Every finished analysis is recorded in scan_reports: the account (or hashed
+// guest IP), the subject kind, the triage route and the full versioned report.
+// The photo itself never leaves the client — this is the finished text report
+// only, which is what makes the backend the system of record for the app's
+// most important output.
+//
+// Fire-and-forget by contract: a persistence failure must never fail or slow
+// the diagnosis the Keeper is waiting for. A missing table (migration not yet
+// applied) disables persistence for the process lifetime after one warning,
+// the same graceful degradation guestQuotaStore uses.
+let scanReportStoreDisabled = false;
+async function persistScanReport(report: ScanReport, req: any): Promise<void> {
+  if (!supabaseAdmin || scanReportStoreDisabled) return;
+  try {
+    const userId = (req?.authUserId as string | undefined) ?? null;
+    // Same salted digest as the guest quota — a bare sha256 of an IPv4 address
+    // is reversible by brute force over the whole address space.
+    const guestHash = userId ? null : digestIp(clientIpOf(req), SUPABASE_SERVICE_KEY);
+    // supabase-js resolves to { data, error } rather than throwing: without
+    // this check a missing table fails silently forever (BUG-1).
+    const { error: insertError } = await supabaseAdmin.from('scan_reports').insert({
+      user_id: userId,
+      guest_ip_hash: guestHash,
+      kind: report.kind,
+      route: report.route,
+      report,
+    });
+    if (insertError) throw insertError;
+    // 1%-random retention sweep, the guest_scan_quota pattern: a lazy 90-day
+    // window pruned inline instead of by timer or RPC.
+    if (Math.random() < 0.01) {
+      const cutoff = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
+      const { error: pruneError } = await supabaseAdmin.from('scan_reports').delete().lt('created_at', cutoff);
+      if (pruneError) log.warn('scan_reports retention prune failed', { err: pruneError });
+    }
+  } catch (err: any) {
+    const missing = err?.code === 'PGRST205' || err?.code === '42P01' || /does not exist/i.test(String(err?.message));
+    if (missing) {
+      scanReportStoreDisabled = true;
+      log.warn('scan_reports table missing — report persistence disabled until the migration is applied');
+      return;
+    }
+    log.error('Scan report persistence failed', { err });
+  }
+}
+
 app.post("/api/identify", express.json({ limit: '11mb' }), aiLimiter, apiOrGuestGate, tierGate("identify"), async (req, res) => {
   try {
     const { image, location } = req.body;
@@ -1006,7 +1075,7 @@ LOCATION-AWARE FIELDS (required if location provided):
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
-          required: ["subject", "provenanceJudgment", "commonName", "scientificName", "healthStatus", "severity", "diagnosis", "differentialDiagnosis", "treatmentTimeline", "treatmentInstructions", "watering", "light", "soil", "temperature", "careTips", "vulnerabilityNotes"],
+          required: ["subject", "provenanceJudgment", "commonName", "scientificName", "confidence", "healthStatus", "severity", "diagnosis", "differentialDiagnosis", "treatmentTimeline", "treatmentInstructions", "watering", "light", "soil", "temperature", "careTips", "vulnerabilityNotes"],
           properties: {
             subject: {
               type: Type.OBJECT,
@@ -1033,6 +1102,7 @@ LOCATION-AWARE FIELDS (required if location provided):
             },
             commonName: { type: Type.STRING },
             scientificName: { type: Type.STRING },
+            confidence: { type: Type.NUMBER, description: "Overall identification confidence, 0 to 1." },
             healthStatus: {
               type: Type.STRING,
               description: "Overall health rating: Healthy, Stressed, Diseased, or Infested"
@@ -1151,7 +1221,18 @@ LOCATION-AWARE FIELDS (required if location provided):
     // plant flow, because a misrouted fern is worse than an odd routing for a
     // marginal photo.
     const subject = result.subject || {};
-    const kind = String(subject.subjectKind || subject.kind || result.subjectKind || 'uncertain').toLowerCase();
+    const rawKind = String(subject.subjectKind || subject.kind || result.subjectKind || 'uncertain').toLowerCase();
+    // BUG-14: Normalise colloquials so the Set lookup always works. Models may
+    // return "insect", "bird", "person", "bacteria", "mold" etc. which are not
+    // in the enum but are unambiguously non-plant.
+    const KIND_SYNONYMS: Record<string, string> = {
+      insect: 'animal', bug: 'animal', bird: 'animal', fish: 'animal',
+      mammal: 'animal', reptile: 'animal', amphibian: 'animal', invertebrate: 'animal',
+      person: 'human', people: 'human', man: 'human', woman: 'human', child: 'human',
+      mold: 'fungus', mould: 'fungus', mushroom: 'fungus', lichen: 'fungus',
+      bacteria: 'other_living', algae: 'other_living', microorganism: 'other_living',
+    };
+    const kind = KIND_SYNONYMS[rawKind] ?? rawKind;
     const subjectConfidence = clampUnit(Number(subject.subjectConfidence ?? subject.confidence ?? result.subjectConfidence ?? 0));
     const subjectDescription = strLimit(subject.subjectDescription || subject.description || result.subjectDescription, 400) || '';
     const LIVING_NON_PLANT = new Set(['fungus', 'animal', 'human', 'other_living']);
@@ -1166,13 +1247,35 @@ LOCATION-AWARE FIELDS (required if location provided):
       visualClues: strLimit(rawJudgment.visualClues, 300) || undefined,
     } : null;
     const provenance = assessProvenance(signals, modelJudgment);
+    // The full provenance block: the assessment plus the byte-forensics fields
+    // it deliberately does not carry. Every route's report and the legacy
+    // top-level shape share this one object.
+    const provenanceFull = {
+      verdict: provenance.verdict,
+      checks: provenance.checks,
+      reasons: provenance.reasons.slice(0, 4),
+      container: signals.container,
+      resolution: signals.width && signals.height ? `${signals.width}x${signals.height}` : null,
+    };
 
     if (kind === 'non_living' && subjectConfidence >= 0.6) {
+      const report = shapeScanReport({
+        model: result,
+        route: 'non_living',
+        subject: { kind, confidence: subjectConfidence, description: subjectDescription },
+        provenance: provenanceFull,
+        locationProvided: Boolean(locationBlock),
+        message: 'Only living specimens are analysed. PhytoDoctor AI diagnoses plants — point the lens at a plant, leaf, flower or tree and scan again.',
+      });
+      void persistScanReport(report, req);
       return res.json({
+        report,
+        // Legacy top-level shape, one transition release — every current client
+        // field stays readable while the bundle catches up.
         route: 'non_living',
         subject: { kind, confidence: subjectConfidence, description: subjectDescription, subjectKind: kind },
         commonName: result.commonName || 'Inanimate Object',
-        message: 'Only living specimens are analysed. PhytoDoctor AI diagnoses plants — point the lens at a plant, leaf, flower or tree and scan again.',
+        message: report.message,
       });
     }
     if (LIVING_NON_PLANT.has(kind) && subjectConfidence >= 0.45) {
@@ -1182,7 +1285,17 @@ LOCATION-AWARE FIELDS (required if location provided):
         human: 'a person',
         other_living: 'a living thing, but not a plant',
       };
+      const report = shapeScanReport({
+        model: result,
+        route: 'living_non_plant',
+        subject: { kind, confidence: subjectConfidence, description: subjectDescription },
+        provenance: provenanceFull,
+        locationProvided: Boolean(locationBlock),
+        message: `That looks like ${names[kind]}. PhytoDoctor AI diagnoses plants only, so there is no botanical verdict here — but the Sanctuary is always open for a plant scan.`,
+      });
+      void persistScanReport(report, req);
       return res.json({
+        report,
         route: 'living_non_plant',
         subject: { kind, confidence: subjectConfidence, description: subjectDescription, subjectKind: kind },
         commonName: result.commonName,
@@ -1192,41 +1305,53 @@ LOCATION-AWARE FIELDS (required if location provided):
         temperature: result.temperature,
         light: result.light,
         careTips: result.careTips,
-        message: `That looks like ${names[kind]}. PhytoDoctor AI diagnoses plants only, so there is no botanical verdict here — but the Sanctuary is always open for a plant scan.`,
-        provenance: {
-          verdict: provenance.verdict,
-          checks: provenance.checks,
-          reasons: provenance.reasons.slice(0, 4),
-          container: signals.container,
-          resolution: signals.width && signals.height ? `${signals.width}x${signals.height}` : null,
-        },
+        message: report.message,
+        provenance: report.provenance,
       });
     }
 
-    // Belt-and-braces: if the payload would fall through as 'plant' but subject.subjectKind is a known non-plant kind at >=0.45 confidence, divert anyway
+    // Belt-and-braces: if the payload would fall through as 'plant' but subject.subjectKind is a known non-plant kind at >=0.45 confidence, divert anyway.
+    // Shaped through the same function as the primary branch, so the payload is
+    // no longer a smaller cousin of it — provenance and mycology ride along.
     const fallbackKind = String(result.subject?.subjectKind || result.subject?.kind || result.subjectKind || kind).toLowerCase();
     const fallbackConf = clampUnit(Number(result.subject?.subjectConfidence ?? result.subject?.confidence ?? subjectConfidence));
     if ((LIVING_NON_PLANT.has(fallbackKind) && fallbackConf >= 0.45) || (fallbackKind === 'non_living' && fallbackConf >= 0.6)) {
+      const route = fallbackKind === 'non_living' ? 'non_living' as const : 'living_non_plant' as const;
+      const report = shapeScanReport({
+        model: result,
+        route,
+        subject: { kind: fallbackKind, confidence: fallbackConf, description: subjectDescription },
+        provenance: provenanceFull,
+        locationProvided: Boolean(locationBlock),
+        message: 'Non-plant subject diverted. PhytoDoctor AI diagnoses plants only.',
+      });
+      void persistScanReport(report, req);
       return res.json({
-        route: fallbackKind === 'non_living' ? 'non_living' : 'living_non_plant',
+        report,
+        route,
         subject: { kind: fallbackKind, confidence: fallbackConf, description: subjectDescription, subjectKind: fallbackKind },
         commonName: result.commonName,
         scientificName: result.scientificName,
-        message: 'Non-plant subject diverted. PhytoDoctor AI diagnoses plants only.',
+        message: report.message,
+        provenance: report.provenance,
       });
     }
 
     // Plain plant flow: provenance rides along so the client can gate the seed
     // reward without blocking the diagnosis.
     result.route = 'plant';
-    result.provenance = {
-      verdict: provenance.verdict,
-      checks: provenance.checks,
-      reasons: provenance.reasons.slice(0, 4),
-      container: signals.container,
-      resolution: signals.width && signals.height ? `${signals.width}x${signals.height}` : null,
-    };
-    res.json(result);
+    result.provenance = provenanceFull;
+    const report = shapeScanReport({
+      model: result,
+      route: 'plant',
+      subject: { kind, confidence: subjectConfidence, description: subjectDescription },
+      provenance: provenanceFull,
+      locationProvided: Boolean(locationBlock),
+    });
+    void persistScanReport(report, req);
+    // report last: a stray `report` key in the raw model payload must never
+    // overwrite the server-shaped one.
+    res.json({ ...result, report });
   } catch (error: any) {
     log.error('Gemini request failed', { status: error?.response?.status || error?.status, err: error });
     fail(res, 500, AI_GENERIC_ERROR);
