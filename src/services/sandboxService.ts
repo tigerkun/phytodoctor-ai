@@ -218,38 +218,11 @@ export async function assessPlacement(species: string, environment: SiteEnvironm
 }
 
 /**
- * Resolve a typed place to coordinates.
- *
- * This used to return New York's coordinates for *any* failure — unknown
- * place, offline, Nominatim rate limit — while labelling the result with the
- * user's own query. The site report then described New York's climate under
- * the heading "Mumbai", with nothing on screen to say it was estimated.
- *
- * A Keeper making a horticultural decision deserves to know when the ground
- * under the report is soft. So this throws, and the caller (which already
- * surfaces the message) tells them to try again.
+ * Resolve a typed place to coordinates. It lives in utils/geocode because the
+ * dashboard resolves the Keeper's own city through the same lookup, and the
+ * two must not drift into disagreeing about what a failed lookup means.
  */
-export async function geocodeCity(query: string) {
-  let res: Response;
-  try {
-    res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`);
-  } catch {
-    throw new Error('Could not reach the place lookup. Check your connection and try again.');
-  }
-  if (!res.ok) {
-    // Nominatim throttles by IP; 429 is the common case for a heavy user.
-    throw new Error(res.status === 429
-      ? 'The place lookup is busy right now. Try again in a minute.'
-      : `The place lookup failed (status ${res.status}). Try again.`);
-  }
-  const rows = await res.json();
-  if (!rows?.[0]) throw new Error(`Could not find "${query.trim()}". Try a larger nearby town.`);
-  return {
-    lat: Number(rows[0].lat),
-    lon: Number(rows[0].lon),
-    label: rows[0].display_name as string,
-  };
-}
+export { geocodeCity } from '../utils/geocode';
 
 export async function fetchSiteClimate(lat: number, lon: number, city: string): Promise<SiteEnvironment> {
   try {
