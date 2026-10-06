@@ -79,7 +79,9 @@ describe('Garden Coach dispatches', () => {
   it('drops the grid to one column before the four-across one', () => {
     // `md:grid-cols-2` would put the single phone-visible card in one half of
     // a two-column grid from 768px to 1024px — an empty cell beside every card.
-    const grid = openingTags(source, ['<div']).find(t => t.tag.includes('grid-cols-1 lg:grid-cols-4'));
+    // The grid is a motion.div now — it staggers its four cards into view — so
+    // the scan has to see motion tags as well as plain ones.
+    const grid = openingTags(source, ['<div', '<motion.div']).find(t => t.tag.includes('grid-cols-1 lg:grid-cols-4'));
     expect(grid, 'the dispatch grid was not found').toBeDefined();
     expect(grid!.tag).not.toContain('md:grid-cols-2');
   });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { Stethoscope, ShoppingBasket, Thermometer, CloudRain, Lightbulb, Sprout, Droplets, ArrowRight } from 'lucide-react';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
 import { useEcoMode } from '@/hooks/useEcoMode';
@@ -31,6 +31,55 @@ interface DynamicPlan {
   steps: { text: string; done: boolean }[];
 }
 
+// ── Care-plan progress + coach shelf persistence ────────────────────────────
+// Both live in localStorage rather than component state, because state dies
+// with the component: the plan used to re-arm every step (and its seed reward)
+// whenever the Keeper left the dashboard and came back, and a purchased supply
+// vanished from existence the moment the toast faded.
+
+const PLAN_CLAIMS_KEY = 'phyto_plan_claims';
+const COACH_SHELF_KEY = 'phyto_coach_shelf';
+
+function todayKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function claimsScope(plantId: unknown): string {
+  const user = GameService.getUserId() || 'guest';
+  return `${user}:${String(plantId ?? 'unknown')}:${todayKey()}`;
+}
+
+function readClaimStore(): Record<string, string[]> {
+  try {
+    return JSON.parse(localStorage.getItem(PLAN_CLAIMS_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function readClaimedTexts(plantId: unknown): string[] {
+  return readClaimStore()[claimsScope(plantId)] ?? [];
+}
+
+function persistClaimedTexts(plantId: unknown, texts: string[]): void {
+  try {
+    const store = readClaimStore();
+    store[claimsScope(plantId)] = texts;
+    localStorage.setItem(PLAN_CLAIMS_KEY, JSON.stringify(store));
+  } catch {
+    // Storage blocked: the reward still pays, it just stays re-claimable
+    // until the session shapes up — the same degradation as guest quotas.
+  }
+}
+
+function readShelf(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(COACH_SHELF_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
 /** The four dispatches, in the order they appear in the grid.
  *  Exported so the phone folio bar and its test cannot drift apart. */
 export const DISPATCH_FOLIOS: ReadonlyArray<{ id: DispatchFolio; label: string }> = [
@@ -41,6 +90,14 @@ export const DISPATCH_FOLIOS: ReadonlyArray<{ id: DispatchFolio; label: string }
 ];
 
 export type DispatchFolio = 'plan' | 'apothecary' | 'forecast' | 'lore';
+
+/** One rise-and-fade for each dispatch card. Paired with the stagger on the
+ *  grid below, this is what stops the largest block on the dashboard from
+ *  standing completely still until someone happens to hover it. */
+const coachCardVariants: Variants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } }
+};
 
 const getDynamicPlan = (plant: any): DynamicPlan => {
   const name = plant?.nickname || plant?.name || 'your plant';
@@ -117,7 +174,12 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
   });
 
   useEffect(() => {
-    setActivePlan(getDynamicPlan(selectedPlant));
+    const plan = getDynamicPlan(selectedPlant);
+    // Rehydrate today's already-claimed steps by text: leaving the dashboard
+    // and coming back must not re-arm a reward the Keeper already earned.
+    const claimed = new Set(readClaimedTexts(selectedPlant?.id));
+    plan.steps = plan.steps.map(s => ({ ...s, done: claimed.has(s.text) }));
+    setActivePlan(plan);
   }, [selectedPlant]);
 
   // Card 2: Market Items
@@ -126,6 +188,10 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
     { id: 'moss_pole', name: 'Sphagnum Moss Pole', cost: 150 },
     { id: 'pot_self', name: 'Self-Watering Ceramic Pot', cost: 300 }
   ];
+
+  // The coach's own supply shelf, persisted so a purchase is a thing the
+  // Keeper owns rather than a toast that fades.
+  const [shelf, setShelf] = useState<Record<string, number>>(readShelf);
 
   // Card 4: Trivia state
   const [triviaIdx, setTriviaIdx] = useState(0);
@@ -138,15 +204,20 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
 
   // Handle single checkbox toggle
   const handleStepToggle = async (index: number) => {
-    const updatedSteps = [...activePlan.steps];
-    const step = updatedSteps[index];
-    if (step.done) return; // Prevent double reward
+    const step = activePlan.steps[index];
+    if (!step || step.done) return; // Prevent double reward
 
-    step.done = true;
+    // Optimistic flip, but the reward is paid only after the claim is
+    // persisted — otherwise a fast double-click or a remount between the
+    // state write and the storage write could pay twice.
+    const updatedSteps = activePlan.steps.map((s, i) => (i === index ? { ...s, done: true } : s));
     setActivePlan(prev => ({ ...prev, steps: updatedSteps }));
 
     triggerHaptic('medium');
     playAudio('success');
+
+    const alreadyClaimed = readClaimedTexts(selectedPlant?.id);
+    persistClaimedTexts(selectedPlant?.id, [...alreadyClaimed, step.text]);
 
     // Grant seeds proportionally
     const baseReward = Math.ceil(activePlan.seedsReward / activePlan.steps.length);
@@ -155,24 +226,29 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
   };
 
   const handleMarkAllDone = async () => {
-    const uncompletedCount = activePlan.steps.filter(s => !s.done).length;
-    if (uncompletedCount === 0) return;
+    const claimable = activePlan.steps.filter(s => !s.done);
+    if (claimable.length === 0) return;
 
-    const updatedSteps = activePlan.steps.map(s => ({ ...s, done: true }));
-    setActivePlan(prev => ({ ...prev, steps: updatedSteps }));
+    setActivePlan(prev => ({ ...prev, steps: prev.steps.map(s => ({ ...s, done: true })) }));
 
     triggerHaptic('heavy');
     playAudio('success');
 
+    const alreadyClaimed = readClaimedTexts(selectedPlant?.id);
+    persistClaimedTexts(
+      selectedPlant?.id,
+      [...alreadyClaimed, ...claimable.map(s => s.text)],
+    );
+
     // Grant remaining seeds
     const baseReward = Math.ceil(activePlan.seedsReward / activePlan.steps.length);
-    await GameService.earnSeeds(uncompletedCount * baseReward, 'bonus', `Completed all tasks for ${selectedPlant?.nickname || 'plant'}`);
+    await GameService.earnSeeds(claimable.length * baseReward, 'bonus', `Completed all tasks for ${selectedPlant?.nickname || 'plant'}`);
     onRefreshProfile();
   };
 
   const handlePurchase = async (itemId: string, cost: number, itemName: string) => {
     if (!profile) return;
-    
+
     if (profile.seeds < cost) {
       triggerHaptic('heavy');
       toast.error(`Not enough seeds`, `You need ${cost - profile.seeds} more seeds for this.`);
@@ -180,14 +256,24 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
     }
 
     try {
-      // Deduct seeds
-      await GameService.spendSeeds(cost, 'spend', `Purchased ${itemName} from coach`);
+      // Grant first, deduct second: a failed seed spend rolls the shelf back,
+      // whereas the other order could eat seeds and leave nothing behind.
+      const owned = { ...readShelf(), [itemId]: (readShelf()[itemId] || 0) + 1 };
+      localStorage.setItem(COACH_SHELF_KEY, JSON.stringify(owned));
+      try {
+        await GameService.spendSeeds(cost, 'spend', `Purchased ${itemName} from coach`);
+      } catch (spendErr) {
+        localStorage.setItem(COACH_SHELF_KEY, JSON.stringify(readShelf()));
+        throw spendErr;
+      }
+      setShelf(owned);
       triggerHaptic('medium');
       playAudio('success');
       onRefreshProfile();
-      toast.reward(`${itemName} purchased!`, 'Added to your inventory.');
+      toast.reward(`${itemName} purchased!`, `Added to your shelf — you now own ${owned[itemId]}.`);
     } catch (err) {
       console.error(err);
+      toast.error('Purchase failed', (err as Error)?.message || 'Your seeds were not spent. Please try again.');
     }
   };
 
@@ -196,11 +282,15 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
     setTriviaIdx(prev => (prev + 1) % TRIVIA_TIPS.length);
   };
 
-  // Weather variables
-  const temp = weather?.temp || 34;
-  const humidity = weather?.humidity || 62;
-  const condition = weather?.condition || 'Partly Cloudy';
-  const rainProb = weather?.rainProbability || 10;
+  // Weather variables. These had hardcoded defaults — 34°C, 62% RH, "Partly
+  // Cloudy" — that filled in whenever the dashboard had no place for the
+  // Keeper. That is not a forecast, it is a guess wearing a forecast's label,
+  // and it is what a watering decision would be made on.
+  const hasWeather = weather?.temp != null;
+  const temp = weather?.temp ?? 0;
+  const humidity = weather?.humidity ?? 0;
+  const condition = weather?.condition ?? '';
+  const rainProb = weather?.rainProbability ?? 0;
   const isRainy = rainProb > 50;
 
   return (
@@ -241,11 +331,25 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
 
         {/* Horizontal Snapping Cards Grid — one column until the folio bar hands
             over to the grid at `lg`. A two-column grid from `md` up would put
-            the single visible card beside an empty cell all the way to 1024px. */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            the single visible card beside an empty cell all the way to 1024px.
+
+            The four cards are the largest single block on the dashboard and
+            were the only section with no entrance at all — they simply stood
+            there until hovered. They now stagger up as the block comes into
+            view. On a phone only the selected card is ever visible, and the
+            parent is already `visible` by the time anyone taps the folio bar,
+            so switching dispatches does not replay the reveal. */}
+        <motion.div
+          className="grid grid-cols-1 lg:grid-cols-4 gap-6"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: '0px 0px -10% 0px' }}
+          variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.09, delayChildren: 0.05 } } }}
+        >
 
           {/* Card 1: Treatment Suggestions */}
           <motion.div
+            variants={coachCardVariants}
             whileHover={!shouldDisableAnimations ? { y: -4 } : {}}
             className={`p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between shadow-xs ${folio === 'plan' ? '' : 'hidden lg:flex'}`}
           >
@@ -338,7 +442,16 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
                     className="flex items-center justify-between p-2 rounded-xl bg-white/40 dark:bg-white/5 border border-black/5 dark:border-white/5 hover:bg-moss/10 transition-colors duration-200"
                   >
                     <div>
-                      <p className="text-xs font-semibold text-text-bark">{item.name}</p>
+                      <p className="text-xs font-semibold text-text-bark">
+                        {item.name}
+                        {/* The purchase is real inventory: what was bought is
+                            shown owned, persisted across visits. */}
+                        {(shelf[item.id] || 0) > 0 && (
+                          <span className="ml-2 text-[9px] font-mono font-bold uppercase tracking-wider text-moss">
+                            on shelf ×{shelf[item.id]}
+                          </span>
+                        )}
+                      </p>
                       <p className="text-[10px] text-text-stone font-mono flex items-center gap-1">
                         <Sprout size={10} className="text-moss" strokeWidth={2.5} /> {item.cost} Seeds
                       </p>
@@ -357,55 +470,71 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
 
           {/* Card 3: Climate-Based Care */}
           <motion.div
+            variants={coachCardVariants}
             whileHover={!shouldDisableAnimations ? { y: -4 } : {}}
             className={`p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between shadow-xs ${folio === 'forecast' ? '' : 'hidden lg:flex'}`}
           >
             <div>
               <div className="flex items-center justify-between mb-4">
                 <Thermometer size={20} className="text-moss" strokeWidth={1.75} />
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-500/20 font-mono">
-                  {condition}
-                </span>
+                {hasWeather && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-500/20 font-mono">
+                    {condition}
+                  </span>
+                )}
               </div>
               <h3 className="text-lg font-serif font-bold text-text-bark mb-1">
                 Barometric Forecast
               </h3>
-              <p className="text-xs text-text-stone mb-4 font-medium">
-                Regional Telemetry • {temp}°C • {humidity}% RH
-              </p>
 
-              {/* Rain Alert Banner */}
-              {isRainy && (
-                <div className="mb-4 p-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300 text-[10px] flex items-center gap-1.5">
-                  <span>⛈️</span>
-                  <span className="font-semibold">Precipitation Expected: Defer potting hydration today!</span>
-                </div>
+              {hasWeather ? (
+                <>
+                  <p className="text-xs text-text-stone mb-4 font-medium">
+                    Regional Telemetry • {Math.round(temp)}°C • {Math.round(humidity)}% RH
+                  </p>
+
+                  {/* Rain Alert Banner */}
+                  {isRainy && (
+                    <div className="mb-4 p-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300 text-[10px] flex items-center gap-1.5">
+                      <span>⛈️</span>
+                      <span className="font-semibold">Precipitation Expected: Defer potting hydration today!</span>
+                    </div>
+                  )}
+
+                  {/* Watering Forecast */}
+                  <div className="space-y-2 text-xs text-text-stone font-medium">
+                    <div className="flex justify-between border-b border-black/5 dark:border-white/5 pb-1">
+                      <span>Today</span>
+                      <span className="font-bold text-emerald-700 dark:text-emerald-400">Mist Foliage</span>
+                    </div>
+                    <div className="flex justify-between border-b border-black/5 dark:border-white/5 pb-1">
+                      <span>Tomorrow</span>
+                      <span className="font-semibold">Hold Hydration</span>
+                    </div>
+                    <div className="flex justify-between pb-1">
+                      <span>In 2 Days</span>
+                      <span className="font-bold text-blue-700 dark:text-blue-400">Deep Saturation</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-text-stone mb-4 font-medium leading-relaxed">
+                  No city set, so there is no local telemetry to report. Name your city on the
+                  home page and this card fills in — no estimate without one.
+                </p>
               )}
+            </div>
 
-              {/* Watering Forecast */}
-              <div className="space-y-2 text-xs text-text-stone font-medium">
-                <div className="flex justify-between border-b border-black/5 dark:border-white/5 pb-1">
-                  <span>Today</span>
-                  <span className="font-bold text-emerald-700 dark:text-emerald-400">Mist Foliage</span>
-                </div>
-                <div className="flex justify-between border-b border-black/5 dark:border-white/5 pb-1">
-                  <span>Tomorrow</span>
-                  <span className="font-semibold">Hold Hydration</span>
-                </div>
-                <div className="flex justify-between pb-1">
-                  <span>In 2 Days</span>
-                  <span className="font-bold text-blue-700 dark:text-blue-400">Deep Saturation</span>
-                </div>
+            {hasWeather && (
+              <div className="text-[10px] font-mono text-center text-text-muted">
+                Synchronized hourly via atmospheric telemetry
               </div>
-            </div>
-
-            <div className="text-[10px] font-mono text-center text-text-muted">
-              Synchronized hourly via atmospheric telemetry
-            </div>
+            )}
           </motion.div>
 
           {/* Card 4: Did You Know? */}
           <motion.div
+            variants={coachCardVariants}
             whileHover={!shouldDisableAnimations ? { y: -4 } : {}}
             onClick={rotateTrivia}
             className={`p-6 rounded-3xl oiled-teak-frame flex flex-col justify-between cursor-pointer group shadow-xs ${folio === 'lore' ? '' : 'hidden lg:flex'}`}
@@ -439,7 +568,7 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
             </div>
           </motion.div>
 
-        </div>
+        </motion.div>
       </div>
     </section>
     <ToastContainer toasts={toast.toasts} onRemove={toast.remove} position="bottom" />
