@@ -1,0 +1,43 @@
+# PhytoDoctor AI
+
+A plant-care web app: photograph a leaf, get an AI diagnosis, track plants over
+time, and trade harvested produce in a marketplace. The diagnosis pipeline runs
+on-device in the browser — photographs used for analysis are not uploaded for
+inference. The app is offline-first: the plant collection lives in the
+browser's local database and syncs to the server for cross-device accounts.
+
+## Public pages
+
+- [Landing and app entry](https://phytodoctor-ai.onrender.com/): first-time
+  visitors see an overview of the garden dashboard before signing up.
+- [Botanical Lab](https://phytodoctor-ai.onrender.com/lab): the leaf scanner,
+  usable without an account (guest scans are rate-limited per day).
+- [Help centre](https://phytodoctor-ai.onrender.com/help): help centre and FAQ.
+- [Privacy policy](https://phytodoctor-ai.onrender.com/privacy): analysis stays
+  on the device; account data is stored in Supabase Postgres.
+- [Terms of service](https://phytodoctor-ai.onrender.com/terms).
+- [Sign in / sign up](https://phytodoctor-ai.onrender.com/auth).
+
+## Account-gated pages
+
+- [Garden dashboard](https://phytodoctor-ai.onrender.com/): plants,
+  weather-synchronised care, coach.
+- [Clinic](https://phytodoctor-ai.onrender.com/clinic): diagnosis history and
+  treatment plans.
+- [Vault](https://phytodoctor-ai.onrender.com/vault): specimen vault with
+  assessments.
+- [Collection](https://phytodoctor-ai.onrender.com/collection): living specimen
+  cards, rarity rankings, and growth badges.
+- [Market](https://phytodoctor-ai.onrender.com/market): produce marketplace
+  with a seed currency.
+- [Library](https://phytodoctor-ai.onrender.com/library): field library of
+  plant care plates.
+- [Profile](https://phytodoctor-ai.onrender.com/profile): keeper profile and
+  settings, including text-size and motion accessibility controls.
+
+## Notes for automated agents
+
+- The UI is a React SPA; routes are client-side. Rendering requires
+  JavaScript.
+- Health probe: /healthz (readiness, probes the database) and /healthz/live
+  (liveness).

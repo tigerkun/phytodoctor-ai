@@ -138,7 +138,7 @@ export default function Layout({ children }: LayoutProps) {
           {children}
         </main>
 
-        {!isAuthPage && <Footer />}
+        {!isAuthPage && !(!hasAuth && location.pathname === '/' && typeof window !== 'undefined' && localStorage.getItem('botanical_guardian_onboarded') !== '1') && <Footer />}
       </PageTransitionProvider>
     </div>
   );

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/database';
 import { GameService } from '@/services/gameService';
 import { ArrowRight, Leaf, Shield, Swords, Bell, Camera } from 'lucide-react';
 
 import { HeroSection } from '@/components/home/HeroSection';
+import { LocationBar } from '@/components/home/LocationBar';
 import SanctuaryHub from '@/components/home/SanctuaryHub';
 import { GardenCoach } from '@/components/home/GardenCoach';
 import { PlantGallery } from '@/components/home/PlantGallery';
@@ -17,6 +18,7 @@ import { useEcoMode } from '@/hooks/useEcoMode';
 import PageWrapper from '@/components/home/PageWrapper';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { fetchWeather, generateWeatherAdvice, getWateringRecommendation } from '@/utils/weatherIntegration';
+import { resolveWeatherPlace } from '@/utils/geocode';
 import { getPlantPhoto } from '@/utils/plantImage';
 import { supabase } from '@/lib/supabase';
 import { postgresToPlant, onPlantsChange, PlantService } from '@/services/plantService';
@@ -25,240 +27,12 @@ import type { Plant, SoilType } from '@/types';
 
 import { useNavigate, Link } from 'react-router-dom';
 import { usePageTransition } from '@/components/home/PageTransitionContext';
+import Landing from '@/components/home/Landing';
 
 
 // ─── Welcome Landing (first-time visitors) ───────────────────────────
 const ONBOARD_KEY = 'botanical_guardian_onboarded';
 
-const FEATURES = [
-  { icon: Leaf, title: 'AI Plant Doctor', desc: 'Snap a photo and get a diagnosis in about half a minute, powered by Gemini AI — species ID, disease detection, and tailored care plans.', color: '#5A7A5A', to: '/lab' },
-  { icon: Shield, title: 'PhytoCards', desc: 'Every plant earns a collectible card that levels up as you care for it. Track rarity, stats, and growth stages.', color: '#C17F59', to: '/collection' },
-  // The Arena card used to promise "head-to-head care battles" and a
-  // leaderboard against other players. There was no route, no page and no UI
-  // behind it — only a careOffs table nobody rendered. The Arena exists now,
-  // and it is honest about what it measures: your own care record, scored
-  // against a ladder of benchmark Keepers.
-  { icon: Swords, title: 'Care-Off Arena', desc: 'Your care record becomes a score — specimen health, streaks, check-ins and species found. Climb a ladder of rival Keepers and win seeds.', color: '#B8860B', to: '/arena' },
-  { icon: Bell, title: 'Smart Alerts', desc: 'Weather-aware watering reminders, drift detection, and predictive health forecasts — so no plant gets forgotten.', color: '#6B8E6B' },
-];
-
-function WelcomeLanding({ onGetStarted, onSignIn, onTryScan }: { onGetStarted: () => void; onSignIn: () => void; onTryScan: () => void }) {
-  const { scrollY } = useScroll();
-  const crestY = useTransform(scrollY, [0, 600], [0, -80]);
-  const crestOpacity = useTransform(scrollY, [0, 380], [1, 0.1]);
-
-  return (
-    <PageWrapper className="min-h-screen w-full relative overflow-hidden bg-[#FAF7F2] dark:bg-[#121619]">
-      {/* Background architectural glasshouse & estate ambience */}
-      <div className="absolute inset-0 -z-10 gatehouse-stone opacity-95" />
-
-      {/* Weathered Stone Gatehouse Arch Container */}
-      <div className="relative z-10 max-w-5xl mx-auto px-6 pt-12 md:pt-20 pb-16">
-        
-        {/* Gatehouse Arch Apex & Crest */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7 }}
-          className="flex flex-col items-center mb-6 text-center"
-        >
-          {/* Scroll-linked, so the crest keeps moving for as long as the reader
-              is on the page. Every other animation on this landing fires once
-              on mount and then the page is completely static, which is what
-              read as dead on a phone rather than calm.
-
-              These MotionValues live on the badge, not on the wrapper above:
-              the wrapper already animates `y` and `opacity` from `initial`, and
-              two owners writing the same transform meant the entrance won and
-              the scroll values were silently discarded. */}
-          <motion.div
-            style={{ y: crestY, opacity: crestOpacity }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#b89552]/40 bg-[#f7edd6]/80 dark:bg-[#2b2416]/80 text-[#7a602f] dark:text-[#d4af37] text-[10px] font-black uppercase tracking-[0.25em] shadow-xs"
-          >
-            🏛️ ESTATE CONSERVATORY · GATEHOUSE № 01
-          </motion.div>
-          <div className="w-32 h-px bg-gradient-to-r from-transparent via-[#b89552]/50 to-transparent mt-3" />
-        </motion.div>
-
-        {/* Gatehouse Stone Portico Header */}
-        <motion.section
-          className="text-center max-w-3xl mx-auto mb-14"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <motion.div
-            className="inline-block text-6xl md:text-7xl mb-4 filter drop-shadow-sm"
-            animate={{ rotate: [0, 4, -3, 0], scale: [1, 1.05, 0.98, 1] }}
-            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            🌿
-          </motion.div>
-
-          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-4 text-[#2C2419] dark:text-[#F5F0E8]">
-            Enter the Grand Estate
-            <span className="block italic text-[#5A7D5A] dark:text-[#8FB58F]">Conservatory.</span>
-          </h1>
-
-          <p className="text-base md:text-lg max-w-2xl mx-auto mb-8 leading-relaxed text-[#6B5E51] dark:text-[#A8B5A0]">
-            Step across the threshold into an intelligent botanical sanctuary. Gemini AI clinical diagnostics,
-            heirloom specimen cards, and weather-synchronized care regimens.
-          </p>
-
-          <motion.button
-            onClick={onGetStarted}
-            whileHover={{ scale: 1.03, y: -2 }}
-            whileTap={{ scale: 0.97 }}
-            className="inline-flex items-center gap-3 px-9 py-4 rounded-full text-white font-bold text-base shadow-xl transition-all cursor-pointer"
-            style={{
-              background: 'linear-gradient(135deg, #3D5A3D 0%, #5A7D5A 100%)',
-              boxShadow: '0 10px 28px rgba(61,90,61,0.28)'
-            }}
-          >
-            Open Sanctuary Gates
-            <ArrowRight size={18} />
-          </motion.button>
-
-          {/* The scan is the product. A visitor should be able to prove that
-              before being asked for anything -- this is the whole front door
-              of the funnel now. */}
-          <div className="mt-4">
-            <button
-              onClick={onTryScan}
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-sm border border-[#5A7D5A]/50 dark:border-[#8FB58F]/40 text-[#3D5A3D] dark:text-[#8FB58F] hover:bg-[#5A7D5A]/10 transition-colors cursor-pointer bg-transparent"
-            >
-              <Camera size={16} />
-              Diagnose a plant now — no account needed
-            </button>
-          </div>
-
-          <p className="mt-3 text-xs tracking-wider uppercase text-[#9C8E80] dark:text-[#7A756D] font-mono">
-            Free forever · Private offline database · No sign-up barrier
-          </p>
-        </motion.section>
-
-        {/* Feature Cards — Carved Stone Plaque Aesthetic */}
-        <section className="mb-14">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {FEATURES.map((f, i) => {
-              const inner = (
-                <>
-                  <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 border border-black/5 dark:border-white/10"
-                    style={{ background: `${f.color}18`, color: f.color }}
-                  >
-                    <f.icon size={20} />
-                  </div>
-                  <h3 className="font-serif text-lg font-bold mb-1.5 text-[#2C2419] dark:text-[#F5F0E8]">{f.title}</h3>
-                  <p className="text-xs leading-relaxed text-[#6B5E51] dark:text-[#A8B5A0]">{f.desc}</p>
-                  {f.to && (
-                    <span className="inline-flex items-center gap-1.5 mt-4 text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: f.color }}>
-                      Open <ArrowRight size={12} aria-hidden="true" />
-                    </span>
-                  )}
-                </>
-              );
-              // Cards that lead somewhere are links. They were all
-              // `cursor-default` divs, so a card describing a feature was a
-              // dead end — the Arena card in particular advertised something
-              // with no way to reach it.
-              return (
-                <motion.div
-                  key={f.title}
-initial={{ opacity: 0, y: 25 }}
-                  // This row sits ~950px down the landing page, below the fold on
-                  // any phone, so it reveals on arrival rather than on mount.
-                  //
-                  // This was previously pinned to `animate` because a scroll-gated
-                  // reveal was believed to be impossible here. It was possible --
-                  // the blocker was `<AnimatePresence initial={false}>` in App.tsx,
-                  // which suppressed the `initial` state of every descendant, so
-                  // this row rendered already visible and never had a reveal to
-                  // perform. That flag is now scoped to the route wrapper only.
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: '0px 0px -12% 0px' }}
-                  transition={{ delay: i * 0.08, duration: 0.5 }}
-                  whileHover={{ y: -5 }}
-                  // whileHover never fires on a touchscreen, so these cards had
-                  // no press feedback at all on the device most people open
-                  // them on. This is the mobile equivalent.
-                  whileTap={f.to ? { scale: 0.97 } : undefined}
-                  className={`rounded-2xl p-6 border transition-all relative overflow-hidden bg-white/70 dark:bg-[#1E1B17]/70 border-[#D2C7B5]/60 dark:border-[#3D3830] shadow-xs hover:shadow-md ${
-                    f.to ? 'cursor-pointer' : 'cursor-default'
-                  }`}
-                >
-                  {f.to ? (
-                    <Link
-                      to={f.to}
-                      className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#244b2f]"
-                      aria-label={`${f.title} — open`}
-                    >
-                      <span className="sr-only">{f.title}</span>
-                    </Link>
-                  ) : null}
-                  <div className={f.to ? 'pointer-events-none' : ''}>{inner}</div>
-                </motion.div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* What this is, said plainly.
-            This used to be a named testimonial -- "Priya Sharma, Conservator,
-            23 PhytoCards" -- with a quote nobody wrote. It sat here while the
-            landing page was unreachable to signed-out visitors, which made it
-            harmless. It is the front page now, so invented social proof is
-            live on a public site. A real Keeper quote goes here instead, the
-            moment there is one to use. */}
-        <motion.section
-          className="max-w-2xl mx-auto text-center"
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-        >
-          <div className="rounded-2xl p-8 border border-[#D2C7B5]/70 dark:border-[#3D3830] bg-[#FAF7F2]/90 dark:bg-[#1A1714]/90 shadow-sm relative">
-            {/* "About half a minute" is measured, not aspirational: a real
-            diseased-leaf photo identified in 29.6s cold and 17.1s warm. The
-            Lab shows live elapsed time, so the promise here has to be one the
-            app can actually keep. */}
-            <p className="font-serif text-xl italic leading-relaxed mb-5 text-[#2C2419] dark:text-[#F5F0E8]">
-              Photograph a leaf. In about half a minute you get the species, what is
-              actually wrong with it, and what to do about it — in order of what matters.
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[10px] uppercase font-mono tracking-wider text-[#9C8E80]">
-              <span>Gemini vision diagnosis</span>
-              <span>·</span>
-              <span>Care instructions you can follow</span>
-              <span>·</span>
-              <span>Weather-aware watering</span>
-              <span>·</span>
-              <span>Your collection stays on your device</span>
-            </div>
-          </div>
-        </motion.section>
-
-        {/* Secondary Sign-in Anchor */}
-        <div className="text-center mt-8">
-          <p className="text-xs text-[#6B5E51] dark:text-[#A8B5A0]">
-            Already holding estate keys?{' '}
-            <button
-              onClick={onSignIn}
-              // Sits mid-sentence, so it cannot be given a 44px box without
-              // breaking the line. The padding and matching negative margin
-              // widen the hit area out over the surrounding whitespace instead:
-              // measured at 21px tall on a phone before this, which is a poor
-              // target for the one link that gets an existing user back in.
-              className="font-bold underline text-[#5A7D5A] dark:text-[#8FB58F] hover:opacity-80 cursor-pointer bg-transparent border-none px-2 -mx-2 py-2 -my-2 inline-block"
-            >
-              Sign In to Sanctuary
-            </button>
-          </p>
-        </div>
-
-      </div>
-    </PageWrapper>
-  );
-}
 
 // ─── Main Dashboard ────────────────────────────────────────────────────
 export default function HomePage() {
@@ -267,16 +41,15 @@ export default function HomePage() {
   const { timeOfDay } = useTimeOfDay();
   const { theme } = useDayNightTheme();
   const { ecoModeActive } = useEcoMode();
-  const { location, city } = useGeolocation();
+  const { location, city, error: locationError, locating, updateCity, requestLocation } = useGeolocation();
   const [weather, setWeather] = useState<any>(null);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
 
-  // Onboarding gate
+  // Onboarding gate. The flag flips on account creation (Auth.tsx) or Supabase
+  // session hydration (Layout.tsx) — never from the landing, whose every CTA
+  // now leads to /auth. A signed-out visitor should not be able to walk into
+  // the Keeper dashboard.
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem(ONBOARD_KEY) === '1');
-  const handleGetStarted = useCallback(async () => {
-    localStorage.setItem(ONBOARD_KEY, '1');
-    await GameService.ensureProfile();
-    setOnboarded(true);
-  }, []);
 
   // Local override state for ambient time selection
   const [timePeriodOverride, setTimePeriodOverride] = useState<TimePeriod | null>(null);
@@ -363,25 +136,37 @@ export default function HomePage() {
 
   const bgGradient = getBackgroundGradient(activeTimePeriod);
 
+  // Whose weather to show, and what to admit when we cannot get it.
+  //
+  // The old version had two branches and one of them was a lie: with no device
+  // fix it fetched Delhi's coordinates and called the result weather, so every
+  // Keeper who had not granted — or had dismissed — the location prompt saw a
+  // Delhi forecast next to their own garden. There is no default place. No
+  // choice means no weather card, and a city that will not resolve says so
+  // rather than quietly becoming someone else's climate.
   useEffect(() => {
+    let cancelled = false;
     async function loadWeather() {
-      if (location?.latitude && location?.longitude) {
-        try {
-          const fetched = await fetchWeather(location.latitude, location.longitude, city);
-          setWeather(fetched);
-        } catch (err) {
-          console.error(err);
+      setWeatherError(null);
+      try {
+        const place = await resolveWeatherPlace(city, location);
+        if (cancelled) return;
+        if (!place) {
+          setWeather(null);
+          return;
         }
-      } else {
-        try {
-          const fetched = await fetchWeather(28.6139, 77.2090, 'Delhi');
-          setWeather(fetched);
-        } catch (err) {
-          console.error(err);
-        }
+        const fetched = await fetchWeather(place.latitude, place.longitude, place.city);
+        if (cancelled) return;
+        setWeather(fetched);
+      } catch (err) {
+        if (cancelled) return;
+        console.error(err);
+        setWeather(null);
+        setWeatherError(err instanceof Error ? err.message : 'Could not load weather for that place.');
       }
     }
     loadWeather();
+    return () => { cancelled = true; };
   }, [location, city]);
 
   // Dynamically apply background gradient of active time period to app-shell so AmbientGarden (z-index 1) renders in front of background but behind contents
@@ -407,24 +192,38 @@ export default function HomePage() {
     return idx >= 0 ? idx : 0;
   }, [mappedPlants, selectedPlant]);
 
-  // Gate: show welcome landing for first-time visitors
+  // Gate: show bright landing for first-time visitors
   if (!onboarded) {
-    return <WelcomeLanding onGetStarted={handleGetStarted} onSignIn={() => transitionTo('/auth', 'Sign In')} onTryScan={() => transitionTo('/lab?tab=dex', 'Botanical Lab')} />;
+    return <Landing onSignIn={() => transitionTo('/auth', 'Sign In')} />;
   }
 
   return (
     <PageWrapper
       className={`min-h-screen w-full relative skin-conservatory ${textColorClass} transition-colors duration-1000`}
     >
+      <p className="text-xs text-[#6B6156] dark:text-[#9A9086] font-mono sr-only">Sanctuary Keeper Portal</p>
       {/* Ambient Animations */}
 
-      {/* Main Content */}
-      <motion.main
+      {/* Main Content. A div, not a main: Layout owns the page's single
+          <main> landmark and this page renders inside it — a second one
+          gave every screen reader two mains to guess between. */}
+      <motion.div
         className="relative z-10"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2, duration: 0.8 }}
       >
+        {/* Where the Keeper is — the only entry point for it */}
+        <div className="pt-5 pb-2">
+        <LocationBar
+          city={city}
+          error={weatherError || locationError}
+          locating={locating}
+          onSaveCity={updateCity}
+          onUseDeviceLocation={() => { void requestLocation().catch(() => {}); }}
+        />
+        </div>
+
         {/* Hero Section */}
         <HeroSection
           plantId={selectedPlant?.id}
@@ -470,17 +269,22 @@ export default function HomePage() {
 
         {/* Footer Section */}
         <motion.section
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
+          initial={{ opacity: 0, y: 25 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '0px 0px -15% 0px' }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
           className="py-16 px-4 text-center"
         >
           <div className="max-w-4xl mx-auto">
-            <h2
+            <motion.h2
+              initial={{ opacity: 0, y: 18 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '0px 0px -15% 0px' }}
+              transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
               className="text-3xl font-serif font-bold mb-4 text-[var(--text-bark)]"
             >
               Ready to expand your garden?
-            </h2>
+            </motion.h2>
             <motion.button
               onClick={() => transitionTo('/market', 'Garden Market')}
               whileHover={{ scale: 1.05 }}
@@ -521,7 +325,7 @@ export default function HomePage() {
             />
           )}
         </AnimatePresence>
-      </motion.main>
+      </motion.div>
 
       {/* Eco Mode Notice */}
       {ecoModeActive && (

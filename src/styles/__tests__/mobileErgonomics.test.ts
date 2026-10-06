@@ -104,7 +104,10 @@ describe('the phone type floor', () => {
 });
 
 describe('phone motion', () => {
-  const home = stripJsComments(readSource('src/pages/Home.tsx'));
+  // The landing moved from an inline component in Home.tsx to its own file;
+  // these assertions follow it. Home renders Landing for un-onboarded
+  // visitors, so the landing's motion contract is what this block pins.
+  const home = stripJsComments(readSource('src/components/home/Landing.tsx'));
 
   it('reads the landing page it means to check', () => {
     expect(home.length).toBeGreaterThan(1000);
