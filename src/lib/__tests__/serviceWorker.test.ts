@@ -41,13 +41,14 @@ describe('the worker fetch policy', () => {
   });
 
   it('serves cache-first only for immutable content', () => {
-    // Content-hashed build output and the font CDNs can never change meaning
-    // under a URL. Everything else same-origin is network-first, so
-    // deployable files (OG image, manifest, icons) track the site without a
+    // Content-hashed build output and the self-hosted brand fonts can never
+    // change meaning under a URL. Everything else same-origin is network-first,
+    // so deployable files (OG image, manifest, icons) track the site without a
     // worker version bump — v1.x froze them at first-visit bytes.
     expect(sw).toMatch(/url\.pathname\.startsWith\('\/assets\/'\)/);
-    expect(sw).toMatch(/fonts\.googleapis\.com/);
-    expect(sw).toMatch(/fonts\.gstatic\.com/);
+    expect(sw).toMatch(/url\.pathname\.startsWith\('\/fonts\/'\)/);
+    expect(sw).not.toMatch(/fonts\.googleapis\.com/);
+    expect(sw).not.toMatch(/fonts\.gstatic\.com/);
     expect(sw).toMatch(/if \(immutable\) \{/);
   });
 

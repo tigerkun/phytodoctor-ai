@@ -13,6 +13,13 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="description" content="PhytoDoctor AI — photograph a plant, get an evidence-based diagnosis, and track its recovery." />
 
+    <!-- Brand fonts, self-hosted (see src/styles/fonts.css). The two files
+         text is most likely to paint with are preloaded so the type never
+         reflows under a late font swap — that swap was ~all of the lab
+         page's CLS. The italic Cormorant face loads on demand. -->
+    <link rel="preload" href="/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/cormorant-garamond-latin.woff2" as="font" type="font/woff2" crossorigin />
+
     <!-- Share previews: what the link looks like in chats, stories and bios. -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="PhytoDoctor AI" />

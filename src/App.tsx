@@ -35,7 +35,13 @@ function RouteFallback() {
       role="status"
       aria-live="polite"
       aria-label="Loading page"
-      className="flex items-center justify-center py-32"
+      /* Taller than the fold, not a tidy little spinner: the footer used to
+         peek over the bottom edge while a lazy route loaded, then jump
+         hundreds of pixels down the moment real content arrived — that one
+         move was 0.168 of the lab page's CLS. With the fallback over a
+         viewport tall, the footer starts below the fold and content that is
+         taller still never moves it visibly. */
+      className="flex min-h-[110dvh] items-center justify-center"
     >
       <div className="w-6 h-6 rounded-full border-2 border-border-light border-t-moss animate-spin" />
     </div>

@@ -1,17 +1,22 @@
-// v2.1 — two policies only:
-//   1. Immutable responses (content-hashed /assets/ and the font CDNs) are
-//      cache-first: the same URL can never mean different bytes.
+// v2.2 — two policies only:
+//   1. Immutable responses (content-hashed /assets/ and the self-hosted brand
+//      fonts) are cache-first: the same URL can never mean different bytes.
 //   2. Everything else we own is network-first, and every fresh response
 //      refreshes its stored copy, so deploys arrive without a version bump.
 //      Offline, the page falls back to the precached shell and files to their
 //      last copy. /api/ is never cached at all.
 // The activate handler evicts caches from older versions on load.
-const CACHE_NAME = 'phyto-guard-v2.1';
+const CACHE_NAME = 'phyto-guard-v2.2';
 const PRECACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Inter:wght@100..900&display=swap'
+  // The brand fonts are served same-origin from /public/fonts (see
+  // src/styles/fonts.css). The old precache entry here fetched a Google Fonts
+  // stylesheet the app no longer references — dead weight on every install.
+  '/fonts/plus-jakarta-sans-latin.woff2',
+  '/fonts/cormorant-garamond-latin.woff2',
+  '/fonts/cormorant-garamond-italic-latin.woff2'
 ];
 
 // cache.addAll() is atomic — one bad URL kills the whole install, and a dead
@@ -49,8 +54,7 @@ self.addEventListener('fetch', (event) => {
   const sameOrigin = url.origin === self.location.origin;
   const immutable =
     (sameOrigin && url.pathname.startsWith('/assets/')) ||
-    url.hostname === 'fonts.googleapis.com' ||
-    url.hostname === 'fonts.gstatic.com';
+    (sameOrigin && url.pathname.startsWith('/fonts/'));
 
   if (immutable) {
     event.respondWith(
