@@ -4,8 +4,9 @@ import { db } from '../../db/database';
 
 describe('TreatmentService unit and persistence tests', () => {
   beforeEach(async () => {
+    TreatmentService.clearMemoryStore();
     try {
-      if (db.treatmentActions) {
+      if (typeof indexedDB !== 'undefined' && db.treatmentActions) {
         await db.treatmentActions.clear();
       }
     } catch {
@@ -24,7 +25,18 @@ describe('TreatmentService unit and persistence tests', () => {
       expect(key).toBe('plant:plant-uuid-123:p0:day-1-3:flush-substrate-with-clean-rainwater');
     });
 
-    it('generates specimen-scoped key when plantId is null or absent', () => {
+    it('generates scan-scoped key when plantId is absent but scanId is present', () => {
+      const key = TreatmentService.buildTargetKey({
+        scanId: 'scan-uuid-456',
+        species: 'Monstera deliciosa',
+        phaseIndex: 0,
+        phaseDay: 'Day 1-3',
+        action: 'Isolate specimen in high humidity tent',
+      });
+      expect(key).toBe('scan:scan-uuid-456:p0:day-1-3:isolate-specimen-in-high-humidity-tent');
+    });
+
+    it('generates specimen-scoped key when plantId and scanId are absent', () => {
       const key = TreatmentService.buildTargetKey({
         species: 'Monstera deliciosa',
         phaseIndex: 1,
@@ -186,6 +198,30 @@ describe('TreatmentService unit and persistence tests', () => {
       await TreatmentService.saveActionNote(targetKey, 'Pruned 4 dry leaves, stems green inside');
       const rec = await TreatmentService.getActionByKey(targetKey);
       expect(rec?.notes).toBe('Pruned 4 dry leaves, stems green inside');
+    });
+
+    it('migrates scan-scoped checkoffs over to newly indexed plantId via associateScanWithPlant', async () => {
+      const scanId = 'scan-temp-789';
+      const plantId = 'plant-indexed-999';
+
+      const scanResult = await TreatmentService.toggleTreatmentAction({
+        scanId,
+        species: 'Ficus lyrata',
+        phaseIndex: 0,
+        phaseDay: 'Day 1',
+        action: 'Foliar dust wipe with microfiber cloth',
+      });
+      expect(scanResult.isCompleted).toBe(true);
+
+      const beforeMigration = await TreatmentService.getCompletedActions(plantId);
+      expect(beforeMigration.length).toBe(0);
+
+      await TreatmentService.associateScanWithPlant(scanId, plantId);
+
+      const afterMigration = await TreatmentService.getCompletedActions(plantId);
+      expect(afterMigration.length).toBe(1);
+      expect(afterMigration[0].plantId).toBe(plantId);
+      expect(afterMigration[0].targetKey).toContain(`plant:${plantId}:`);
     });
   });
 });

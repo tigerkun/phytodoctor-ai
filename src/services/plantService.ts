@@ -170,6 +170,9 @@ function preserveLocalFields(mapped: Plant, local: Plant | undefined): Plant {
       merged[key] = local[key as keyof Plant];
     }
   }
+  if (local.recoveryRoadmap && !merged.recoveryRoadmap) {
+    (merged as any).recoveryRoadmap = local.recoveryRoadmap;
+  }
   return merged as unknown as Plant;
 }
 
@@ -225,7 +228,14 @@ export const PlantService = {
           .maybeSingle();
 
         if (!error && data) {
-          return postgresToPlant(data);
+          const plant = postgresToPlant(data);
+          try {
+            const local = await db.plants.get(id);
+            if (local?.recoveryRoadmap && !plant.recoveryRoadmap) {
+              plant.recoveryRoadmap = local.recoveryRoadmap;
+            }
+          } catch {}
+          return plant;
         }
       } catch (err) {
         console.error('[PlantService] Error fetching plant by id from Supabase:', err);
@@ -293,6 +303,7 @@ export const PlantService = {
       parentPlantId: input.parentPlantId ?? null,
       propagationMethod: input.propagationMethod ?? null,
       generation,
+      recoveryRoadmap: input.recoveryRoadmap ?? null,
     };
 
     if (supabase) {
@@ -309,7 +320,10 @@ export const PlantService = {
       }
 
       if (data) {
-        const created = postgresToPlant(data);
+        const created = {
+          ...postgresToPlant(data),
+          recoveryRoadmap: input.recoveryRoadmap ?? null,
+        };
         try {
           await db.plants.put(created);
         } catch {}

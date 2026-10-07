@@ -39,6 +39,7 @@ import { inferLightFromWeather } from '../lib/environmentalSimulation';
 import { PlantService, onPlantsChange } from '../services/plantService';
 import { StorageService } from '../services/storageService';
 import { analyzePlantHealth, type PlantSignature } from '../services/driftDetector';
+import { TreatmentService } from '../services/treatmentService';
 import type { Plant } from '../types';
 
 import { usePageTransition } from '../components/home/PageTransitionContext';
@@ -341,6 +342,9 @@ export default function BotanicalLab() {
 
     setScanStage('saving');
     const plant = await GameService.indexScannedPlant(plantReport, finalPhotoUrl, userId);
+    if ((plantReport as any)?.id) {
+      await TreatmentService.associateScanWithPlant((plantReport as any).id, plant.id);
+    }
     setDexResult((prev: any) => prev ? { ...prev, plantId: plant.id } : prev);
 
     setScanStage('rewarding');
@@ -1378,8 +1382,12 @@ export default function BotanicalLab() {
             isAuthed={isAuthed}
             onSignIn={() => { rememberAuthReturn('/lab?tab=history'); transitionTo('/auth', 'Sign In'); }}
             onIndexPlant={async (report) => {
-              await GameService.indexScannedPlant(report, null, userId);
+              const plant = await GameService.indexScannedPlant(report, null, userId);
+              if ((report as any)?.id) {
+                await TreatmentService.associateScanWithPlant((report as any).id, plant.id);
+              }
               success('Specimen re-indexed from the archive.');
+              return plant;
             }}
           />
         )}

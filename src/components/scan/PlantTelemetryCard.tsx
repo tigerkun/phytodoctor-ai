@@ -18,6 +18,8 @@ import {
   Sparkles,
   Edit3,
   Save,
+  ListOrdered,
+  Check,
 } from 'lucide-react';
 import { useEcoMode } from '../../hooks/useEcoMode';
 import type { PlantScanReport } from '../../lib/scanReport';
@@ -59,6 +61,7 @@ export default function PlantTelemetryCard({
 }: PlantTelemetryCardProps) {
   const { shouldDisableAnimations } = useEcoMode();
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(0);
+  const [viewMode, setViewMode] = useState<'stepper' | 'trajectory'>('stepper');
   const [showSimulator, setShowSimulator] = useState(false);
   const [completedRecords, setCompletedRecords] = useState<Record<number, TreatmentActionRecord>>({});
   const [actionLoading, setActionLoading] = useState<number | null>(null);
@@ -124,32 +127,33 @@ export default function PlantTelemetryCard({
   const loadSavedActions = React.useCallback(async () => {
     if (!timeline || timeline.length === 0) return;
     try {
-      const scopeKey = plantId ? `plant:${plantId}` : `specimen:${report?.scientificName || report?.displayName || 'plant'}`;
+      const scopeKey = plantId
+        ? `plant:${plantId}`
+        : scanId
+          ? `scan:${scanId}`
+          : `specimen:${report?.scientificName || report?.displayName || 'plant'}`;
       const records = await TreatmentService.getCompletedActions(plantId || scopeKey);
       const recordMap: Record<number, TreatmentActionRecord> = {};
-      for (const rec of records) {
-        if (typeof rec.phaseIndex === 'number' && rec.completedAt) {
-          recordMap[rec.phaseIndex] = rec;
-        }
-      }
+
       timeline.forEach((step, idx) => {
-        if (recordMap[idx]) return;
         const targetKey = TreatmentService.buildTargetKey({
           plantId,
+          scanId,
           species: report?.scientificName || report?.displayName,
           diagnosis: report?.diagnosis,
           phaseIndex: idx,
           phaseDay: step.day,
           action: step.action,
         });
-        const match = records.find(r => r.targetKey === targetKey && r.completedAt);
+        const match = records.find(r => r.targetKey === targetKey && Boolean(r.completedAt))
+          || records.find(r => r.phaseIndex === idx && r.action === step.action && Boolean(r.completedAt));
         if (match) recordMap[idx] = match;
       });
       setCompletedRecords(recordMap);
     } catch {
       // safe fallback
     }
-  }, [timeline, plantId, report?.scientificName, report?.displayName, report?.diagnosis]);
+  }, [timeline, plantId, scanId, report?.scientificName, report?.displayName, report?.diagnosis]);
 
   React.useEffect(() => {
     loadSavedActions();
@@ -163,12 +167,14 @@ export default function PlantTelemetryCard({
     try {
       const result = await TreatmentService.toggleTreatmentAction({
         plantId,
+        scanId,
         species: report?.scientificName || report?.displayName,
         diagnosis: report?.diagnosis,
         phaseIndex: idx,
         phaseDay: step.day,
         action: step.action,
         expectedOutcome: step.expectedOutcome,
+        timeline,
       });
       setCompletedRecords(prev => {
         const next = { ...prev };
@@ -199,6 +205,7 @@ export default function PlantTelemetryCard({
     if (!step) return;
     const targetKey = TreatmentService.buildTargetKey({
       plantId,
+      scanId,
       species: report?.scientificName || report?.displayName,
       diagnosis: report?.diagnosis,
       phaseIndex: selectedPhaseIdx,
@@ -357,13 +364,43 @@ export default function PlantTelemetryCard({
               </div>
             </div>
 
-            <div className="text-right self-end sm:self-center">
-              <span className="text-[8px] font-mono uppercase tracking-wider text-text-stone block">
-                Recovery Trajectory
-              </span>
-              <span className="text-[11px] font-mono font-black text-moss">
-                Vitality: {(report?.vitals?.guardianScore ?? 80) + adherence.vitalityDelta}/100 (+{adherence.vitalityDelta})
-              </span>
+            <div className="flex items-center gap-2 self-end sm:self-center">
+              <div className="text-right hidden sm:block">
+                <span className="text-[8px] font-mono uppercase tracking-wider text-text-stone block">
+                  Recovery Trajectory
+                </span>
+                <span className="text-[11px] font-mono font-black text-moss">
+                  Vitality: {(report?.vitals?.guardianScore ?? 80) + adherence.vitalityDelta}/100 (+{adherence.vitalityDelta})
+                </span>
+              </div>
+              <div className="flex bg-black/5 dark:bg-white/5 rounded-lg p-0.5 border border-border-light">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('stepper')}
+                  aria-label="Stepper Phase View"
+                  className={`min-h-[44px] px-2.5 text-[9px] font-mono font-bold uppercase rounded-md transition-all flex items-center gap-1 ${
+                    viewMode === 'stepper'
+                      ? 'bg-moss-deep text-white shadow-xs'
+                      : 'text-text-stone hover:text-text-bark'
+                  }`}
+                >
+                  <Layers size={11} />
+                  <span>Stepper</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('trajectory')}
+                  aria-label="Full Recovery Trajectory View"
+                  className={`min-h-[44px] px-2.5 text-[9px] font-mono font-bold uppercase rounded-md transition-all flex items-center gap-1 ${
+                    viewMode === 'trajectory'
+                      ? 'bg-moss-deep text-white shadow-xs'
+                      : 'text-text-stone hover:text-text-bark'
+                  }`}
+                >
+                  <ListOrdered size={11} />
+                  <span>Trajectory</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -385,154 +422,222 @@ export default function PlantTelemetryCard({
             )}
           </AnimatePresence>
 
-          {/* Phase Stepper Pills */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none" role="tablist" aria-label="Recovery phase milestones">
-            {timeline.map((step, idx) => {
-              const isDone = Boolean(completedRecords[idx]?.completedAt);
-              const isSelected = selectedPhaseIdx === idx;
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  role="tab"
-                  aria-selected={isSelected}
-                  aria-label={`Select treatment stage ${step.day}`}
-                  onClick={() => {
-                    setSelectedPhaseIdx(idx);
-                    setEditingNote(false);
-                  }}
-                  className={`min-h-[44px] px-3.5 py-2 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border ${
-                    isSelected
-                      ? 'bg-moss-deep text-white border-moss shadow-xs'
-                      : isDone
-                        ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
-                        : 'bg-black/5 dark:bg-white/5 text-text-stone hover:bg-black/10 border-transparent'
-                  }`}
-                >
-                  <span>{step.day || `Phase #${idx + 1}`}</span>
-                  {isDone ? (
-                    <CheckCircle2 size={11} className={isSelected ? 'text-emerald-300' : 'text-emerald-600 dark:text-emerald-400'} />
-                  ) : (
-                    <span className="w-1.5 h-1.5 rounded-full bg-current opacity-40" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Current Phase Active Dossier */}
-          {currentPhase && (
-            <motion.div
-              key={selectedPhaseIdx}
-              {...(!shouldDisableAnimations ? { initial: { opacity: 0, y: 4 }, animate: { opacity: 1, y: 0 } } : {})}
-              className="p-3.5 sm:p-4 rounded-xl bg-black/5 dark:bg-white/5 border border-border-light space-y-2.5"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-mono font-black uppercase tracking-wider text-moss">
-                      Target: {currentPhase.day || `Stage ${selectedPhaseIdx + 1}`}
-                    </span>
-                    {isCurrentCompleted && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-mono text-[9px] font-bold">
-                        <Clock size={10} />
-                        {TreatmentService.formatRelativeTime(currentRecord?.completedAt)}
-                      </span>
-                    )}
-                  </div>
-                  <h4 className="text-xs font-bold text-text-bark leading-snug">
-                    {currentPhase.action}
-                  </h4>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => toggleStep(selectedPhaseIdx)}
-                  disabled={actionLoading === selectedPhaseIdx}
-                  aria-label={`Mark treatment phase ${currentPhase.day} action complete`}
-                  className={`min-h-[44px] px-3.5 py-2 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shrink-0 ${
-                    isCurrentCompleted
-                      ? 'bg-emerald-600/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/30'
-                      : 'bg-moss-deep text-white hover:bg-moss active:scale-95 shadow-xs'
-                  }`}
-                >
-                  <CheckCircle2 size={12} className={isCurrentCompleted ? 'text-emerald-500' : 'text-white'} />
-                  <span>
-                    {isCurrentCompleted
-                      ? 'Applied ✓ (Tap to Undo)'
-                      : 'Apply Treatment (🌱 +15 Seeds)'}
-                  </span>
-                </button>
+          {/* ── View A: Stepper Pills Navigation ── */}
+          {viewMode === 'stepper' && (
+            <>
+              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none" role="tablist" aria-label="Recovery phase milestones">
+                {timeline.map((step, idx) => {
+                  const isDone = Boolean(completedRecords[idx]?.completedAt);
+                  const isSelected = selectedPhaseIdx === idx;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      role="tab"
+                      aria-selected={isSelected}
+                      aria-label={`Select treatment stage ${step.day}`}
+                      onClick={() => {
+                        setSelectedPhaseIdx(idx);
+                        setEditingNote(false);
+                      }}
+                      className={`min-h-[44px] px-3.5 py-2 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border ${
+                        isSelected
+                          ? 'bg-moss-deep text-white border-moss shadow-xs'
+                          : isDone
+                            ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
+                            : 'bg-black/5 dark:bg-white/5 text-text-stone hover:bg-black/10 border-transparent'
+                      }`}
+                    >
+                      <span>{step.day || `Phase #${idx + 1}`}</span>
+                      {isDone ? (
+                        <CheckCircle2 size={11} className={isSelected ? 'text-emerald-300' : 'text-emerald-600 dark:text-emerald-400'} />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-current opacity-40" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
-              {currentPhase.expectedOutcome && (
-                <div className="text-[11px] text-text-stone bg-bg-primary/60 p-2.5 rounded-lg border border-border-light/50 font-sans leading-relaxed">
-                  <span className="font-bold text-moss font-mono text-[9px] uppercase tracking-wider block mb-0.5">
-                    Expected Biological Outcome:
-                  </span>
-                  {currentPhase.expectedOutcome}
-                </div>
-              )}
+              {/* Current Phase Active Dossier */}
+              {currentPhase && (
+                <motion.div
+                  key={selectedPhaseIdx}
+                  {...(!shouldDisableAnimations ? { initial: { opacity: 0, y: 4 }, animate: { opacity: 1, y: 0 } } : {})}
+                  className="p-3.5 sm:p-4 rounded-xl bg-black/5 dark:bg-white/5 border border-border-light space-y-2.5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-mono font-black uppercase tracking-wider text-moss">
+                          Target: {currentPhase.day || `Stage ${selectedPhaseIdx + 1}`}
+                        </span>
+                        {isCurrentCompleted && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-mono text-[9px] font-bold">
+                            <Clock size={10} />
+                            {TreatmentService.formatRelativeTime(currentRecord?.completedAt)}
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="text-xs font-bold text-text-bark leading-snug">
+                        {currentPhase.action}
+                      </h4>
+                    </div>
 
-              {/* Field Observation Note */}
-              <div className="pt-1.5 border-t border-border-light/40 flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-mono uppercase tracking-wider text-text-stone">
-                    Field Clinical Notes
-                  </span>
-                  {!editingNote ? (
                     <button
                       type="button"
-                      onClick={() => {
-                        setEditingNote(true);
-                        setNoteDraft(currentRecord?.notes || '');
-                      }}
-                      aria-label="Add observation note for this phase"
-                      className="min-h-[44px] px-2 text-[9px] font-mono font-bold uppercase tracking-wider text-moss hover:underline flex items-center gap-1"
+                      onClick={() => toggleStep(selectedPhaseIdx)}
+                      disabled={actionLoading === selectedPhaseIdx}
+                      aria-label={`Mark treatment phase ${currentPhase.day} action complete`}
+                      className={`min-h-[44px] px-3.5 py-2 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+                        isCurrentCompleted
+                          ? 'bg-emerald-600/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/30'
+                          : 'bg-moss-deep text-white hover:bg-moss active:scale-95 shadow-xs'
+                      }`}
                     >
-                      <Edit3 size={10} />
-                      {currentRecord?.notes ? 'Edit Note' : 'Add Note'}
+                      <CheckCircle2 size={12} className={isCurrentCompleted ? 'text-emerald-500' : 'text-white'} />
+                      <span>
+                        {isCurrentCompleted
+                          ? 'Applied ✓ (Tap to Undo)'
+                          : 'Apply Treatment (🌱 +15 Seeds)'}
+                      </span>
                     </button>
-                  ) : null}
-                </div>
+                  </div>
 
-                {editingNote ? (
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      aria-label="Field observation notes for this recovery step"
-                      value={noteDraft}
-                      onChange={e => setNoteDraft(e.target.value)}
-                      placeholder="e.g. Applied neem foliar wash; pruned spotted leaves..."
-                      className="w-full px-2.5 py-1.5 text-xs bg-bg-primary border border-border-light rounded-md focus:outline-none focus:ring-1 focus:ring-moss font-sans"
-                    />
-                    <div className="flex justify-end gap-1.5">
+                  {currentPhase.expectedOutcome && (
+                    <div className="text-[11px] text-text-stone bg-bg-primary/60 p-2.5 rounded-lg border border-border-light/50 font-sans leading-relaxed">
+                      <span className="font-bold text-moss font-mono text-[9px] uppercase tracking-wider block mb-0.5">
+                        Expected Biological Outcome:
+                      </span>
+                      {currentPhase.expectedOutcome}
+                    </div>
+                  )}
+
+                  {/* Field Observation Note */}
+                  <div className="pt-1.5 border-t border-border-light/40 flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-text-stone">
+                        Field Clinical Notes
+                      </span>
+                      {!editingNote ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingNote(true);
+                            setNoteDraft(currentRecord?.notes || '');
+                          }}
+                          aria-label="Add observation note for this phase"
+                          className="min-h-[44px] px-2 text-[9px] font-mono font-bold uppercase tracking-wider text-moss hover:underline flex items-center gap-1"
+                        >
+                          <Edit3 size={10} />
+                          {currentRecord?.notes ? 'Edit Note' : 'Add Note'}
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {editingNote ? (
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          aria-label="Field observation notes for this recovery step"
+                          value={noteDraft}
+                          onChange={e => setNoteDraft(e.target.value)}
+                          placeholder="e.g. Applied neem foliar wash; pruned spotted leaves..."
+                          className="w-full px-2.5 py-1.5 text-xs bg-bg-primary border border-border-light rounded-md focus:outline-none focus:ring-1 focus:ring-moss font-sans"
+                        />
+                        <div className="flex justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setEditingNote(false)}
+                            aria-label="Cancel note editing"
+                            className="min-h-[44px] px-3 py-1 text-[10px] font-mono rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-text-stone"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveNote}
+                            aria-label="Save note to clinical log"
+                            className="min-h-[44px] px-3 py-1 bg-moss-deep text-white text-[10px] font-mono font-bold uppercase rounded-md flex items-center gap-1"
+                          >
+                            <Save size={11} />
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : currentRecord?.notes ? (
+                      <p className="text-[10px] text-text-bark italic bg-black/5 dark:bg-white/5 p-1.5 rounded font-sans">
+                        “{currentRecord.notes}”
+                      </p>
+                    ) : null}
+                  </div>
+                </motion.div>
+              )}
+            </>
+          )}
+
+          {/* ── View B: Full Trajectory Timeline View ── */}
+          {viewMode === 'trajectory' && (
+            <div className="space-y-2.5 pt-1">
+              {timeline.map((step, idx) => {
+                const isDone = Boolean(completedRecords[idx]?.completedAt);
+                const record = completedRecords[idx];
+                return (
+                  <div
+                    key={idx}
+                    className={`p-3 rounded-xl border transition-all ${
+                      isDone
+                        ? 'bg-emerald-500/10 dark:bg-emerald-950/20 border-emerald-500/30'
+                        : 'bg-black/5 dark:bg-white/5 border-border-light/60'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-mono font-black uppercase tracking-wider text-moss">
+                            {step.day || `Phase #${idx + 1}`}
+                          </span>
+                          {isDone && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-mono text-[8px] font-bold">
+                              <Check size={9} />
+                              {TreatmentService.formatRelativeTime(record?.completedAt)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs font-bold text-text-bark leading-snug">
+                          {step.action}
+                        </p>
+                        {step.expectedOutcome && (
+                          <p className="text-[10px] text-text-stone font-sans">
+                            Outcome: {step.expectedOutcome}
+                          </p>
+                        )}
+                        {record?.notes && (
+                          <p className="text-[10px] text-text-bark italic font-sans mt-1">
+                            Note: “{record.notes}”
+                          </p>
+                        )}
+                      </div>
+
                       <button
                         type="button"
-                        onClick={() => setEditingNote(false)}
-                        aria-label="Cancel note editing"
-                        className="min-h-[44px] px-3 py-1 text-[10px] font-mono rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-text-stone"
+                        onClick={() => toggleStep(idx)}
+                        disabled={actionLoading === idx}
+                        aria-label={`Toggle phase ${step.day} status`}
+                        className={`min-h-[44px] px-3.5 py-2 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+                          isDone
+                            ? 'bg-emerald-600/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/30'
+                            : 'bg-moss-deep text-white hover:bg-moss'
+                        }`}
                       >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSaveNote}
-                        aria-label="Save note to clinical log"
-                        className="min-h-[44px] px-3 py-1 bg-moss-deep text-white text-[10px] font-mono font-bold uppercase rounded-md flex items-center gap-1"
-                      >
-                        <Save size={11} />
-                        Save
+                        <CheckCircle2 size={12} />
+                        <span>{isDone ? 'Applied ✓' : 'Mark Done'}</span>
                       </button>
                     </div>
                   </div>
-                ) : currentRecord?.notes ? (
-                  <p className="text-[10px] text-text-bark italic bg-black/5 dark:bg-white/5 p-1.5 rounded font-sans">
-                    “{currentRecord.notes}”
-                  </p>
-                ) : null}
-              </div>
-            </motion.div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}

@@ -4,6 +4,14 @@ import { GameService } from './gameService';
 // In-memory fallback if IndexedDB is unavailable in a test runner or headless environment
 const memoryActionStore = new Map<string, TreatmentActionRecord>();
 
+export function isIndexedDBAvailable(): boolean {
+  try {
+    return typeof indexedDB !== 'undefined' && indexedDB !== null;
+  } catch {
+    return false;
+  }
+}
+
 function slug(str: string): string {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
@@ -30,18 +38,31 @@ export interface ToggleTreatmentResult {
 
 export class TreatmentService {
   /**
+   * Clears the in-memory test store.
+   */
+  static clearMemoryStore(): void {
+    memoryActionStore.clear();
+  }
+
+  /**
    * Generates a stable, canonical target key for a treatment action.
-   * If a plantId is known, scopes to that plant; otherwise scopes to the specimen species.
+   * If a plantId is known, scopes to that plant; else if scanId is known,
+   * scopes to that scan; otherwise scopes to the specimen species.
    */
   static buildTargetKey(params: {
     plantId?: string | null;
+    scanId?: string | null;
     species?: string | null;
     diagnosis?: string | null;
     phaseIndex: number;
     phaseDay: string;
     action: string;
   }): string {
-    const scope = params.plantId ? `plant:${params.plantId}` : `specimen:${slug(params.species || 'botanical')}`;
+    const scope = params.plantId
+      ? `plant:${params.plantId}`
+      : params.scanId
+        ? `scan:${params.scanId}`
+        : `specimen:${slug(params.species || 'botanical')}`;
     const daySlug = slug(params.phaseDay || `phase-${params.phaseIndex + 1}`);
     const actionSlug = slug(params.action || 'action').slice(0, 64);
     return `${scope}:p${params.phaseIndex}:${daySlug}:${actionSlug}`;
@@ -110,26 +131,43 @@ export class TreatmentService {
    */
   static async getCompletedActions(plantIdOrScope?: string | null): Promise<TreatmentActionRecord[]> {
     if (!plantIdOrScope) return [];
-    try {
-      if (db.treatmentActions) {
-        let rows: TreatmentActionRecord[] = [];
-        if (plantIdOrScope.startsWith('plant:') || plantIdOrScope.startsWith('specimen:')) {
-          rows = await db.treatmentActions.filter(r => r.targetKey.startsWith(plantIdOrScope) && Boolean(r.completedAt)).toArray();
-        } else {
-          // Assume direct plantId
-          rows = await db.treatmentActions.where('plantId').equals(plantIdOrScope).filter(r => Boolean(r.completedAt)).toArray();
-          if (rows.length === 0) {
-            rows = await db.treatmentActions.filter(r => r.targetKey.includes(plantIdOrScope) && Boolean(r.completedAt)).toArray();
+    if (isIndexedDBAvailable()) {
+      try {
+        if (db.treatmentActions) {
+          let rows: TreatmentActionRecord[] = [];
+          if (
+            plantIdOrScope.startsWith('plant:') ||
+            plantIdOrScope.startsWith('specimen:') ||
+            plantIdOrScope.startsWith('scan:')
+          ) {
+            rows = await db.treatmentActions
+              .filter(r => r.targetKey.startsWith(plantIdOrScope) && Boolean(r.completedAt))
+              .toArray();
+          } else {
+            // Direct plantId
+            rows = await db.treatmentActions
+              .where('plantId')
+              .equals(plantIdOrScope)
+              .filter(r => Boolean(r.completedAt))
+              .toArray();
+            if (rows.length === 0) {
+              rows = await db.treatmentActions
+                .filter(r => r.targetKey.includes(plantIdOrScope) && Boolean(r.completedAt))
+                .toArray();
+            }
           }
+          return rows;
         }
-        return rows;
+      } catch {
+        // Fall through to memory
       }
-    } catch {
-      // Fall through to memory
     }
 
     return Array.from(memoryActionStore.values()).filter(r => {
-      const matchesScope = r.plantId === plantIdOrScope || r.targetKey.includes(plantIdOrScope);
+      const matchesScope =
+        r.plantId === plantIdOrScope ||
+        r.targetKey.startsWith(plantIdOrScope) ||
+        r.targetKey.includes(plantIdOrScope);
       return matchesScope && Boolean(r.completedAt);
     });
   }
@@ -138,15 +176,54 @@ export class TreatmentService {
    * Retrieves a single treatment action record by targetKey.
    */
   static async getActionByKey(targetKey: string): Promise<TreatmentActionRecord | null> {
-    try {
-      if (db.treatmentActions) {
-        const found = await db.treatmentActions.where('targetKey').equals(targetKey).first();
-        if (found) return found;
+    if (isIndexedDBAvailable()) {
+      try {
+        if (db.treatmentActions) {
+          const found = await db.treatmentActions.where('targetKey').equals(targetKey).first();
+          if (found) return found;
+        }
+      } catch {
+        // Fall through to memory
       }
-    } catch {
-      // Fall through to memory
     }
     return memoryActionStore.get(targetKey) || null;
+  }
+
+  /**
+   * Migrates existing checkoff actions scoped to a scanId over to the newly indexed plantId.
+   */
+  static async associateScanWithPlant(scanId?: string | null, plantId?: string | null): Promise<void> {
+    if (!scanId || !plantId) return;
+    const scanPrefix = `scan:${scanId}:`;
+    if (isIndexedDBAvailable()) {
+      try {
+        if (db.treatmentActions) {
+          const scanActions = await db.treatmentActions
+            .filter(r => r.targetKey.startsWith(scanPrefix))
+            .toArray();
+          for (const action of scanActions) {
+            const newTargetKey = action.targetKey.replace(scanPrefix, `plant:${plantId}:`);
+            await db.treatmentActions.put({
+              ...action,
+              plantId,
+              targetKey: newTargetKey,
+            });
+          }
+        }
+      } catch {}
+    }
+
+    // Mirror in memory store
+    for (const [key, action] of Array.from(memoryActionStore.entries())) {
+      if (key.startsWith(scanPrefix)) {
+        const newKey = key.replace(scanPrefix, `plant:${plantId}:`);
+        memoryActionStore.set(newKey, {
+          ...action,
+          plantId,
+          targetKey: newKey,
+        });
+      }
+    }
   }
 
   /**
@@ -155,6 +232,7 @@ export class TreatmentService {
    */
   static async toggleTreatmentAction(params: {
     plantId?: string | null;
+    scanId?: string | null;
     species?: string | null;
     diagnosis?: string | null;
     phaseIndex: number;
@@ -163,9 +241,11 @@ export class TreatmentService {
     expectedOutcome?: string;
     notes?: string;
     userId?: string;
+    timeline?: Array<{ day: string; action: string; expectedOutcome?: string }>;
   }): Promise<ToggleTreatmentResult> {
     const targetKey = this.buildTargetKey({
       plantId: params.plantId,
+      scanId: params.scanId,
       species: params.species,
       diagnosis: params.diagnosis,
       phaseIndex: params.phaseIndex,
@@ -183,12 +263,12 @@ export class TreatmentService {
         completedAt: '',
       };
 
-      try {
-        if (db.treatmentActions) {
-          await db.treatmentActions.put(updated);
-        }
-      } catch {
-        // Fallback to memory
+      if (isIndexedDBAvailable()) {
+        try {
+          if (db.treatmentActions) {
+            await db.treatmentActions.put(updated);
+          }
+        } catch {}
       }
       memoryActionStore.set(targetKey, updated);
 
@@ -219,7 +299,7 @@ export class TreatmentService {
     let updatedStatus: string | undefined;
 
     // 1. Economy award if not previously claimed for this milestone
-    if (seedsToAward > 0) {
+    if (seedsToAward > 0 && isIndexedDBAvailable()) {
       try {
         await GameService.earnSeeds(
           seedsToAward,
@@ -233,7 +313,7 @@ export class TreatmentService {
     }
 
     // 2. Plant Vitality Boost and Check-In / Note Log
-    if (params.plantId) {
+    if (params.plantId && isIndexedDBAvailable()) {
       try {
         const plant = await db.plants.get(params.plantId);
         if (plant) {
@@ -247,11 +327,20 @@ export class TreatmentService {
             updatedStatus = plant.status;
           }
 
-          await db.plants.update(params.plantId, {
+          const plantUpdates: Record<string, any> = {
             guardianScore: updatedScore,
-            status: updatedStatus as any,
+            status: updatedStatus,
             updatedAt: new Date(),
-          });
+          };
+
+          if (!plant.recoveryRoadmap && params.timeline && params.timeline.length > 0) {
+            plantUpdates.recoveryRoadmap = {
+              diagnosis: params.diagnosis || `Rehabilitation Regimen for ${plant.name}`,
+              timeline: params.timeline,
+            };
+          }
+
+          await db.plants.update(params.plantId, plantUpdates);
 
           // Add clinical adherence entry to plant field notes
           await db.notes.add({
@@ -283,12 +372,12 @@ export class TreatmentService {
       seedsAwarded: (existing?.seedsAwarded || 0) + seedsToAward,
     };
 
-    try {
-      if (db.treatmentActions) {
-        await db.treatmentActions.put(record);
-      }
-    } catch {
-      // Fallback
+    if (isIndexedDBAvailable()) {
+      try {
+        if (db.treatmentActions) {
+          await db.treatmentActions.put(record);
+        }
+      } catch {}
     }
     memoryActionStore.set(targetKey, record);
 
@@ -313,12 +402,12 @@ export class TreatmentService {
       ...existing,
       notes,
     };
-    try {
-      if (db.treatmentActions) {
-        await db.treatmentActions.put(updated);
-      }
-    } catch {
-      // Fallback
+    if (isIndexedDBAvailable()) {
+      try {
+        if (db.treatmentActions) {
+          await db.treatmentActions.put(updated);
+        }
+      } catch {}
     }
     memoryActionStore.set(targetKey, updated);
   }

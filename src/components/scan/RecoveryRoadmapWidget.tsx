@@ -32,6 +32,7 @@ export interface TreatmentTimelineStep {
 export interface RecoveryRoadmapWidgetProps {
   timeline: TreatmentTimelineStep[];
   plantId?: string | null;
+  scanId?: string | null;
   species?: string | null;
   diagnosis?: string | null;
   initialGuardianScore?: number | null;
@@ -43,6 +44,7 @@ export interface RecoveryRoadmapWidgetProps {
 export default function RecoveryRoadmapWidget({
   timeline,
   plantId = null,
+  scanId = null,
   species = 'Botanical Specimen',
   diagnosis = 'General Recovery Regimen',
   initialGuardianScore = 75,
@@ -65,29 +67,28 @@ export default function RecoveryRoadmapWidget({
   const loadSavedActions = useCallback(async () => {
     if (!timeline || timeline.length === 0) return;
     try {
-      const scopeKey = plantId ? `plant:${plantId}` : `specimen:${species}`;
+      const scopeKey = plantId
+        ? `plant:${plantId}`
+        : scanId
+          ? `scan:${scanId}`
+          : `specimen:${species}`;
       const records = await TreatmentService.getCompletedActions(plantId || scopeKey);
       
       const recordMap: Record<number, TreatmentActionRecord> = {};
-      for (const rec of records) {
-        if (typeof rec.phaseIndex === 'number' && rec.completedAt) {
-          recordMap[rec.phaseIndex] = rec;
-        }
-      }
 
-      // Also match by action content if phaseIndex was shifted
       timeline.forEach((step, idx) => {
-        if (recordMap[idx]) return;
         const targetKey = TreatmentService.buildTargetKey({
           plantId,
+          scanId,
           species,
           diagnosis,
           phaseIndex: idx,
           phaseDay: step.day,
           action: step.action,
         });
-        const directMatch = records.find(r => r.targetKey === targetKey);
-        if (directMatch && directMatch.completedAt) {
+        const directMatch = records.find(r => r.targetKey === targetKey && Boolean(r.completedAt))
+          || records.find(r => r.phaseIndex === idx && r.action === step.action && Boolean(r.completedAt));
+        if (directMatch) {
           recordMap[idx] = directMatch;
         }
       });
@@ -96,7 +97,7 @@ export default function RecoveryRoadmapWidget({
     } catch (err) {
       console.warn('[RecoveryRoadmapWidget] Could not load completed treatment actions:', err);
     }
-  }, [timeline, plantId, species, diagnosis]);
+  }, [timeline, plantId, scanId, species, diagnosis]);
 
   useEffect(() => {
     loadSavedActions();
@@ -118,12 +119,14 @@ export default function RecoveryRoadmapWidget({
     try {
       const result = await TreatmentService.toggleTreatmentAction({
         plantId,
+        scanId,
         species,
         diagnosis,
         phaseIndex: idx,
         phaseDay: step.day,
         action: step.action,
         expectedOutcome: step.expectedOutcome,
+        timeline,
       });
 
       setCompletedRecords(prev => {
@@ -160,6 +163,7 @@ export default function RecoveryRoadmapWidget({
     if (!step) return;
     const targetKey = TreatmentService.buildTargetKey({
       plantId,
+      scanId,
       species,
       diagnosis,
       phaseIndex: idx,

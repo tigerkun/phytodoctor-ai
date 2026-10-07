@@ -27,6 +27,10 @@ const dbSource = readFileSync(
   join(process.cwd(), 'src/db/database.ts'),
   'utf8'
 );
+const plantServiceSource = readFileSync(
+  join(process.cwd(), 'src/services/plantService.ts'),
+  'utf8'
+);
 
 describe('Recovery Roadmap Generative UI and Dexie persistence structure', () => {
   it('the scan found all relevant source files to check', () => {
@@ -36,6 +40,7 @@ describe('Recovery Roadmap Generative UI and Dexie persistence structure', () =>
     expect(labSource.length).toBeGreaterThan(100);
     expect(historySource.length).toBeGreaterThan(100);
     expect(dbSource.length).toBeGreaterThan(100);
+    expect(plantServiceSource.length).toBeGreaterThan(100);
   });
 
   it('all interactive buttons in RecoveryRoadmapWidget meet the 44px touch target minimum', () => {
@@ -98,20 +103,28 @@ describe('Recovery Roadmap Generative UI and Dexie persistence structure', () =>
     expect(cleanDetail).toContain('onActionToggled');
   });
 
-  it('BotanicalLab passes plantId to PlantTelemetryCard for persistent checkoff records', () => {
+  it('BotanicalLab passes plantId to PlantTelemetryCard and associates scan actions upon indexing', () => {
     const cleanLab = stripJsComments(labSource);
     expect(cleanLab).toMatch(/<PlantTelemetryCard report=\{dexResult\.report\}[\s\S]*?plantId=\{dexResult\?\.plantId/);
+    expect(cleanLab).toContain('associateScanWithPlant');
   });
 
-  it('ScanHistoryPanel passes scanId and plantId to PlantTelemetryCard', () => {
+  it('ScanHistoryPanel passes scanId and plantId to PlantTelemetryCard and binds indexed plant ID', () => {
     const cleanHistory = stripJsComments(historySource);
     expect(cleanHistory).toContain('scanId={item.id}');
     expect(cleanHistory).toContain('plantId=');
+    expect(cleanHistory).toContain('(plant as any).id = (indexed as any).id');
   });
 
   it('database declares treatmentActions table and schema version 23', () => {
     const cleanDb = stripJsComments(dbSource);
     expect(cleanDb).toMatch(/treatmentActions!\s*:\s*Table<TreatmentActionRecord>/);
     expect(cleanDb).toMatch(/version\(23\)\.stores\(\{\s*treatmentActions:\s*'id, plantId, targetKey, completedAt, \[plantId\+targetKey\]'/);
+  });
+
+  it('PlantService preserves recoveryRoadmap locally across remote merges and specimen creation', () => {
+    const cleanService = stripJsComments(plantServiceSource);
+    expect(cleanService).toContain('local.recoveryRoadmap');
+    expect(cleanService).toContain('recoveryRoadmap: input.recoveryRoadmap ?? null');
   });
 });

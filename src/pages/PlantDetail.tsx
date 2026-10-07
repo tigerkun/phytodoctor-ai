@@ -971,13 +971,18 @@ const children = lineage?.filter(candidate => candidate.parentPlantId === plant?
                         diagnosis={plant.recoveryRoadmap?.diagnosis || `Rehabilitation Regimen for ${plant.name}`}
                         initialGuardianScore={plant.guardianScore}
                         onActionToggled={(res) => {
-                          if (res.updatedScore && res.updatedScore !== plant.guardianScore) {
-                            setPlant(prev => prev ? {
+                          setPlant(prev => {
+                            if (!prev) return prev;
+                            return {
                               ...prev,
-                              guardianScore: res.updatedScore!,
+                              guardianScore: res.updatedScore ?? prev.guardianScore,
                               status: (res.updatedStatus as any) || prev.status,
-                            } : prev);
-                          }
+                              recoveryRoadmap: prev.recoveryRoadmap || {
+                                diagnosis: `Rehabilitation Regimen for ${prev.name}`,
+                                timeline: treatmentTimeline,
+                              },
+                            };
+                          });
                         }}
                       />
                     </div>
