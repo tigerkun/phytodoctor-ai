@@ -190,24 +190,49 @@ export class TreatmentService {
   }
 
   /**
-   * Migrates existing checkoff actions scoped to a scanId over to the newly indexed plantId.
+   * Migrates existing checkoff actions scoped to a scanId or specimen species over to the newly indexed plantId.
    */
-  static async associateScanWithPlant(scanId?: string | null, plantId?: string | null): Promise<void> {
-    if (!scanId || !plantId) return;
-    const scanPrefix = `scan:${scanId}:`;
+  static async associateScanWithPlant(
+    scanId?: string | null,
+    plantId?: string | null,
+    species?: string | null
+  ): Promise<void> {
+    if (!plantId) return;
+
+    const prefixesToMigrate: string[] = [];
+    if (scanId) {
+      prefixesToMigrate.push(`scan:${scanId}:`);
+    }
+    if (species) {
+      const cleanSpecies = slug(species);
+      if (cleanSpecies) {
+        prefixesToMigrate.push(`specimen:${cleanSpecies}:`);
+      }
+      const rawPrefix = `specimen:${species}:`;
+      if (!prefixesToMigrate.includes(rawPrefix)) {
+        prefixesToMigrate.push(rawPrefix);
+      }
+    }
+
+    if (prefixesToMigrate.length === 0) return;
+
+    const plantPrefix = `plant:${plantId}:`;
+
     if (isIndexedDBAvailable()) {
       try {
         if (db.treatmentActions) {
-          const scanActions = await db.treatmentActions
-            .filter(r => r.targetKey.startsWith(scanPrefix))
-            .toArray();
-          for (const action of scanActions) {
-            const newTargetKey = action.targetKey.replace(scanPrefix, `plant:${plantId}:`);
-            await db.treatmentActions.put({
-              ...action,
-              plantId,
-              targetKey: newTargetKey,
-            });
+          for (const prefix of prefixesToMigrate) {
+            const matchingActions = await db.treatmentActions
+              .filter(r => r.targetKey.startsWith(prefix))
+              .toArray();
+            for (const action of matchingActions) {
+              const newTargetKey = action.targetKey.replace(prefix, plantPrefix);
+              await db.treatmentActions.put({
+                ...action,
+                plantId,
+                targetKey: newTargetKey,
+              });
+            }
           }
         }
       } catch {}
@@ -215,13 +240,19 @@ export class TreatmentService {
 
     // Mirror in memory store
     for (const [key, action] of Array.from(memoryActionStore.entries())) {
-      if (key.startsWith(scanPrefix)) {
-        const newKey = key.replace(scanPrefix, `plant:${plantId}:`);
-        memoryActionStore.set(newKey, {
-          ...action,
-          plantId,
-          targetKey: newKey,
-        });
+      for (const prefix of prefixesToMigrate) {
+        if (key.startsWith(prefix)) {
+          const newKey = key.replace(prefix, plantPrefix);
+          if (newKey !== key) {
+            memoryActionStore.delete(key);
+          }
+          memoryActionStore.set(newKey, {
+            ...action,
+            plantId,
+            targetKey: newKey,
+          });
+          break;
+        }
       }
     }
   }

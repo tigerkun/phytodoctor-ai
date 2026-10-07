@@ -342,9 +342,7 @@ export default function BotanicalLab() {
 
     setScanStage('saving');
     const plant = await GameService.indexScannedPlant(plantReport, finalPhotoUrl, userId);
-    if ((plantReport as any)?.id) {
-      await TreatmentService.associateScanWithPlant((plantReport as any).id, plant.id);
-    }
+    await TreatmentService.associateScanWithPlant((plantReport as any)?.id, plant.id, species);
     setDexResult((prev: any) => prev ? { ...prev, plantId: plant.id } : prev);
 
     setScanStage('rewarding');
@@ -1381,11 +1379,13 @@ export default function BotanicalLab() {
           <ScanHistoryPanel
             isAuthed={isAuthed}
             onSignIn={() => { rememberAuthReturn('/lab?tab=history'); transitionTo('/auth', 'Sign In'); }}
-            onIndexPlant={async (report) => {
+            onIndexPlant={async (report, scanId) => {
               const plant = await GameService.indexScannedPlant(report, null, userId);
-              if ((report as any)?.id) {
-                await TreatmentService.associateScanWithPlant((report as any).id, plant.id);
-              }
+              await TreatmentService.associateScanWithPlant(
+                scanId || (report as any)?.id,
+                plant.id,
+                report.scientificName || report.displayName
+              );
               success('Specimen re-indexed from the archive.');
               return plant;
             }}

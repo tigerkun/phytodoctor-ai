@@ -106,7 +106,8 @@ describe('Recovery Roadmap Generative UI and Dexie persistence structure', () =>
   it('BotanicalLab passes plantId to PlantTelemetryCard and associates scan actions upon indexing', () => {
     const cleanLab = stripJsComments(labSource);
     expect(cleanLab).toMatch(/<PlantTelemetryCard report=\{dexResult\.report\}[\s\S]*?plantId=\{dexResult\?\.plantId/);
-    expect(cleanLab).toContain('associateScanWithPlant');
+    expect(cleanLab).toContain('associateScanWithPlant((plantReport as any)?.id, plant.id, species)');
+    expect(cleanLab).toContain('onIndexPlant={async (report, scanId) =>');
   });
 
   it('ScanHistoryPanel passes scanId and plantId to PlantTelemetryCard and binds indexed plant ID', () => {
@@ -114,6 +115,7 @@ describe('Recovery Roadmap Generative UI and Dexie persistence structure', () =>
     expect(cleanHistory).toContain('scanId={item.id}');
     expect(cleanHistory).toContain('plantId=');
     expect(cleanHistory).toContain('(plant as any).id = (indexed as any).id');
+    expect(cleanHistory).toContain('onIndexPlant(plant, item.id)');
   });
 
   it('database declares treatmentActions table and schema version 23', () => {

@@ -9,7 +9,7 @@ interface ScanHistoryPanelProps {
   isAuthed: boolean;
   onSignIn: () => void;
   /** Re-indexes a plant report into the sanctuary (photo-less). */
-  onIndexPlant: (report: PlantScanReport) => Promise<any>;
+  onIndexPlant: (report: PlantScanReport, scanId?: string) => Promise<any>;
 }
 
 const PAGE_SIZE = 20;
@@ -202,7 +202,7 @@ export function ScanHistoryPanel({ isAuthed, onSignIn, onIndexPlant }: ScanHisto
                             onClick={async () => {
                               setIndexingId(item.id);
                               try {
-                                const indexed = await onIndexPlant(plant);
+                                const indexed = await onIndexPlant(plant, item.id);
                                 setIndexedId(item.id);
                                 if (indexed && (indexed as any).id) {
                                   (plant as any).id = (indexed as any).id;

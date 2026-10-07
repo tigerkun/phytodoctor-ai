@@ -223,5 +223,53 @@ describe('TreatmentService unit and persistence tests', () => {
       expect(afterMigration[0].plantId).toBe(plantId);
       expect(afterMigration[0].targetKey).toContain(`plant:${plantId}:`);
     });
+
+    it('migrates specimen-scoped checkoffs over to newly indexed plantId via associateScanWithPlant', async () => {
+      const species = 'Monstera Deliciosa';
+      const plantId = 'plant-indexed-123';
+
+      const actionResult = await TreatmentService.toggleTreatmentAction({
+        species,
+        phaseIndex: 1,
+        phaseDay: 'Day 3',
+        action: 'Wipe foliage with neem oil',
+      });
+      expect(actionResult.isCompleted).toBe(true);
+
+      const beforeMigration = await TreatmentService.getCompletedActions(plantId);
+      expect(beforeMigration.length).toBe(0);
+
+      await TreatmentService.associateScanWithPlant(null, plantId, species);
+
+      const afterMigration = await TreatmentService.getCompletedActions(plantId);
+      expect(afterMigration.length).toBe(1);
+      expect(afterMigration[0].plantId).toBe(plantId);
+      expect(afterMigration[0].targetKey).toContain(`plant:${plantId}:`);
+    });
+
+    it('migrates both scan-scoped and specimen-scoped actions simultaneously', async () => {
+      const scanId = 'scan-temp-456';
+      const species = 'Calathea orbifolia';
+      const plantId = 'plant-indexed-789';
+
+      await TreatmentService.toggleTreatmentAction({
+        scanId,
+        phaseIndex: 0,
+        phaseDay: 'Day 1',
+        action: 'Increase ambient humidity',
+      });
+      await TreatmentService.toggleTreatmentAction({
+        species,
+        phaseIndex: 1,
+        phaseDay: 'Day 4',
+        action: 'Mist with distilled water',
+      });
+
+      await TreatmentService.associateScanWithPlant(scanId, plantId, species);
+
+      const migrated = await TreatmentService.getCompletedActions(plantId);
+      expect(migrated.length).toBe(2);
+      expect(migrated.every(m => m.plantId === plantId && m.targetKey.startsWith(`plant:${plantId}:`))).toBe(true);
+    });
   });
 });
