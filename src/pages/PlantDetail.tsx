@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Calendar, ShieldCheck, Activity, AlertCircle, Droplets, Sun, TrendingUp, Box, Camera, Clock, Star, Sprout, Crown, Zap, Plus, Loader2, Book, Bookmark, Send, Share2 } from 'lucide-react';
@@ -22,6 +22,7 @@ import NotificationOptIn from '../components/NotificationOptIn';
 import CheckInFlow from '../components/CheckInFlow';
 import { renderShareCard, shareCaption } from '../lib/cardShareImage';
 import { shareCard } from '../lib/share';
+import { deriveToleranceProfile, simulateMicroclimate } from '../lib/environmentalSimulation';
 
 
 const containerVariants = {
@@ -299,6 +300,74 @@ if (!plant) {
   })) || [];
 
   const propLimit = profile?.tier === 'pro' ? 5 : 1;
+
+  // Real-time microclimate simulation state
+  const [simTemp, setSimTemp] = useState<number>(22);
+  const [simHumidity, setSimHumidity] = useState<number>(55);
+  const [simLight, setSimLight] = useState<'Low' | 'Indirect' | 'Direct'>('Indirect');
+  const [wateringLogging, setWateringLogging] = useState(false);
+
+  const toleranceProfile = useMemo(
+    () => deriveToleranceProfile(plant?.species || 'Plant'),
+    [plant?.species]
+  );
+
+  const simResult = useMemo(
+    () => simulateMicroclimate({ temperatureC: simTemp, humidityPct: simHumidity, lightLevel: simLight }, toleranceProfile),
+    [simTemp, simHumidity, simLight, toleranceProfile]
+  );
+
+  const wateringInterval = plant?.wateringIntervalDays || 7;
+  const nextWaterDate = plant?.nextWaterDue
+    ? new Date(plant.nextWaterDue)
+    : new Date(new Date(plant?.acquiredAt || Date.now()).getTime() + wateringInterval * 86_400_000);
+  const daysUntilWater = Math.ceil((nextWaterDate.getTime() - Date.now()) / 86_400_000);
+
+  const handleLogWatering = async () => {
+    if (!plant || !id || wateringLogging) return;
+    setWateringLogging(true);
+    try {
+      const now = new Date();
+      const nextDue = new Date(now.getTime() + wateringInterval * 86_400_000);
+      const newScore = Math.min(100, (plant.guardianScore ?? 50) + 2);
+      await PlantService.updatePlant(id, {
+        lastWateredAt: now,
+        nextWaterDue: nextDue,
+        guardianScore: newScore,
+        checkInTime: 'just now',
+        updatedAt: now,
+      });
+      await db.checkins.add({
+        id: crypto.randomUUID(),
+        plantId: id,
+        timestamp: now,
+        soilMoisture: 'Moist',
+        lightLevel: latestCheckIn?.lightLevel || 'Indirect',
+        changes: ['Scheduled hydration administered'],
+        photoBlob: null,
+        photoUrl: plant.photoUrl,
+        signature: null,
+        guardianScore: newScore,
+        driftScore: null,
+        driftStatus: 'stable',
+        weatherTemp: null,
+        weatherHumidity: null,
+        weatherDescription: 'Hydration Logged',
+        synced: 0,
+      });
+      try {
+        await GameService.earnSeeds(15, 'checkin', `Hydration logged for ${plant.name}`);
+      } catch {
+        // cap handled
+      }
+      success(`Hydration recorded for ${plant.name}. Next due in ${wateringInterval} days.`);
+      PlantService.getPlant(id).then(p => setPlant(p || undefined));
+    } catch {
+      error('Could not log hydration. Please try again.');
+    } finally {
+      setWateringLogging(false);
+    }
+  };
 
   return (
     <PageWrapper className="min-h-screen skin-specimen pb-24">
@@ -641,6 +710,155 @@ if (!plant) {
                           />
                         </AreaChart>
                       </ResponsiveContainer>
+                    </div>
+
+                    {/* Scheduled Hydration Cadence & Care Task */}
+                    <div className="p-4 sm:p-5 rounded-2xl bg-black/5 border border-[#c5a059]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6">
+                      <div className="flex items-center gap-3.5">
+                        <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                          <Droplets size={20} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-serif font-bold text-sm text-[#2e2117]">Scheduled Hydration Cadence</h4>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider ${
+                              daysUntilWater < 0
+                                ? 'bg-rose-500/20 text-rose-800 dark:text-rose-300 border border-rose-500/40'
+                                : daysUntilWater === 0
+                                  ? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40'
+                                  : 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30'
+                            }`}>
+                              {daysUntilWater < 0 ? `Overdue by ${Math.abs(daysUntilWater)}d` : daysUntilWater === 0 ? 'Water due today' : `Due in ${daysUntilWater}d`}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[#7a6855] font-sans mt-0.5">
+                            Target cadence: Every {wateringInterval} days · Last watered: {plant.lastWateredAt ? new Date(plant.lastWateredAt).toLocaleDateString() : 'Initial accession'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleLogWatering}
+                        disabled={wateringLogging}
+                        className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#244b2f] hover:bg-[#2d5c3a] disabled:opacity-50 text-[#f4eee1] text-[10px] font-mono font-bold uppercase tracking-widest transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 shrink-0"
+                      >
+                        {wateringLogging ? <Loader2 size={13} className="animate-spin" /> : <Droplets size={13} className="text-blue-300" />}
+                        <span>Log Hydration (🌱 +15 Seeds)</span>
+                      </button>
+                    </div>
+
+                    {/* Interactive Real-Time Microclimate Care Simulation Workbench */}
+                    <div className="p-5 sm:p-6 rounded-2xl bg-black/5 border border-[#c5a059]/30 space-y-4 mt-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#c5a059]/20 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Zap size={15} className="text-[#c5a059]" />
+                          <h4 className="font-serif font-bold text-base text-[#2e2117]">
+                            Microclimate & Care Simulation Workbench
+                          </h4>
+                        </div>
+                        <span className="text-[9px] font-mono uppercase tracking-widest text-[#7a6855]">
+                          Live Physiological Affinities
+                        </span>
+                      </div>
+
+                      {/* Sliders for Temp, Humidity, Light */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white/60 dark:bg-black/20 p-4 rounded-xl border border-[#dcd0bd]">
+                        {/* Temp */}
+                        <div>
+                          <div className="flex items-center justify-between text-[10px] font-mono mb-1">
+                            <span className="text-[#7a6855]">Temperature</span>
+                            <span className="font-bold text-[#2e2117]">{simTemp}°C</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="5"
+                            max="40"
+                            step="1"
+                            aria-label="Simulate Temperature in Celsius"
+                            value={simTemp}
+                            onChange={e => setSimTemp(Number(e.target.value))}
+                            className="w-full accent-[#34784d] cursor-pointer"
+                          />
+                          <div className="flex justify-between text-[8px] font-mono text-[#7a6855] mt-0.5">
+                            <span>5°C</span>
+                            <span>Ideal: {toleranceProfile.idealTempMinC}-{toleranceProfile.idealTempMaxC}°C</span>
+                            <span>40°C</span>
+                          </div>
+                        </div>
+
+                        {/* Humidity */}
+                        <div>
+                          <div className="flex items-center justify-between text-[10px] font-mono mb-1">
+                            <span className="text-[#7a6855]">Relative Humidity</span>
+                            <span className="font-bold text-[#2e2117]">{simHumidity}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="10"
+                            max="95"
+                            step="5"
+                            aria-label="Simulate Relative Humidity"
+                            value={simHumidity}
+                            onChange={e => setSimHumidity(Number(e.target.value))}
+                            className="w-full accent-[#34784d] cursor-pointer"
+                          />
+                          <div className="flex justify-between text-[8px] font-mono text-[#7a6855] mt-0.5">
+                            <span>10%</span>
+                            <span>Ideal: {toleranceProfile.idealHumidityMinPct}-{toleranceProfile.idealHumidityMaxPct}%</span>
+                            <span>95%</span>
+                          </div>
+                        </div>
+
+                        {/* Light Exposure */}
+                        <div>
+                          <span className="text-[10px] font-mono text-[#7a6855] block mb-1">Light Exposure</span>
+                          <div className="flex gap-1">
+                            {(['Low', 'Indirect', 'Direct'] as const).map(l => (
+                              <button
+                                key={l}
+                                type="button"
+                                onClick={() => setSimLight(l)}
+                                className={`flex-1 min-h-[44px] py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg transition-all ${
+                                  simLight === l
+                                    ? 'bg-[#2e2117] text-[#f7f0e4] shadow-xs'
+                                    : 'bg-white dark:bg-black/30 text-[#7a6855] hover:bg-black/5 border border-[#dcd0bd]'
+                                }`}
+                              >
+                                {l}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Real-time Physiological Readout */}
+                      <div className="p-4 rounded-xl bg-white/80 dark:bg-black/30 border border-[#dcd0bd] space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#2e2117]">
+                            Simulated Vitality Index: {simResult.score}/100 ({simResult.viability})
+                          </span>
+                          <div className="flex gap-2 text-[9px] font-mono">
+                            <span className="text-[#7a6855]">Thermal Strain: {simResult.thermalStrain}%</span>
+                            <span className="text-[#7a6855]">VPD Strain: {simResult.humidityStress}%</span>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-[#6b5843] font-sans leading-relaxed">
+                          {simResult.statusDescription}
+                        </p>
+
+                        {simResult.alerts.length > 0 && (
+                          <div className="space-y-1 pt-1 border-t border-dashed border-[#dcd0bd]">
+                            {simResult.alerts.map((alert, i) => (
+                              <div key={i} className="flex items-start gap-1.5 text-[10px] font-mono text-amber-800 dark:text-amber-300">
+                                <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                                <span>{alert}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </motion.div>
                 )}

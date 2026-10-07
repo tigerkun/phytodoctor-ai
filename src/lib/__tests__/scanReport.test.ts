@@ -4,6 +4,7 @@ import {
   guardianScoreFromScan,
   normalizeHealthStatus,
   parseCareText,
+  parseWateringIntervalDays,
   shapeScanReport,
   statusLabelFromScore,
   type NonPlantScanReport,
@@ -139,6 +140,20 @@ describe('plant report shaping', () => {
     expect(shapePlant().location?.locationAdvice).toBe('Thrives indoors in Pune.');
     expect(shapePlant({}, false).location).toBeNull();
     expect(shapePlant({ locationAdvice: '', seasonalCare: '', localPestRisks: '', climateCompatibility: '' }, true).location).toBeNull();
+  });
+
+  it('parses watering text into estimated interval days', () => {
+    expect(parseWateringIntervalDays('Water every 5-7 days')).toBe(5);
+    expect(parseWateringIntervalDays('Water weekly')).toBe(7);
+    expect(parseWateringIntervalDays('Water twice weekly')).toBe(3);
+    expect(parseWateringIntervalDays('Water twice a week')).toBe(3);
+    expect(parseWateringIntervalDays('Water every other day')).toBe(2);
+    expect(parseWateringIntervalDays('Water every 2-3 weeks')).toBe(14);
+    expect(parseWateringIntervalDays('Water bi-weekly or every 2 weeks')).toBe(14);
+    expect(parseWateringIntervalDays('Water once a month')).toBe(28);
+    expect(parseWateringIntervalDays('Mist daily')).toBe(1);
+    expect(parseWateringIntervalDays('')).toBe(7);
+    expect(shapePlant().wateringIntervalDays).toBe(7);
   });
 });
 

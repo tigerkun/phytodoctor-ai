@@ -34,6 +34,7 @@ import { db } from '../db/database';
 import { GameService } from '../services/gameService';
 import { identifyPlant, coerceLegacyToReport, type PlantScanReport } from '../services/geminiService';
 import ScanHistoryPanel from '../components/scan/ScanHistoryPanel';
+import PlantTelemetryCard from '../components/scan/PlantTelemetryCard';
 import { PlantService, onPlantsChange } from '../services/plantService';
 import { StorageService } from '../services/storageService';
 import { analyzePlantHealth, type PlantSignature } from '../services/driftDetector';
@@ -1165,20 +1166,10 @@ export default function BotanicalLab() {
                               </p>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="botanical-index-card p-4 rounded-2xl relative border border-[#b4a58c]/35 dark:border-[#8fb58f]/20 shadow-xs">
-                                <span className="text-[9px] font-black uppercase tracking-wider text-moss block mb-1 font-mono">
-                                  № 02 · Light Threshold
-                                </span>
-                                <p className="text-xs font-bold text-text-bark">{dexResult?.report?.care.light || '—'}</p>
-                              </div>
-                              <div className="botanical-index-card p-4 rounded-2xl relative border border-[#b4a58c]/35 dark:border-[#8fb58f]/20 shadow-xs">
-                                <span className="text-[9px] font-black uppercase tracking-wider text-moss block mb-1 font-mono">
-                                  № 03 · Hydration Cadence
-                                </span>
-                                <p className="text-xs font-bold text-text-bark">{dexResult?.report?.care.watering || '—'}</p>
-                              </div>
-                            </div>
+                            {/* Interactive Physiological Telemetry & Recovery Roadmap */}
+                            {dexResult?.report?.kind === 'plant' && (
+                              <PlantTelemetryCard report={dexResult.report} />
+                            )}
 
                             {/* Seeds and XP Allotment Rewards Claimed Banner */}
                             {scannedRewards && (

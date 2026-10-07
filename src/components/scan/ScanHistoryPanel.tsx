@@ -3,6 +3,7 @@ import { History, ChevronDown, RefreshCw, Info, BookOpen } from 'lucide-react';
 import { fetchScanHistory, type ScanHistoryItem } from '../../services/scanHistoryService';
 import { type PlantScanReport } from '../../services/geminiService';
 import NonPlantReport from './NonPlantReport';
+import PlantTelemetryCard from './PlantTelemetryCard';
 
 interface ScanHistoryPanelProps {
   isAuthed: boolean;
@@ -185,26 +186,11 @@ export function ScanHistoryPanel({ isAuthed, onSignIn, onIndexPlant }: ScanHisto
                     (() => {
                       const plant = report as PlantScanReport;
                       return (
-                        <div className="space-y-3 text-sm">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase bg-bg-secondary text-text-bark border border-border-light">
-                              {plant.healthStatus}
-                            </span>
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono text-text-stone border border-border-light">
-                              Severity {plant.severity}/5
-                            </span>
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono text-text-stone border border-border-light">
-                              Vitality {plant.vitals.guardianScore} · {plant.vitals.statusLabel}
-                            </span>
-                          </div>
-                          <p className="text-text-stone leading-relaxed">{plant.diagnosis || '—'}</p>
-                          {plant.treatmentSteps.length > 0 && (
-                            <ol className="list-decimal list-inside space-y-1 text-xs text-text-stone">
-                              {plant.treatmentSteps.slice(0, 4).map((step, i) => (
-                                <li key={i}>{step}</li>
-                              ))}
-                            </ol>
-                          )}
+                        <div className="space-y-4 text-sm">
+                          <p className="text-text-stone leading-relaxed font-serif text-base italic">
+                            “{plant.diagnosis || '—'}”
+                          </p>
+                          <PlantTelemetryCard report={plant} compact />
                           <button
                             type="button"
                             disabled={indexingId === item.id || indexedId === item.id}

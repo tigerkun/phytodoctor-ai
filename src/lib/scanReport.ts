@@ -72,6 +72,8 @@ export interface PlantScanReport extends ScanReportBase {
     soilMoisture: 'Dry' | 'Wet' | 'Moist';
     temperatureC: number | null;
   };
+  /** Estimated watering cadence in days, parsed from care.watering. */
+  wateringIntervalDays: number;
   vulnerabilityNotes: string;
   vitals: { guardianScore: number; statusLabel: StatusLabel };
   /** Model-level, else the top differential, else null — never an invented number. */
@@ -225,6 +227,46 @@ export function parseCareText(care: { watering: string; light: string; temperatu
   };
 }
 
+/** Parses natural-language watering advice into an interval in days. */
+export function parseWateringIntervalDays(wateringText: string): number {
+  if (!wateringText) return 7;
+  const lower = wateringText.toLowerCase();
+
+  // Frequent watering (< 7 days)
+  if (/daily|every\s*day/i.test(lower)) return 1;
+  if (/every\s*other\s*day/i.test(lower)) return 2;
+  if (/3\s*times\s*a\s*week/i.test(lower)) return 2;
+  if (/twice\s*(?:a\s*week|weekly)|2\s*(?:-|–|to)?\s*3\s*times\s*a\s*week|2\s*times\s*a\s*week|semi-?weekly/i.test(lower)) return 3;
+
+  // Multi-day numeric ranges ("every 3-5 days", "every 10 days")
+  const daysMatch = lower.match(/(?:every\s*)?(\d+)(?:\s*(?:-|–|to)\s*(\d+))?\s*days?/i);
+  if (daysMatch) {
+    const minDays = parseInt(daysMatch[1], 10);
+    if (!Number.isNaN(minDays) && minDays >= 1 && minDays <= 60) {
+      return minDays;
+    }
+  }
+
+  // Multi-week numeric ranges ("every 2-3 weeks", "every 3 weeks")
+  const weeksMatch = lower.match(/(?:every\s*)?(\d+)(?:\s*(?:-|–|to)\s*(\d+))?\s*weeks?/i);
+  if (weeksMatch) {
+    const minWeeks = parseInt(weeksMatch[1], 10);
+    if (!Number.isNaN(minWeeks) && minWeeks >= 1 && minWeeks <= 12) {
+      return minWeeks * 7;
+    }
+  }
+
+  // Bi-weekly and monthly words
+  if (/bi-?weekly|every\s*(?:2|two)\s*weeks/i.test(lower)) return 14;
+  if (/monthly|once\s*a\s*month|every\s*(?:3|4|three|four)\s*weeks/i.test(lower)) return 28;
+
+  // Weekly cadence
+  if (/weekly|once\s*a\s*week/i.test(lower)) return 7;
+
+  return 7;
+}
+
+
 function nonPlantProfile(
   kind: Exclude<SubjectKind, 'plant'>,
   displayName: string,
@@ -374,6 +416,7 @@ export function shapeScanReport(input: ShapeScanReportInput): ScanReport {
       careTips: careTips.slice(0, 8),
       care,
       careParsed: parseCareText(care),
+      wateringIntervalDays: parseWateringIntervalDays(care.watering),
       vulnerabilityNotes: str(model.vulnerabilityNotes),
       vitals: { guardianScore, statusLabel: statusLabelFromScore(guardianScore) },
       confidencePct: confidence,

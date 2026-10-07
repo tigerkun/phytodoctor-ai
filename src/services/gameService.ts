@@ -688,7 +688,7 @@ export class GameService {
     );
   }
 
-  static async indexScannedPlant(report: PlantScanReport, photoUrl: string, userId: string = this.getUserId()): Promise<Plant> {
+  static async indexScannedPlant(report: PlantScanReport, photoUrl: string | null, userId: string = this.getUserId()): Promise<Plant> {
     const species = (report.scientificName || report.displayName).trim() || 'Unknown';
     // The score and its status label are the server's policy now — the client
     // no longer re-derives them from status strings.
@@ -717,14 +717,21 @@ export class GameService {
       }
     }
 
+    const wateringInterval = report.wateringIntervalDays || 7;
+    const nextWater = new Date(now.getTime() + wateringInterval * 86_400_000);
+
     if (plant) {
       const { PlantService } = await import('./plantService');
+      // A photo-less re-index (archive restore) must not blank the photo the
+      // plant already has — only write photoUrl when there is one.
       await PlantService.updatePlant(plant.id, {
-        photoUrl: finalPhotoUrl,
+        ...(finalPhotoUrl ? { photoUrl: finalPhotoUrl } : {}),
         guardianScore: score,
         status,
         checkInTime: 'just now',
         updatedAt: now,
+        wateringIntervalDays: plant.wateringIntervalDays ?? wateringInterval,
+        nextWaterDue: plant.nextWaterDue ?? nextWater,
         // plant.location is the physical room; the diagnosis already lives
         // in the check-in. Never clobber the room with pathology text.
         location: plant.location,
@@ -751,8 +758,23 @@ export class GameService {
         guardianScore: score,
         status,
         photoUrl: finalPhotoUrl,
+        wateringIntervalDays: wateringInterval,
+        nextWaterDue: nextWater,
+        lastWateredAt: now,
         createdAt: now,
         updatedAt: now,
+      });
+    }
+
+    if (report.timeline && report.timeline.length > 0) {
+      await db.notes.add({
+        id: crypto.randomUUID(),
+        userId,
+        plantId: plant.id,
+        category: 'action',
+        content: `Prescribed Clinical Regimen: ${report.diagnosis}\nTimeline:\n${report.timeline.map(t => `• ${t.day}: ${t.action} → ${t.expectedOutcome}`).join('\n')}`,
+        tags: ['rx', 'triage', 'regimen'],
+        createdAt: now,
       });
     }
 
