@@ -49,6 +49,10 @@ export interface Plant {
   parentPlantId?: string | null;
   propagationMethod?: 'cutting' | 'division' | 'seed' | 'offset' | null;
   generation?: number;
+  recoveryRoadmap?: {
+    diagnosis?: string;
+    timeline: { day: string; action: string; expectedOutcome: string }[];
+  } | null;
 }
 
 export interface CheckIn {
@@ -340,3 +344,19 @@ export interface MarketLedgerRow {
   cart: Array<Record<string, unknown>>;
   updatedAt: number;
 }
+
+/** Treatment roadmap action checkoff record persisted to Dexie care log. */
+export interface TreatmentActionRecord {
+  id: string;
+  plantId?: string;
+  targetKey: string;
+  phaseIndex: number;
+  phaseDay: string;
+  action: string;
+  expectedOutcome?: string;
+  completedAt: string;
+  notes?: string;
+  vitalityBonusAwarded?: boolean;
+  seedsAwarded?: number;
+}
+

@@ -738,8 +738,22 @@ export class GameService {
         // plant.location is the physical room; the diagnosis already lives
         // in the check-in. Never clobber the room with pathology text.
         location: plant.location,
+        recoveryRoadmap: report.timeline?.length ? {
+          diagnosis: report.diagnosis,
+          timeline: report.timeline,
+        } : plant.recoveryRoadmap ?? null,
       });
-      plant = { ...plant, photoUrl: finalPhotoUrl, guardianScore: score, status, updatedAt: now };
+      plant = {
+        ...plant,
+        photoUrl: finalPhotoUrl,
+        guardianScore: score,
+        status,
+        updatedAt: now,
+        recoveryRoadmap: report.timeline?.length ? {
+          diagnosis: report.diagnosis,
+          timeline: report.timeline,
+        } : plant.recoveryRoadmap ?? null,
+      };
     } else {
       const { PlantService } = await import('./plantService');
       plant = await PlantService.addPlant({
@@ -766,6 +780,10 @@ export class GameService {
         lastWateredAt: now,
         createdAt: now,
         updatedAt: now,
+        recoveryRoadmap: report.timeline?.length ? {
+          diagnosis: report.diagnosis,
+          timeline: report.timeline,
+        } : null,
       });
     }
 

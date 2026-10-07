@@ -22,10 +22,12 @@ import {
   DiscoveryRecord,
   StreakFreeze,
   SanctuaryStock,
-  MarketLedgerRow
+  MarketLedgerRow,
+  TreatmentActionRecord
 } from '../types';
 
 export type { 
+  TreatmentActionRecord,
   Plant, 
   CheckIn, 
   Prediction, 
@@ -100,6 +102,7 @@ class BotanicalDB extends Dexie {
   streakFreezes!: Table<StreakFreeze>;
   sanctuaryStock!: Table<SanctuaryStock>;
   marketLedger!: Table<MarketLedgerRow>;
+  treatmentActions!: Table<TreatmentActionRecord>;
   seedSyncOutbox!: Table<{
     id: string;
     userId: string;
@@ -249,6 +252,10 @@ class BotanicalDB extends Dexie {
     // that cost real seeds) and were shared by every account on the device.
     this.version(22).stores({
       marketLedger: 'userId'
+    });
+    // v23: recovery roadmap treatment actions persisted per keeper/plant/phase
+    this.version(23).stores({
+      treatmentActions: 'id, plantId, targetKey, completedAt, [plantId+targetKey]'
     });
   }
 }

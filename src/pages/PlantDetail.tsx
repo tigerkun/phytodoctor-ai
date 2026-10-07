@@ -25,6 +25,7 @@ import { shareCard } from '../lib/share';
 import { deriveToleranceProfile, inferLightFromWeather, simulateMicroclimate, vitalityAfterWatering } from '../lib/environmentalSimulation';
 import { getCachedWeather, type WeatherData } from '../services/weatherService';
 import { useGeolocation } from '../hooks/useGeolocation';
+import RecoveryRoadmapWidget from '../components/scan/RecoveryRoadmapWidget';
 
 
 const containerVariants = {
@@ -340,6 +341,29 @@ const children = lineage?.filter(candidate => candidate.parentPlantId === plant?
     ? new Date(plant.nextWaterDue)
     : new Date(new Date(plant?.acquiredAt || Date.now()).getTime() + wateringInterval * 86_400_000);
   const daysUntilWater = Math.ceil((nextWaterDate.getTime() - Date.now()) / 86_400_000);
+
+  const treatmentTimeline = useMemo(() => {
+    if (plant?.recoveryRoadmap?.timeline && plant.recoveryRoadmap.timeline.length > 0) {
+      return plant.recoveryRoadmap.timeline;
+    }
+    return [
+      {
+        day: 'Day 1-3',
+        action: 'Substrate Saturation & Root Hypoxia Audit',
+        expectedOutcome: 'Calibrate moisture gradient; prevent rhizosphere fungal stagnation.',
+      },
+      {
+        day: 'Day 7',
+        action: 'Foliar Hygiene & Photoperiod Balancing',
+        expectedOutcome: 'Optimize transpiration rate and light capture efficiency.',
+      },
+      {
+        day: 'Day 14',
+        action: 'Cellular Turgor & Vigor Milestone Review',
+        expectedOutcome: 'Ascertain leaf tensile strength and new apical meristem emergence.',
+      },
+    ];
+  }, [plant?.recoveryRoadmap]);
 
   const handleLogWatering = async () => {
     if (!plant || !id || wateringLogging) return;
@@ -930,6 +954,32 @@ const children = lineage?.filter(candidate => candidate.parentPlantId === plant?
                           </div>
                         )}
                       </div>
+                    </div>
+
+                    {/* Clinical Rehabilitation Roadmap & Recovery Trajectory */}
+                    <div className="p-5 sm:p-6 rounded-2xl bg-black/5 border border-[#c5a059]/30 space-y-4 mt-6">
+                      <div className="flex items-center gap-2 border-b border-[#c5a059]/20 pb-3">
+                        <Activity size={15} className="text-[#c5a059]" />
+                        <h4 className="font-serif font-bold text-base text-[#2e2117]">
+                          Clinical Rehabilitation &amp; Roadmap Trajectory
+                        </h4>
+                      </div>
+                      <RecoveryRoadmapWidget
+                        timeline={treatmentTimeline}
+                        plantId={id}
+                        species={plant.species}
+                        diagnosis={plant.recoveryRoadmap?.diagnosis || `Rehabilitation Regimen for ${plant.name}`}
+                        initialGuardianScore={plant.guardianScore}
+                        onActionToggled={(res) => {
+                          if (res.updatedScore && res.updatedScore !== plant.guardianScore) {
+                            setPlant(prev => prev ? {
+                              ...prev,
+                              guardianScore: res.updatedScore!,
+                              status: (res.updatedStatus as any) || prev.status,
+                            } : prev);
+                          }
+                        }}
+                      />
                     </div>
                   </motion.div>
                 )}

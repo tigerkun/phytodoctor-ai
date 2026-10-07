@@ -190,7 +190,12 @@ export function ScanHistoryPanel({ isAuthed, onSignIn, onIndexPlant }: ScanHisto
                           <p className="text-text-stone leading-relaxed font-serif text-base italic">
                             “{plant.diagnosis || '—'}”
                           </p>
-                          <PlantTelemetryCard report={plant} compact />
+                          <PlantTelemetryCard 
+                            report={plant} 
+                            scanId={item.id}
+                            plantId={(plant as any)?.id || (indexedId === item.id ? (plant as any)?.id : null)}
+                            compact 
+                          />
                           <button
                             type="button"
                             disabled={indexingId === item.id || indexedId === item.id}

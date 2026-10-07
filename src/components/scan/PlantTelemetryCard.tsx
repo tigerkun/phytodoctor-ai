@@ -13,6 +13,11 @@ import {
   Sun,
   Thermometer,
   Zap,
+  HeartPulse,
+  Clock,
+  Sparkles,
+  Edit3,
+  Save,
 } from 'lucide-react';
 import { useEcoMode } from '../../hooks/useEcoMode';
 import type { PlantScanReport } from '../../lib/scanReport';
@@ -22,6 +27,12 @@ import {
   simulateMicroclimate,
   type MicroclimateInput,
 } from '../../lib/environmentalSimulation';
+import {
+  TreatmentService,
+  type AdherenceMetrics,
+} from '../../services/treatmentService';
+import type { TreatmentActionRecord } from '../../db/database';
+import { triggerHaptic } from '../../utils/hapticAudio';
 
 export interface TelemetryAmbientWeather {
   temperatureC?: number | null;
@@ -29,11 +40,13 @@ export interface TelemetryAmbientWeather {
   lightLevel?: 'Direct' | 'Indirect' | 'Low' | null;
 }
 
-interface PlantTelemetryCardProps {
+export interface PlantTelemetryCardProps {
   report: PlantScanReport;
   className?: string;
   compact?: boolean;
   ambientWeather?: TelemetryAmbientWeather | null;
+  plantId?: string | null;
+  scanId?: string | null;
 }
 
 export default function PlantTelemetryCard({
@@ -41,11 +54,17 @@ export default function PlantTelemetryCard({
   className = '',
   compact = false,
   ambientWeather = null,
+  plantId = null,
+  scanId = null,
 }: PlantTelemetryCardProps) {
   const { shouldDisableAnimations } = useEcoMode();
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(0);
   const [showSimulator, setShowSimulator] = useState(false);
-  const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({});
+  const [completedRecords, setCompletedRecords] = useState<Record<number, TreatmentActionRecord>>({});
+  const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [rewardToast, setRewardToast] = useState<{ seeds: number; boost: number; day: string } | null>(null);
+  const [editingNote, setEditingNote] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
 
   // Environmental simulation state: prefer live ambient weather from the scan or props,
   // falling back to parsed care guidelines and soil moisture heuristic.
@@ -88,8 +107,6 @@ export default function PlantTelemetryCard({
       humidityPct: initialHumidity,
       lightLevel: initialLight,
     });
-    setSelectedPhaseIdx(0);
-    setCompletedSteps({});
   }, [initialTemp, initialHumidity, initialLight, report?.scientificName, report?.displayName]);
 
   const toleranceProfile = useMemo(
@@ -102,12 +119,121 @@ export default function PlantTelemetryCard({
     [simEnv, toleranceProfile]
   );
 
-  const toggleStep = (idx: number) => {
-    setCompletedSteps(prev => ({ ...prev, [idx]: !prev[idx] }));
+  const timeline = report?.timeline || [];
+
+  const loadSavedActions = React.useCallback(async () => {
+    if (!timeline || timeline.length === 0) return;
+    try {
+      const scopeKey = plantId ? `plant:${plantId}` : `specimen:${report?.scientificName || report?.displayName || 'plant'}`;
+      const records = await TreatmentService.getCompletedActions(plantId || scopeKey);
+      const recordMap: Record<number, TreatmentActionRecord> = {};
+      for (const rec of records) {
+        if (typeof rec.phaseIndex === 'number' && rec.completedAt) {
+          recordMap[rec.phaseIndex] = rec;
+        }
+      }
+      timeline.forEach((step, idx) => {
+        if (recordMap[idx]) return;
+        const targetKey = TreatmentService.buildTargetKey({
+          plantId,
+          species: report?.scientificName || report?.displayName,
+          diagnosis: report?.diagnosis,
+          phaseIndex: idx,
+          phaseDay: step.day,
+          action: step.action,
+        });
+        const match = records.find(r => r.targetKey === targetKey && r.completedAt);
+        if (match) recordMap[idx] = match;
+      });
+      setCompletedRecords(recordMap);
+    } catch {
+      // safe fallback
+    }
+  }, [timeline, plantId, report?.scientificName, report?.displayName, report?.diagnosis]);
+
+  React.useEffect(() => {
+    loadSavedActions();
+  }, [loadSavedActions]);
+
+  const toggleStep = async (idx: number) => {
+    const step = timeline[idx];
+    if (!step || actionLoading !== null) return;
+    setActionLoading(idx);
+    triggerHaptic();
+    try {
+      const result = await TreatmentService.toggleTreatmentAction({
+        plantId,
+        species: report?.scientificName || report?.displayName,
+        diagnosis: report?.diagnosis,
+        phaseIndex: idx,
+        phaseDay: step.day,
+        action: step.action,
+        expectedOutcome: step.expectedOutcome,
+      });
+      setCompletedRecords(prev => {
+        const next = { ...prev };
+        if (result.isCompleted) {
+          next[idx] = result.record;
+        } else {
+          delete next[idx];
+        }
+        return next;
+      });
+      if (result.newlyAwarded) {
+        setRewardToast({
+          seeds: result.seedsAwarded,
+          boost: result.vitalityBoost,
+          day: step.day,
+        });
+        setTimeout(() => setRewardToast(null), 4000);
+      }
+    } catch (err) {
+      console.warn('[PlantTelemetryCard] Failed to toggle treatment:', err);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const timeline = report?.timeline || [];
+  const handleSaveNote = async () => {
+    const step = timeline[selectedPhaseIdx];
+    if (!step) return;
+    const targetKey = TreatmentService.buildTargetKey({
+      plantId,
+      species: report?.scientificName || report?.displayName,
+      diagnosis: report?.diagnosis,
+      phaseIndex: selectedPhaseIdx,
+      phaseDay: step.day,
+      action: step.action,
+    });
+    await TreatmentService.saveActionNote(targetKey, noteDraft);
+    setCompletedRecords(prev => {
+      if (!prev[selectedPhaseIdx]) return prev;
+      return {
+        ...prev,
+        [selectedPhaseIdx]: {
+          ...prev[selectedPhaseIdx],
+          notes: noteDraft,
+        },
+      };
+    });
+    setEditingNote(false);
+    setNoteDraft('');
+  };
+
+  const adherence = useMemo(() => {
+    return TreatmentService.calculateAdherence(
+      Object.keys(completedRecords).length,
+      timeline.length
+    );
+  }, [completedRecords, timeline.length]);
+
   const currentPhase = timeline[selectedPhaseIdx] || timeline[0];
+  const currentRecord = completedRecords[selectedPhaseIdx];
+  const isCurrentCompleted = Boolean(currentRecord?.completedAt);
+
+  const ringRadius = 14;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  const strokeDashoffset = ringCircumference - (adherence.adherencePct / 100) * ringCircumference;
 
   return (
     <div className={`rounded-2xl border border-[#b4a58c]/35 dark:border-[#8fb58f]/20 bg-bg-secondary/40 backdrop-blur-xs p-4 sm:p-6 space-y-6 text-text-bark ${className}`}>
@@ -182,36 +308,116 @@ export default function PlantTelemetryCard({
 
       {/* ── 2. Interactive Clinical Recovery Timeline ── */}
       {timeline.length > 0 && (
-        <div className="space-y-3 pt-2 border-t border-border-light/60">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Calendar size={13} className="text-moss" />
-              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-moss">
-                Clinical Recovery Roadmap ({timeline.length} Phases)
+        <div className="space-y-3.5 pt-2 border-t border-border-light/60">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-border-light/60">
+            <div className="flex items-center gap-3">
+              <div className="relative w-10 h-10 flex items-center justify-center shrink-0">
+                <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r={ringRadius}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    className="text-black/10 dark:text-white/10"
+                  />
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r={ringRadius}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeDasharray={ringCircumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                    className="text-moss transition-all duration-500 ease-out"
+                  />
+                </svg>
+                <span className="absolute text-[10px] font-mono font-black text-text-bark">
+                  {adherence.adherencePct}%
+                </span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <HeartPulse size={13} className="text-moss" />
+                  <span className="text-[10px] font-mono font-black uppercase tracking-widest text-moss">
+                    Clinical Recovery Roadmap ({timeline.length} Phases)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className={`px-2 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border ${adherence.badgeColor}`}>
+                    {adherence.stageLabel}
+                  </span>
+                  <span className="text-[9px] font-mono text-text-stone">
+                    {adherence.completedCount} of {adherence.totalCount} completed
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-right self-end sm:self-center">
+              <span className="text-[8px] font-mono uppercase tracking-wider text-text-stone block">
+                Recovery Trajectory
+              </span>
+              <span className="text-[11px] font-mono font-black text-moss">
+                Vitality: {(report?.vitals?.guardianScore ?? 80) + adherence.vitalityDelta}/100 (+{adherence.vitalityDelta})
               </span>
             </div>
-            <span className="text-[9px] font-mono text-text-stone">
-              Phase {selectedPhaseIdx + 1} of {timeline.length}
-            </span>
           </div>
 
-          {/* Phase Stepper Pills */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            {timeline.map((step, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => setSelectedPhaseIdx(idx)}
-                className={`min-h-[44px] px-3.5 py-2 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 ${
-                  selectedPhaseIdx === idx
-                    ? 'bg-moss-deep text-white shadow-xs'
-                    : 'bg-black/5 dark:bg-white/5 text-text-stone hover:bg-black/10'
-                }`}
+          {/* Reward Toast */}
+          <AnimatePresence>
+            {rewardToast && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                className="p-2.5 rounded-lg bg-gold/15 dark:bg-gold/20 border border-gold/40 flex items-center justify-between text-gold-dark dark:text-gold text-xs font-mono font-bold shadow-xs"
               >
-                <span>{step.day || `Phase #${idx + 1}`}</span>
-                {completedSteps[idx] && <CheckCircle2 size={11} className="text-emerald-300" />}
-              </button>
-            ))}
+                <div className="flex items-center gap-2">
+                  <Sparkles size={14} className="text-gold" />
+                  <span>+{rewardToast.seeds} Seeds &amp; +{rewardToast.boost} Vitality Boost awarded!</span>
+                </div>
+                <span className="text-[9px] uppercase font-bold">{rewardToast.day}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Phase Stepper Pills */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none" role="tablist" aria-label="Recovery phase milestones">
+            {timeline.map((step, idx) => {
+              const isDone = Boolean(completedRecords[idx]?.completedAt);
+              const isSelected = selectedPhaseIdx === idx;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  aria-label={`Select treatment stage ${step.day}`}
+                  onClick={() => {
+                    setSelectedPhaseIdx(idx);
+                    setEditingNote(false);
+                  }}
+                  className={`min-h-[44px] px-3.5 py-2 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border ${
+                    isSelected
+                      ? 'bg-moss-deep text-white border-moss shadow-xs'
+                      : isDone
+                        ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
+                        : 'bg-black/5 dark:bg-white/5 text-text-stone hover:bg-black/10 border-transparent'
+                  }`}
+                >
+                  <span>{step.day || `Phase #${idx + 1}`}</span>
+                  {isDone ? (
+                    <CheckCircle2 size={11} className={isSelected ? 'text-emerald-300' : 'text-emerald-600 dark:text-emerald-400'} />
+                  ) : (
+                    <span className="w-1.5 h-1.5 rounded-full bg-current opacity-40" />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* Current Phase Active Dossier */}
@@ -222,25 +428,40 @@ export default function PlantTelemetryCard({
               className="p-3.5 sm:p-4 rounded-xl bg-black/5 dark:bg-white/5 border border-border-light space-y-2.5"
             >
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <span className="text-[9px] font-mono font-black uppercase tracking-wider text-moss">
-                    Target: {currentPhase.day || `Stage ${selectedPhaseIdx + 1}`}
-                  </span>
-                  <h4 className="text-xs font-bold text-text-bark mt-0.5 leading-snug">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-mono font-black uppercase tracking-wider text-moss">
+                      Target: {currentPhase.day || `Stage ${selectedPhaseIdx + 1}`}
+                    </span>
+                    {isCurrentCompleted && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-mono text-[9px] font-bold">
+                        <Clock size={10} />
+                        {TreatmentService.formatRelativeTime(currentRecord?.completedAt)}
+                      </span>
+                    )}
+                  </div>
+                  <h4 className="text-xs font-bold text-text-bark leading-snug">
                     {currentPhase.action}
                   </h4>
                 </div>
+
                 <button
                   type="button"
                   onClick={() => toggleStep(selectedPhaseIdx)}
-                  className={`min-h-[44px] px-3 py-2 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-1 shrink-0 ${
-                    completedSteps[selectedPhaseIdx]
-                      ? 'bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40'
-                      : 'bg-black/10 dark:bg-white/10 text-text-stone hover:text-text-bark'
+                  disabled={actionLoading === selectedPhaseIdx}
+                  aria-label={`Mark treatment phase ${currentPhase.day} action complete`}
+                  className={`min-h-[44px] px-3.5 py-2 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+                    isCurrentCompleted
+                      ? 'bg-emerald-600/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/30'
+                      : 'bg-moss-deep text-white hover:bg-moss active:scale-95 shadow-xs'
                   }`}
                 >
-                  <CheckCircle2 size={11} />
-                  {completedSteps[selectedPhaseIdx] ? 'Applied ✓' : 'Mark Done'}
+                  <CheckCircle2 size={12} className={isCurrentCompleted ? 'text-emerald-500' : 'text-white'} />
+                  <span>
+                    {isCurrentCompleted
+                      ? 'Applied ✓ (Tap to Undo)'
+                      : 'Apply Treatment (🌱 +15 Seeds)'}
+                  </span>
                 </button>
               </div>
 
@@ -252,6 +473,65 @@ export default function PlantTelemetryCard({
                   {currentPhase.expectedOutcome}
                 </div>
               )}
+
+              {/* Field Observation Note */}
+              <div className="pt-1.5 border-t border-border-light/40 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono uppercase tracking-wider text-text-stone">
+                    Field Clinical Notes
+                  </span>
+                  {!editingNote ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingNote(true);
+                        setNoteDraft(currentRecord?.notes || '');
+                      }}
+                      aria-label="Add observation note for this phase"
+                      className="min-h-[44px] px-2 text-[9px] font-mono font-bold uppercase tracking-wider text-moss hover:underline flex items-center gap-1"
+                    >
+                      <Edit3 size={10} />
+                      {currentRecord?.notes ? 'Edit Note' : 'Add Note'}
+                    </button>
+                  ) : null}
+                </div>
+
+                {editingNote ? (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      aria-label="Field observation notes for this recovery step"
+                      value={noteDraft}
+                      onChange={e => setNoteDraft(e.target.value)}
+                      placeholder="e.g. Applied neem foliar wash; pruned spotted leaves..."
+                      className="w-full px-2.5 py-1.5 text-xs bg-bg-primary border border-border-light rounded-md focus:outline-none focus:ring-1 focus:ring-moss font-sans"
+                    />
+                    <div className="flex justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditingNote(false)}
+                        aria-label="Cancel note editing"
+                        className="min-h-[44px] px-3 py-1 text-[10px] font-mono rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-text-stone"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveNote}
+                        aria-label="Save note to clinical log"
+                        className="min-h-[44px] px-3 py-1 bg-moss-deep text-white text-[10px] font-mono font-bold uppercase rounded-md flex items-center gap-1"
+                      >
+                        <Save size={11} />
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                ) : currentRecord?.notes ? (
+                  <p className="text-[10px] text-text-bark italic bg-black/5 dark:bg-white/5 p-1.5 rounded font-sans">
+                    “{currentRecord.notes}”
+                  </p>
+                ) : null}
+              </div>
             </motion.div>
           )}
         </div>

@@ -341,6 +341,7 @@ export default function BotanicalLab() {
 
     setScanStage('saving');
     const plant = await GameService.indexScannedPlant(plantReport, finalPhotoUrl, userId);
+    setDexResult((prev: any) => prev ? { ...prev, plantId: plant.id } : prev);
 
     setScanStage('rewarding');
     const alreadyDiscovered = profile?.discoveredSpecies?.includes(species);
@@ -1169,6 +1170,7 @@ export default function BotanicalLab() {
                             {/* Interactive Physiological Telemetry & Recovery Roadmap */}
                             {dexResult?.report?.kind === 'plant' && (
                               <PlantTelemetryCard report={dexResult.report}
+                                plantId={dexResult?.plantId || (dexResult?.report as any)?.plantId}
                                 ambientWeather={dexResult.report.weather ? {
                                   temperatureC: dexResult.report.weather.temp,
                                   humidityPct: dexResult.report.weather.humidity,
