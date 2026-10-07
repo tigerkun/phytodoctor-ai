@@ -249,6 +249,23 @@ describe('legacy coercion (guest pending-scan restore only)', () => {
       windSpeed: undefined,
     });
   });
+
+  it('forwards legacy location.weather when top-level weather is absent', () => {
+    const r = coerceLegacyToReport({
+      commonName: 'Fern',
+      diagnosis: 'Looks fine.',
+      location: {
+        weather: { temp: 19.8, humidity: 70, condition: 'Showers' },
+      },
+    });
+    expect(r.kind).toBe('plant');
+    expect((r as PlantScanReport).weather).toEqual({
+      temp: 19.8,
+      humidity: 70,
+      condition: 'Showers',
+      windSpeed: undefined,
+    });
+  });
 });
 
 describe('scan weather integration', () => {

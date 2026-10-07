@@ -50,22 +50,18 @@ export default function PlantTelemetryCard({
   // Environmental simulation state: prefer live ambient weather from the scan or props,
   // falling back to parsed care guidelines and soil moisture heuristic.
   const careParsed = report?.careParsed;
-  const rawWeather = ambientWeather ?? report?.weather ?? report?.location?.weather;
-  const weatherTemp = rawWeather && 'temperatureC' in rawWeather && typeof rawWeather.temperatureC === 'number'
-    ? rawWeather.temperatureC
-    : rawWeather && 'temp' in rawWeather && typeof rawWeather.temp === 'number'
-      ? rawWeather.temp
-      : null;
-  const weatherHumidity = rawWeather && 'humidityPct' in rawWeather && typeof rawWeather.humidityPct === 'number'
-    ? rawWeather.humidityPct
-    : rawWeather && 'humidity' in rawWeather && typeof rawWeather.humidity === 'number'
-      ? rawWeather.humidity
-      : null;
-  const weatherLight = rawWeather && 'lightLevel' in rawWeather && rawWeather.lightLevel
-    ? rawWeather.lightLevel
-    : rawWeather && 'condition' in rawWeather && rawWeather.condition
-      ? inferLightFromWeather(rawWeather.condition)
-      : null;
+  const reportWeather = report?.weather ?? report?.location?.weather;
+  const weatherTemp =
+    (ambientWeather && typeof ambientWeather.temperatureC === 'number' && Number.isFinite(ambientWeather.temperatureC) ? ambientWeather.temperatureC : null)
+    ?? (reportWeather && typeof reportWeather.temp === 'number' && Number.isFinite(reportWeather.temp) ? reportWeather.temp : null);
+
+  const weatherHumidity =
+    (ambientWeather && typeof ambientWeather.humidityPct === 'number' && Number.isFinite(ambientWeather.humidityPct) ? ambientWeather.humidityPct : null)
+    ?? (reportWeather && typeof reportWeather.humidity === 'number' && Number.isFinite(reportWeather.humidity) ? reportWeather.humidity : null);
+
+  const weatherLight =
+    (ambientWeather && ambientWeather.lightLevel ? ambientWeather.lightLevel : null)
+    ?? (reportWeather?.condition ? inferLightFromWeather(reportWeather.condition) : null);
 
   const hasLiveWeather = typeof weatherHumidity === 'number' && Number.isFinite(weatherHumidity);
 

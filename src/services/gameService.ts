@@ -701,9 +701,10 @@ export class GameService {
 
     const light = report.careParsed.lightLevel;
     const soilMoisture = report.careParsed.soilMoisture;
-    const weatherTemp = report.weather?.temp ?? report.careParsed.temperatureC;
-    const weatherHumidity = report.weather?.humidity ?? null;
-    const weatherDescription = report.weather?.condition ?? report.healthStatus ?? null;
+    const weather = report.weather ?? report.location?.weather;
+    const weatherTemp = weather?.temp ?? report.careParsed.temperatureC;
+    const weatherHumidity = weather?.humidity ?? null;
+    const weatherDescription = weather?.condition ?? report.healthStatus ?? null;
 
     let finalPhotoUrl = photoUrl;
     if (finalPhotoUrl && finalPhotoUrl.startsWith('data:')) {

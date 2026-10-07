@@ -516,6 +516,6 @@ export function coerceLegacyToReport(legacy: any): ScanReport {
       resolution: null,
     },
     message: str(legacy?.message) || undefined,
-    weather: legacy?.weather ?? null,
+    weather: legacy?.weather ?? legacy?.location?.weather ?? null,
   });
 }

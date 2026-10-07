@@ -625,10 +625,9 @@ export default function BotanicalLab() {
           guardianScore,
           driftScore,
           driftStatus,
-          // Weather belongs to the Weather Service, not a constant in this file.
-          weatherTemp: null,
-          weatherHumidity: null,
-          weatherDescription: null,
+          weatherTemp: result?.report?.weather?.temp ?? null,
+          weatherHumidity: result?.report?.weather?.humidity ?? null,
+          weatherDescription: result?.report?.weather?.condition ?? null,
           synced: 0
         });
 

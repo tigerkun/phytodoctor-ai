@@ -149,14 +149,20 @@ describe('inferLightFromWeather', () => {
 
   it('maps cloudy and partly cloudy conditions to Indirect light', () => {
     expect(inferLightFromWeather('Partly cloudy')).toBe('Indirect');
+    expect(inferLightFromWeather('Partly sunny')).toBe('Indirect');
     expect(inferLightFromWeather('Mainly clear')).toBe('Direct');
     expect(inferLightFromWeather('Scattered clouds')).toBe('Indirect');
   });
 
-  it('maps rain, overcast, storm, snow and fog to Low light', () => {
+  it('maps rain, overcast, storm, snow, showers, and fog to Low light', () => {
     expect(inferLightFromWeather('Overcast')).toBe('Low');
     expect(inferLightFromWeather('Light rain')).toBe('Low');
     expect(inferLightFromWeather('Heavy rain')).toBe('Low');
+    expect(inferLightFromWeather('Showers')).toBe('Low');
+    expect(inferLightFromWeather('Heavy showers')).toBe('Low');
+    expect(inferLightFromWeather('Violent showers')).toBe('Low');
+    expect(inferLightFromWeather('Hail')).toBe('Low');
+    expect(inferLightFromWeather('Sleet')).toBe('Low');
     expect(inferLightFromWeather('Foggy')).toBe('Low');
     expect(inferLightFromWeather('Thunderstorm')).toBe('Low');
     expect(inferLightFromWeather('Snow')).toBe('Low');

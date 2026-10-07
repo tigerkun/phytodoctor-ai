@@ -96,4 +96,22 @@ describe('PlantTelemetryCard generative UI structure and safety', () => {
     expect(resetBtn).not.toBeNull();
     expect(cleanDetail).toMatch(/Reset Baseline[\s\S]*?min-h-\[44px\]|<button[^>]*min-h-\[44px\][^>]*>[^<]*Reset Baseline/);
   });
+
+  it('PlantDetail calls all hooks unconditionally before checking if plant is loaded (Rules of Hooks)', () => {
+    const cleanDetail = stripJsComments(plantDetailSource);
+    // Find index of useGeolocation, useMemo, useState vs the if (!plant) return
+    const hookIdx = cleanDetail.indexOf('useGeolocation()');
+    const simHookIdx = cleanDetail.indexOf('useState<number>(baselineTemp)');
+    const plantGuardIdx = cleanDetail.indexOf('if (!plant)');
+    
+    expect(hookIdx).toBeGreaterThan(0);
+    expect(simHookIdx).toBeGreaterThan(0);
+    expect(plantGuardIdx).toBeGreaterThan(simHookIdx);
+  });
+
+  it('PlantDetail derives tolerance profile from botanical species without mutating against ambient weather', () => {
+    const cleanDetail = stripJsComments(plantDetailSource);
+    expect(cleanDetail).toMatch(/deriveToleranceProfile\(plant\?\.species \|\| 'Plant'\)/);
+  });
 });
+

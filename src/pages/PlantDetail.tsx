@@ -204,31 +204,6 @@ const children = lineage?.filter(candidate => candidate.parentPlantId === plant?
     }
   };
 
-  // An unknown id used to render the loading copy forever, because `plant` stays
-// undefined both while the read is in flight and when the row does not exist —
-// so a stale or hand-edited link left the user on a dead page with no way out.
-if (!plant) {
-  if (plantLoading) {
-    return <div className="p-20 text-center font-serif text-2xl">Loading specimen dossier...</div>;
-  }
-  return (
-    <div className="p-20 text-center space-y-4">
-      <h1 className="font-serif text-3xl">Specimen not found</h1>
-      <p className="text-sm opacity-70 max-w-md mx-auto">
-        This dossier is no longer in your conservatory. It may have been removed on
-        another device, or the link may belong to a different account.
-      </p>
-      <a
-        href="/"
-        className="inline-block font-black text-xs uppercase tracking-[0.16em] px-6 py-3 border border-current rounded-sm"
-      >
-        Return to the sanctuary
-      </a>
-    </div>
-  );
-}
-
-  
   const handleAddNote = async () => {
     if (!newNote.trim() || !id) return;
     
@@ -327,8 +302,9 @@ if (!plant) {
       ? Math.round(locationWeather.humidity)
       : (latestCheckIn?.soilMoisture === 'Wet' ? 75 : latestCheckIn?.soilMoisture === 'Dry' ? 35 : 55);
 
-  const baselineLight = latestCheckIn?.lightLevel
+  const baselineLight = (latestCheckIn?.weatherDescription ? inferLightFromWeather(latestCheckIn.weatherDescription) : null)
     ?? (locationWeather?.description ? inferLightFromWeather(locationWeather.description) : null)
+    ?? latestCheckIn?.lightLevel
     ?? 'Indirect';
 
   const hasLiveWeatherSeed = (typeof latestCheckIn?.weatherHumidity === 'number' && Number.isFinite(latestCheckIn.weatherHumidity))
@@ -350,12 +326,8 @@ if (!plant) {
   }, [baselineTemp, baselineHumidity, baselineLight, userEditedSim]);
 
   const toleranceProfile = useMemo(
-    () => deriveToleranceProfile(plant?.species || 'Plant', {
-      temperatureC: latestCheckIn?.weatherTemp ?? locationWeather?.temperature,
-      lightLevel: latestCheckIn?.lightLevel,
-      soilMoisture: latestCheckIn?.soilMoisture,
-    }),
-    [plant?.species, latestCheckIn?.weatherTemp, latestCheckIn?.lightLevel, latestCheckIn?.soilMoisture, locationWeather?.temperature]
+    () => deriveToleranceProfile(plant?.species || 'Plant'),
+    [plant?.species]
   );
 
   const simResult = useMemo(
@@ -396,9 +368,9 @@ if (!plant) {
         guardianScore: newScore,
         driftScore: null,
         driftStatus: 'stable',
-        weatherTemp: null,
-        weatherHumidity: null,
-        weatherDescription: 'Hydration Logged',
+        weatherTemp: typeof locationWeather?.temperature === 'number' && Number.isFinite(locationWeather.temperature) ? Math.round(locationWeather.temperature) : null,
+        weatherHumidity: typeof locationWeather?.humidity === 'number' && Number.isFinite(locationWeather.humidity) ? Math.round(locationWeather.humidity) : null,
+        weatherDescription: locationWeather?.description || 'Hydration Logged',
         synced: 0,
       });
       try {
@@ -414,6 +386,28 @@ if (!plant) {
       setWateringLogging(false);
     }
   };
+
+  // Safe early exit placed after all hooks have executed unconditionally
+  if (!plant) {
+    if (plantLoading) {
+      return <div className="p-20 text-center font-serif text-2xl">Loading specimen dossier...</div>;
+    }
+    return (
+      <div className="p-20 text-center space-y-4">
+        <h1 className="font-serif text-3xl">Specimen not found</h1>
+        <p className="text-sm opacity-70 max-w-md mx-auto">
+          This dossier is no longer in your conservatory. It may have been removed on
+          another device, or the link may belong to a different account.
+        </p>
+        <a
+          href="/"
+          className="inline-block font-black text-xs uppercase tracking-[0.16em] px-6 py-3 border border-current rounded-sm"
+        >
+          Return to the sanctuary
+        </a>
+      </div>
+    );
+  }
 
   return (
     <PageWrapper className="min-h-screen skin-specimen pb-24">

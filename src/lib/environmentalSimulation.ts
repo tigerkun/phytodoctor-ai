@@ -197,8 +197,6 @@ export function vitalityAfterWatering(currentScore: number | null | undefined): 
 export function inferLightFromWeather(condition?: string | null): 'Direct' | 'Indirect' | 'Low' {
   if (!condition) return 'Indirect';
   const c = condition.toLowerCase();
-  if (c.includes('clear') || c.includes('sunny')) return 'Direct';
-  if (c.includes('cloud') || c.includes('partly')) return 'Indirect';
   if (
     c.includes('overcast') ||
     c.includes('fog') ||
@@ -206,10 +204,15 @@ export function inferLightFromWeather(condition?: string | null): 'Direct' | 'In
     c.includes('drizzle') ||
     c.includes('snow') ||
     c.includes('thunder') ||
-    c.includes('storm')
+    c.includes('storm') ||
+    c.includes('shower') ||
+    c.includes('hail') ||
+    c.includes('sleet')
   ) {
     return 'Low';
   }
+  if (c.includes('partly') || c.includes('cloud')) return 'Indirect';
+  if (c.includes('clear') || c.includes('sunny')) return 'Direct';
   return 'Indirect';
 }
 
