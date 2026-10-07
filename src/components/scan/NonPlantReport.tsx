@@ -7,6 +7,9 @@ export interface NonPlantReportProps {
   onScanAgain: () => void;
   className?: string;
   alwaysBright?: boolean;
+  /** The archive reuses this renderer read-only — the rescan CTA is a live-scan
+      concept and has no meaning there. */
+  hideActions?: boolean;
 }
 
 /**
@@ -32,6 +35,7 @@ export const NonPlantReport: React.FC<NonPlantReportProps> = ({
   onScanAgain,
   className = '',
   alwaysBright = false,
+  hideActions = false,
 }) => {
   const d = (cls: string) => (alwaysBright ? '' : cls);
   const styling = KIND_STYLING[report.kind] ?? KIND_STYLING.uncertain;
@@ -170,8 +174,9 @@ export const NonPlantReport: React.FC<NonPlantReportProps> = ({
         )}
       </div>
 
-      {/* Action Footer */}
-      <div className={`mt-6 pt-5 border-t border-stone-200/50 ${d('dark:border-stone-700/50')} flex flex-col sm:flex-row items-center justify-between gap-4`}>
+      {/* Action Footer — not rendered at all in the archive, so nothing
+          keyboard-focusable lingers behind a hidden class. */}
+      {!hideActions && <div className={`mt-6 pt-5 border-t border-stone-200/50 ${d('dark:border-stone-700/50')} flex flex-col sm:flex-row items-center justify-between gap-4`}>
         <p className={`text-[10px] font-mono uppercase tracking-widest text-[#6B5E51] ${d('dark:text-[#9A9086]')}`}>
           Subject read as {report.kind} · No seeds awarded · Not added to sanctuary
         </p>
@@ -186,6 +191,7 @@ export const NonPlantReport: React.FC<NonPlantReportProps> = ({
           <span>Scan a Plant</span>
         </button>
       </div>
+      }
     </div>
   );
 };

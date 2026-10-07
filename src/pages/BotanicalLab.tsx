@@ -23,6 +23,7 @@ import {
   Sun,
   Thermometer,
   Compass,
+  History,
   ArrowRight,
   TrendingUp,
   FileText,
@@ -32,6 +33,7 @@ import StreakPopup from '../components/game/StreakPopup';
 import { db } from '../db/database';
 import { GameService } from '../services/gameService';
 import { identifyPlant, coerceLegacyToReport, type PlantScanReport } from '../services/geminiService';
+import ScanHistoryPanel from '../components/scan/ScanHistoryPanel';
 import { PlantService, onPlantsChange } from '../services/plantService';
 import { StorageService } from '../services/storageService';
 import { analyzePlantHealth, type PlantSignature } from '../services/driftDetector';
@@ -141,10 +143,13 @@ function ProvenanceBadge({ provenance }: { provenance: any }) {
 export default function BotanicalLab() {
   const { success, error } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = searchParams.get('tab') === 'sanctuary' ? 'sanctuary' : 'dex';
+  const initialTab: 'dex' | 'sanctuary' | 'history' =
+    searchParams.get('tab') === 'sanctuary' ? 'sanctuary'
+    : searchParams.get('tab') === 'history' ? 'history'
+    : 'dex';
 
-  // Tabs: 'dex' = Garden-Dex, 'sanctuary' = My Sanctuary
-  const [activeTab, setActiveTab] = useState<'dex' | 'sanctuary'>(initialTab);
+  // Tabs: 'dex' = Garden-Dex, 'sanctuary' = My Sanctuary, 'history' = Herbarium Archive
+  const [activeTab, setActiveTab] = useState<'dex' | 'sanctuary' | 'history'>(initialTab);
   
   // Modals & Panels
   const [showLedger, setShowLedger] = useState(false);
@@ -242,6 +247,8 @@ export default function BotanicalLab() {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'sanctuary') {
       setActiveTab('sanctuary');
+    } else if (tabParam === 'history') {
+      setActiveTab('history');
     } else if (tabParam === 'dex') {
       setActiveTab('dex');
     }
@@ -739,7 +746,7 @@ export default function BotanicalLab() {
 
           <div className="flex flex-wrap items-center gap-3 sm:gap-4 shrink-0">
             <div className="bg-bg-secondary p-1 rounded-full flex relative border border-border-light shadow-sm">
-              {(['dex', 'sanctuary'] as const).map((tab) => (
+              {(['dex', 'sanctuary', 'history'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => { setActiveTab(tab); setSearchParams({ tab }); }}
@@ -747,8 +754,8 @@ export default function BotanicalLab() {
                     activeTab === tab ? 'text-white' : 'text-text-stone hover:text-text-bark'
                   }`}
                 >
-                  {tab === 'dex' ? <Compass size={12} /> : <Heart size={12} />}
-                  {tab === 'dex' ? 'Plant Database' : 'Garden Sanctuary'}
+                  {tab === 'dex' ? <Compass size={12} /> : tab === 'sanctuary' ? <Heart size={12} /> : <History size={12} />}
+                  {tab === 'dex' ? 'Plant Database' : tab === 'sanctuary' ? 'Garden Sanctuary' : 'Archive'}
                   {activeTab === tab && <motion.div layoutId="labTabIndicator" className="absolute inset-0 bg-moss-deep rounded-full -z-10" />}
                 </button>
               ))}
@@ -1367,6 +1374,17 @@ export default function BotanicalLab() {
         )}
 
         {/* ==================== TAB B: MY SANCTUARY ==================== */}
+        {activeTab === 'history' && (
+          <ScanHistoryPanel
+            isAuthed={isAuthed}
+            onSignIn={() => { rememberAuthReturn('/lab?tab=history'); transitionTo('/auth', 'Sign In'); }}
+            onIndexPlant={async (report) => {
+              await GameService.indexScannedPlant(report, null, userId);
+              success('Specimen re-indexed from the archive.');
+            }}
+          />
+        )}
+
         {activeTab === 'sanctuary' && (
           <div className="space-y-8">
             {scanError && (
