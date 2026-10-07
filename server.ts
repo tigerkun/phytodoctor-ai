@@ -163,6 +163,48 @@ function strLimit(v: unknown, max: number): string | null {
   return t.length > 0 && t.length <= max ? t : null;
 }
 
+// ── Real-time weather (Open-Meteo, free, no API key) ──────────────────────
+// The scan prompt accepts a location.weather object from the client, but the
+// client either sends stale cached data or nothing. Fetching server-side on
+// every scan with coordinates ensures the model sees today's actual conditions
+// — current temperature, humidity, wind, and a human-readable condition string.
+//
+// Open-Meteo is free for non-commercial use, requires no API key, and has
+// global coverage. If the call fails for any reason (network, quota, bad coords)
+// we log a warning and return null — a failed weather call must never block
+// a scan. ponytail: single call, no retry, ~200ms budget.
+const WMO_CONDITIONS: Record<number, string> = {
+  0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+  45: 'Foggy', 48: 'Icy fog',
+  51: 'Light drizzle', 53: 'Drizzle', 55: 'Heavy drizzle',
+  61: 'Light rain', 63: 'Rain', 65: 'Heavy rain',
+  71: 'Light snow', 73: 'Snow', 75: 'Heavy snow', 77: 'Snow grains',
+  80: 'Showers', 81: 'Heavy showers', 82: 'Violent showers',
+  85: 'Snow showers', 86: 'Heavy snow showers',
+  95: 'Thunderstorm', 96: 'Thunderstorm with hail', 99: 'Thunderstorm with heavy hail',
+};
+interface LiveWeather { temp: number; humidity: number; windSpeed: number; condition: string }
+async function fetchWeather(lat: number, lon: number): Promise<LiveWeather | null> {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code&wind_speed_unit=kmh&forecast_days=1`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return null;
+    const json = await res.json() as any;
+    const c = json?.current;
+    if (!c || typeof c.temperature_2m !== 'number') return null;
+    const code = Number(c.weather_code ?? 0);
+    return {
+      temp: Math.round(c.temperature_2m * 10) / 10,
+      humidity: Math.round(Number(c.relative_humidity_2m ?? 0)),
+      windSpeed: Math.round(Number(c.wind_speed_10m ?? 0)),
+      condition: WMO_CONDITIONS[code] ?? WMO_CONDITIONS[Math.floor(code / 10) * 10] ?? 'Unknown',
+    };
+  } catch (err) {
+    log.warn('Open-Meteo weather fetch failed', { err });
+    return null;
+  }
+}
+
 // ── Optional Supabase API gate ─────────────────────────────────────────────
 // When SUPABASE_URL + SUPABASE_ANON_KEY are set on the server, every /api
 // request must carry a valid Supabase access token (Bearer). Without them
@@ -995,7 +1037,11 @@ app.post("/api/identify", express.json({ limit: '11mb' }), aiLimiter, apiOrGuest
       return fail(res, 413, 'Image is too large. Please upload an image under 6 MB.');
     }
 
-    // Build location + weather context block for the prompt
+    // Build location + weather context block for the prompt.
+    // Weather is fetched server-side from Open-Meteo when coordinates are
+    // present — real current conditions rather than trusting a client field
+    // that may be stale, absent, or fabricated. Falls back to the client's
+    // own weather object when coordinates are missing or the fetch fails.
     let locationBlock = "";
     if (location && typeof location === 'object') {
       const parts: string[] = [];
@@ -1003,17 +1049,25 @@ app.post("/api/identify", express.json({ limit: '11mb' }), aiLimiter, apiOrGuest
       if (city) parts.push(`City/Region: ${city}`);
       const lat = Number(location.latitude);
       const lon = Number(location.longitude);
-      if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+      const hasCoords = Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+      if (hasCoords) {
         parts.push(`Coordinates: ${lat.toFixed(3)}, ${lon.toFixed(3)}`);
       }
-      if (location.weather && typeof location.weather === 'object') {
-        const w = location.weather;
+      // Prefer server-fetched weather; fall back to client-supplied weather only
+      // when we have no coordinates to fetch with.
+      let liveWeather: LiveWeather | null = null;
+      if (hasCoords) {
+        liveWeather = await fetchWeather(lat, lon);
+      }
+      const w = liveWeather ?? (location.weather && typeof location.weather === 'object' ? location.weather : null);
+      if (w) {
         const temp = Number(w.temp), hum = Number(w.humidity), wind = Number(w.windSpeed);
-        const cond = strLimit(w.condition, 60);
-        parts.push(`Current Weather: ${Number.isFinite(temp) ? temp : '?'}°C, ${Number.isFinite(hum) ? hum : '?'}% humidity, ${cond ?? 'unknown'}${Number.isFinite(wind) ? `, wind ${wind} km/h` : ""}`);
+        const cond = typeof w.condition === 'string' ? strLimit(w.condition, 60) : null;
+        parts.push(`Current Weather: ${Number.isFinite(temp) ? temp : '?'}°C, ${Number.isFinite(hum) ? hum : '?'}% humidity, ${cond ?? 'unknown'}${Number.isFinite(wind) ? `, wind ${wind} km/h` : ''}`);
+        if (liveWeather) parts.push('(Weather: live Open-Meteo data, not client-reported)');
       }
       if (parts.length > 0) {
-        locationBlock = `\n\nUSER LOCATION CONTEXT (use this to personalise ALL advice):\n${parts.join("\n")}\nTailor watering frequency, pest risk, seasonal care, climate compatibility, and all recommendations to this exact region and current weather conditions.`;
+        locationBlock = `\n\nUSER LOCATION CONTEXT (use this to personalise ALL advice):\n${parts.join('\n')}\nTailor watering frequency, pest risk, seasonal care, climate compatibility, and all recommendations to this exact region and current weather conditions.`;
       }
     }
 
