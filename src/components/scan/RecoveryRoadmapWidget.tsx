@@ -17,6 +17,7 @@ import {
 import { useEcoMode } from '../../hooks/useEcoMode';
 import {
   TreatmentService,
+  slug,
   type AdherenceMetrics,
   type ToggleTreatmentResult,
 } from '../../services/treatmentService';
@@ -71,7 +72,7 @@ export default function RecoveryRoadmapWidget({
         ? `plant:${plantId}`
         : scanId
           ? `scan:${scanId}`
-          : `specimen:${species}`;
+          : `specimen:${slug(species || 'botanical')}`;
       const records = await TreatmentService.getCompletedActions(plantId || scopeKey);
       
       const recordMap: Record<number, TreatmentActionRecord> = {};

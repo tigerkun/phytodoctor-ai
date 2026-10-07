@@ -12,7 +12,7 @@ export function isIndexedDBAvailable(): boolean {
   }
 }
 
-function slug(str: string): string {
+export function slug(str: string): string {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
@@ -131,45 +131,52 @@ export class TreatmentService {
    */
   static async getCompletedActions(plantIdOrScope?: string | null): Promise<TreatmentActionRecord[]> {
     if (!plantIdOrScope) return [];
+
+    const isScope =
+      plantIdOrScope.startsWith('plant:') ||
+      plantIdOrScope.startsWith('specimen:') ||
+      plantIdOrScope.startsWith('scan:');
+
+    const cleanSpeciesSlug = plantIdOrScope.startsWith('specimen:')
+      ? slug(plantIdOrScope.slice('specimen:'.length))
+      : slug(plantIdOrScope);
+
+    const matchCandidate = (r: TreatmentActionRecord): boolean => {
+      if (!r.completedAt) return false;
+      if (r.plantId && r.plantId === plantIdOrScope) return true;
+      if (r.targetKey.startsWith(plantIdOrScope)) return true;
+      if (plantIdOrScope.startsWith('specimen:') && cleanSpeciesSlug) {
+        if (r.targetKey.startsWith(`specimen:${cleanSpeciesSlug}:`)) return true;
+      }
+      if (!isScope) {
+        if (cleanSpeciesSlug && r.targetKey.includes(cleanSpeciesSlug)) return true;
+        if (r.targetKey.includes(plantIdOrScope)) return true;
+      }
+      return false;
+    };
+
     if (isIndexedDBAvailable()) {
       try {
         if (db.treatmentActions) {
-          let rows: TreatmentActionRecord[] = [];
-          if (
-            plantIdOrScope.startsWith('plant:') ||
-            plantIdOrScope.startsWith('specimen:') ||
-            plantIdOrScope.startsWith('scan:')
-          ) {
-            rows = await db.treatmentActions
-              .filter(r => r.targetKey.startsWith(plantIdOrScope) && Boolean(r.completedAt))
-              .toArray();
+          if (isScope) {
+            return await db.treatmentActions.filter(matchCandidate).toArray();
           } else {
-            // Direct plantId
-            rows = await db.treatmentActions
+            // Direct plantId query via index first
+            const rows = await db.treatmentActions
               .where('plantId')
               .equals(plantIdOrScope)
               .filter(r => Boolean(r.completedAt))
               .toArray();
-            if (rows.length === 0) {
-              rows = await db.treatmentActions
-                .filter(r => r.targetKey.includes(plantIdOrScope) && Boolean(r.completedAt))
-                .toArray();
-            }
+            if (rows.length > 0) return rows;
+            return await db.treatmentActions.filter(matchCandidate).toArray();
           }
-          return rows;
         }
       } catch {
         // Fall through to memory
       }
     }
 
-    return Array.from(memoryActionStore.values()).filter(r => {
-      const matchesScope =
-        r.plantId === plantIdOrScope ||
-        r.targetKey.startsWith(plantIdOrScope) ||
-        r.targetKey.includes(plantIdOrScope);
-      return matchesScope && Boolean(r.completedAt);
-    });
+    return Array.from(memoryActionStore.values()).filter(matchCandidate);
   }
 
   /**
@@ -201,7 +208,11 @@ export class TreatmentService {
 
     const prefixesToMigrate: string[] = [];
     if (scanId) {
-      prefixesToMigrate.push(`scan:${scanId}:`);
+      const cleanScanId = scanId.startsWith('scan:') ? scanId.slice(5) : scanId;
+      prefixesToMigrate.push(`scan:${cleanScanId}:`);
+      if (cleanScanId !== scanId) {
+        prefixesToMigrate.push(`scan:${scanId}:`);
+      }
     }
     if (species) {
       const cleanSpecies = slug(species);
@@ -227,11 +238,19 @@ export class TreatmentService {
               .toArray();
             for (const action of matchingActions) {
               const newTargetKey = action.targetKey.replace(prefix, plantPrefix);
-              await db.treatmentActions.put({
-                ...action,
-                plantId,
-                targetKey: newTargetKey,
-              });
+              const existingRecord = await db.treatmentActions
+                .where('targetKey')
+                .equals(newTargetKey)
+                .first();
+              if (existingRecord && existingRecord.id !== action.id) {
+                await db.treatmentActions.delete(action.id);
+              } else {
+                await db.treatmentActions.put({
+                  ...action,
+                  plantId,
+                  targetKey: newTargetKey,
+                });
+              }
             }
           }
         }

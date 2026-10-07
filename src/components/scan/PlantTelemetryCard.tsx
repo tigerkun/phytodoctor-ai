@@ -31,6 +31,7 @@ import {
 } from '../../lib/environmentalSimulation';
 import {
   TreatmentService,
+  slug,
   type AdherenceMetrics,
 } from '../../services/treatmentService';
 import type { TreatmentActionRecord } from '../../db/database';
@@ -131,7 +132,7 @@ export default function PlantTelemetryCard({
         ? `plant:${plantId}`
         : scanId
           ? `scan:${scanId}`
-          : `specimen:${report?.scientificName || report?.displayName || 'plant'}`;
+          : `specimen:${slug(report?.scientificName || report?.displayName || 'plant')}`;
       const records = await TreatmentService.getCompletedActions(plantId || scopeKey);
       const recordMap: Record<number, TreatmentActionRecord> = {};
 

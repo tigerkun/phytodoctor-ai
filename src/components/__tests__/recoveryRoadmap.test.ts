@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openingTags, classNameOf, stripJsComments } from '../../test/helpers';
+import { TreatmentService } from '../../services/treatmentService';
 
 const widgetSource = readFileSync(
   join(process.cwd(), 'src/components/scan/RecoveryRoadmapWidget.tsx'),
@@ -108,6 +109,8 @@ describe('Recovery Roadmap Generative UI and Dexie persistence structure', () =>
     expect(cleanLab).toMatch(/<PlantTelemetryCard report=\{dexResult\.report\}[\s\S]*?plantId=\{dexResult\?\.plantId/);
     expect(cleanLab).toContain('associateScanWithPlant((plantReport as any)?.id, plant.id, species)');
     expect(cleanLab).toContain('onIndexPlant={async (report, scanId) =>');
+    expect(cleanLab).toContain('scanId || (report as any)?.id');
+    expect(cleanLab).toContain('report.scientificName || report.displayName');
   });
 
   it('ScanHistoryPanel passes scanId and plantId to PlantTelemetryCard and binds indexed plant ID', () => {
@@ -128,5 +131,30 @@ describe('Recovery Roadmap Generative UI and Dexie persistence structure', () =>
     const cleanService = stripJsComments(plantServiceSource);
     expect(cleanService).toContain('local.recoveryRoadmap');
     expect(cleanService).toContain('recoveryRoadmap: input.recoveryRoadmap ?? null');
+  });
+
+  it('TreatmentService associates both scan: and specimen: prefixes to plantId cleanly', async () => {
+    const scanId = 'test-scan-roadmap-1';
+    const species = 'Monstera Deliciosa';
+    const plantId = 'test-plant-roadmap-1';
+
+    await TreatmentService.toggleTreatmentAction({
+      scanId,
+      phaseIndex: 0,
+      phaseDay: 'Day 1',
+      action: 'Initial prune',
+    });
+    await TreatmentService.toggleTreatmentAction({
+      species,
+      phaseIndex: 1,
+      phaseDay: 'Day 3',
+      action: 'Foliar spray',
+    });
+
+    await TreatmentService.associateScanWithPlant(scanId, plantId, species);
+
+    const completed = await TreatmentService.getCompletedActions(plantId);
+    expect(completed.length).toBe(2);
+    expect(completed.every(c => c.plantId === plantId && c.targetKey.startsWith(`plant:${plantId}:`))).toBe(true);
   });
 });

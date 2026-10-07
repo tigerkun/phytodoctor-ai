@@ -271,5 +271,67 @@ describe('TreatmentService unit and persistence tests', () => {
       expect(migrated.length).toBe(2);
       expect(migrated.every(m => m.plantId === plantId && m.targetKey.startsWith(`plant:${plantId}:`))).toBe(true);
     });
+
+    it('matches specimen actions with raw unslugged prefix, slugged prefix, and bare species name', async () => {
+      const species = 'Monstera Deliciosa';
+      await TreatmentService.toggleTreatmentAction({
+        species,
+        phaseIndex: 0,
+        phaseDay: 'Day 1',
+        action: 'Clean leaf surface',
+      });
+
+      const fromRaw = await TreatmentService.getCompletedActions(`specimen:${species}`);
+      expect(fromRaw.length).toBe(1);
+
+      const fromSlugged = await TreatmentService.getCompletedActions('specimen:monstera-deliciosa');
+      expect(fromSlugged.length).toBe(1);
+
+      const fromBare = await TreatmentService.getCompletedActions(species);
+      expect(fromBare.length).toBe(1);
+    });
+
+    it('handles scanId with leading scan: prefix cleanly during association', async () => {
+      const rawScanId = 'scan:camera-feed-999';
+      const plantId = 'plant-prefixed-999';
+
+      await TreatmentService.toggleTreatmentAction({
+        scanId: rawScanId,
+        phaseIndex: 0,
+        phaseDay: 'Day 1',
+        action: 'Soil aeration test',
+      });
+
+      await TreatmentService.associateScanWithPlant(rawScanId, plantId);
+      const migrated = await TreatmentService.getCompletedActions(plantId);
+      expect(migrated.length).toBe(1);
+      expect(migrated[0].plantId).toBe(plantId);
+      expect(migrated[0].targetKey).toContain(`plant:${plantId}:`);
+    });
+
+    it('deduplicates actions cleanly if plant already has the same targetKey', async () => {
+      const scanId = 'scan-dup-test';
+      const plantId = 'plant-dup-test';
+
+      // 1. Action completed under scanId
+      await TreatmentService.toggleTreatmentAction({
+        scanId,
+        phaseIndex: 0,
+        phaseDay: 'Day 1',
+        action: 'Pruning old foliage',
+      });
+
+      // 2. Same action already completed under plantId directly
+      await TreatmentService.toggleTreatmentAction({
+        plantId,
+        phaseIndex: 0,
+        phaseDay: 'Day 1',
+        action: 'Pruning old foliage',
+      });
+
+      await TreatmentService.associateScanWithPlant(scanId, plantId);
+      const migrated = await TreatmentService.getCompletedActions(plantId);
+      expect(migrated.length).toBe(1);
+    });
   });
 });
