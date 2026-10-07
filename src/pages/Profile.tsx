@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { getTextSize, setTextSize, TEXT_SIZES, type TextSize } from '../utils/textSize';
 import { getMotionPreference, setMotionPreference, MOTION_PREFERENCES, type MotionPreference } from '../utils/motionPreference';
+import NotificationOptIn from '../components/NotificationOptIn';
 import { useNavigate } from 'react-router-dom';
 import { db, type SeedTransaction } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -1161,6 +1162,26 @@ export default function Profile() {
                   >
                     <span className="passport-toggle-nub" />
                   </button>
+                </div>
+
+                {/* Web push — the real delivery channel behind the telegram
+                    toggle above. Self-hides when the server has no VAPID
+                    keys configured. */}
+                <div className="p-4 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528] flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-[#c5a059]/15 flex items-center justify-center text-[#c5a059] shrink-0">
+                      <Bell size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
+                        Weather Alert Delivery
+                      </h4>
+                      <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
+                        Push notifications to this device for watering and weather dispatches
+                      </p>
+                    </div>
+                  </div>
+                  <NotificationOptIn />
                 </div>
 
                 {/* Text size. One value on <html> rescales every rem-based
