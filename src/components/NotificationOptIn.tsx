@@ -5,6 +5,10 @@ import { supabase } from '../lib/supabase';
 // Hoisted to module scope: this is a build-time constant, and reading it on
 // every render is what made the old version briefly show the button during
 // the first paint before settling.
+//
+// The value is baked by Vite from VITE_VAPID_PUBLIC_KEY in the build
+// environment (Render env), NOT read at runtime — changing the key on the
+// server requires a rebuild to reach this component.
 const VAPID_KEY = (import.meta as any).env?.VITE_VAPID_PUBLIC_KEY as string | undefined;
 
 async function authHeader(): Promise<Record<string, string>> {
