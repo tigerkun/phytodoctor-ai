@@ -189,3 +189,27 @@ export function vitalityAfterWatering(currentScore: number | null | undefined): 
   const base = typeof currentScore === 'number' && Number.isFinite(currentScore) ? currentScore : 50;
   return Math.min(100, Math.max(0, Math.round(base + 2)));
 }
+
+/**
+ * Estimates ambient light exposure tier from a weather condition description.
+ * Defaults to 'Indirect' when condition is missing or unrecognised.
+ */
+export function inferLightFromWeather(condition?: string | null): 'Direct' | 'Indirect' | 'Low' {
+  if (!condition) return 'Indirect';
+  const c = condition.toLowerCase();
+  if (c.includes('clear') || c.includes('sunny')) return 'Direct';
+  if (c.includes('cloud') || c.includes('partly')) return 'Indirect';
+  if (
+    c.includes('overcast') ||
+    c.includes('fog') ||
+    c.includes('rain') ||
+    c.includes('drizzle') ||
+    c.includes('snow') ||
+    c.includes('thunder') ||
+    c.includes('storm')
+  ) {
+    return 'Low';
+  }
+  return 'Indirect';
+}
+

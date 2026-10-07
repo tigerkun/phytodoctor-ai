@@ -22,7 +22,9 @@ import NotificationOptIn from '../components/NotificationOptIn';
 import CheckInFlow from '../components/CheckInFlow';
 import { renderShareCard, shareCaption } from '../lib/cardShareImage';
 import { shareCard } from '../lib/share';
-import { deriveToleranceProfile, simulateMicroclimate, vitalityAfterWatering } from '../lib/environmentalSimulation';
+import { deriveToleranceProfile, inferLightFromWeather, simulateMicroclimate, vitalityAfterWatering } from '../lib/environmentalSimulation';
+import { getCachedWeather, type WeatherData } from '../services/weatherService';
+import { useGeolocation } from '../hooks/useGeolocation';
 
 
 const containerVariants = {
@@ -301,15 +303,59 @@ if (!plant) {
 
   const propLimit = profile?.tier === 'pro' ? 5 : 1;
 
+  const { location: userGeo } = useGeolocation();
+  const [locationWeather, setLocationWeather] = useState<WeatherData | null>(null);
+
+  useEffect(() => {
+    const lat = plant?.latitude ?? userGeo?.latitude;
+    const lon = plant?.longitude ?? userGeo?.longitude;
+    if (lat != null && lon != null && Number.isFinite(lat) && Number.isFinite(lon)) {
+      getCachedWeather(lat, lon).then(w => setLocationWeather(w)).catch(() => {});
+    }
+  }, [plant?.latitude, plant?.longitude, userGeo?.latitude, userGeo?.longitude]);
+
+  // Seed baseline from latest check-in weather (first priority) or location weather (fallback)
+  const baselineTemp = typeof latestCheckIn?.weatherTemp === 'number' && Number.isFinite(latestCheckIn.weatherTemp)
+    ? Math.round(latestCheckIn.weatherTemp)
+    : typeof locationWeather?.temperature === 'number' && Number.isFinite(locationWeather.temperature)
+      ? Math.round(locationWeather.temperature)
+      : 22;
+
+  const baselineHumidity = typeof latestCheckIn?.weatherHumidity === 'number' && Number.isFinite(latestCheckIn.weatherHumidity)
+    ? Math.round(latestCheckIn.weatherHumidity)
+    : typeof locationWeather?.humidity === 'number' && Number.isFinite(locationWeather.humidity)
+      ? Math.round(locationWeather.humidity)
+      : (latestCheckIn?.soilMoisture === 'Wet' ? 75 : latestCheckIn?.soilMoisture === 'Dry' ? 35 : 55);
+
+  const baselineLight = latestCheckIn?.lightLevel
+    ?? (locationWeather?.description ? inferLightFromWeather(locationWeather.description) : null)
+    ?? 'Indirect';
+
+  const hasLiveWeatherSeed = (typeof latestCheckIn?.weatherHumidity === 'number' && Number.isFinite(latestCheckIn.weatherHumidity))
+    || (typeof locationWeather?.humidity === 'number' && Number.isFinite(locationWeather.humidity));
+
   // Real-time microclimate simulation state
-  const [simTemp, setSimTemp] = useState<number>(22);
-  const [simHumidity, setSimHumidity] = useState<number>(55);
-  const [simLight, setSimLight] = useState<'Low' | 'Indirect' | 'Direct'>('Indirect');
+  const [simTemp, setSimTemp] = useState<number>(baselineTemp);
+  const [simHumidity, setSimHumidity] = useState<number>(baselineHumidity);
+  const [simLight, setSimLight] = useState<'Low' | 'Indirect' | 'Direct'>(baselineLight);
+  const [userEditedSim, setUserEditedSim] = useState(false);
   const [wateringLogging, setWateringLogging] = useState(false);
 
+  useEffect(() => {
+    if (!userEditedSim) {
+      setSimTemp(baselineTemp);
+      setSimHumidity(baselineHumidity);
+      setSimLight(baselineLight);
+    }
+  }, [baselineTemp, baselineHumidity, baselineLight, userEditedSim]);
+
   const toleranceProfile = useMemo(
-    () => deriveToleranceProfile(plant?.species || 'Plant'),
-    [plant?.species]
+    () => deriveToleranceProfile(plant?.species || 'Plant', {
+      temperatureC: latestCheckIn?.weatherTemp ?? locationWeather?.temperature,
+      lightLevel: latestCheckIn?.lightLevel,
+      soilMoisture: latestCheckIn?.soilMoisture,
+    }),
+    [plant?.species, latestCheckIn?.weatherTemp, latestCheckIn?.lightLevel, latestCheckIn?.soilMoisture, locationWeather?.temperature]
   );
 
   const simResult = useMemo(
@@ -757,9 +803,25 @@ if (!plant) {
                             Microclimate & Care Simulation Workbench
                           </h4>
                         </div>
-                        <span className="text-[9px] font-mono uppercase tracking-widest text-[#7a6855]">
-                          Live Physiological Affinities
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {userEditedSim && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSimTemp(baselineTemp);
+                                setSimHumidity(baselineHumidity);
+                                setSimLight(baselineLight);
+                                setUserEditedSim(false);
+                              }}
+                              className="min-h-[44px] px-2.5 py-1 text-[9px] font-mono font-bold uppercase tracking-wider text-[#34784d] hover:underline flex items-center"
+                            >
+                              Reset Baseline
+                            </button>
+                          )}
+                          <span className="text-[9px] font-mono uppercase tracking-widest text-[#7a6855]">
+                            Live Physiological Affinities
+                          </span>
+                        </div>
                       </div>
 
                       {/* Sliders for Temp, Humidity, Light */}
@@ -777,7 +839,10 @@ if (!plant) {
                             step="1"
                             aria-label="Simulate Temperature in Celsius"
                             value={simTemp}
-                            onChange={e => setSimTemp(Number(e.target.value))}
+                            onChange={e => {
+                              setSimTemp(Number(e.target.value));
+                              setUserEditedSim(true);
+                            }}
                             className="w-full accent-[#34784d] cursor-pointer"
                           />
                           <div className="flex justify-between text-[8px] font-mono text-[#7a6855] mt-0.5">
@@ -790,7 +855,13 @@ if (!plant) {
                         {/* Humidity */}
                         <div>
                           <div className="flex items-center justify-between text-[10px] font-mono mb-1">
-                            <span className="text-[#7a6855]">Relative Humidity</span>
+                            <span className="text-[#7a6855]">
+                              Relative Humidity {hasLiveWeatherSeed ? (
+                                <span title="Seeded from live weather" className="text-[#34784d] font-bold font-mono text-[9px]">(Live)</span>
+                              ) : (
+                                <span title="Seeded from check-in soil moisture" className="font-mono text-[9px]">≈</span>
+                              )}
+                            </span>
                             <span className="font-bold text-[#2e2117]">{simHumidity}%</span>
                           </div>
                           <input
@@ -800,7 +871,10 @@ if (!plant) {
                             step="5"
                             aria-label="Simulate Relative Humidity"
                             value={simHumidity}
-                            onChange={e => setSimHumidity(Number(e.target.value))}
+                            onChange={e => {
+                              setSimHumidity(Number(e.target.value));
+                              setUserEditedSim(true);
+                            }}
                             className="w-full accent-[#34784d] cursor-pointer"
                           />
                           <div className="flex justify-between text-[8px] font-mono text-[#7a6855] mt-0.5">
@@ -818,7 +892,10 @@ if (!plant) {
                               <button
                                 key={l}
                                 type="button"
-                                onClick={() => setSimLight(l)}
+                                onClick={() => {
+                                  setSimLight(l);
+                                  setUserEditedSim(true);
+                                }}
                                 className={`flex-1 min-h-[44px] py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg transition-all ${
                                   simLight === l
                                     ? 'bg-[#2e2117] text-[#f7f0e4] shadow-xs'

@@ -35,6 +35,7 @@ import { GameService } from '../services/gameService';
 import { identifyPlant, coerceLegacyToReport, type PlantScanReport } from '../services/geminiService';
 import ScanHistoryPanel from '../components/scan/ScanHistoryPanel';
 import PlantTelemetryCard from '../components/scan/PlantTelemetryCard';
+import { inferLightFromWeather } from '../lib/environmentalSimulation';
 import { PlantService, onPlantsChange } from '../services/plantService';
 import { StorageService } from '../services/storageService';
 import { analyzePlantHealth, type PlantSignature } from '../services/driftDetector';
@@ -1168,7 +1169,13 @@ export default function BotanicalLab() {
 
                             {/* Interactive Physiological Telemetry & Recovery Roadmap */}
                             {dexResult?.report?.kind === 'plant' && (
-                              <PlantTelemetryCard report={dexResult.report} />
+                              <PlantTelemetryCard report={dexResult.report}
+                                ambientWeather={dexResult.report.weather ? {
+                                  temperatureC: dexResult.report.weather.temp,
+                                  humidityPct: dexResult.report.weather.humidity,
+                                  lightLevel: inferLightFromWeather(dexResult.report.weather.condition),
+                                } : undefined}
+                              />
                             )}
 
                             {/* Seeds and XP Allotment Rewards Claimed Banner */}

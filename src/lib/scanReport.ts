@@ -55,6 +55,13 @@ export interface ScanReportBase {
   message?: string;
 }
 
+export interface ScanWeather {
+  temp: number;
+  humidity: number;
+  condition?: string;
+  windSpeed?: number;
+}
+
 export interface PlantScanReport extends ScanReportBase {
   kind: 'plant';
   healthStatus: HealthStatus;
@@ -78,11 +85,13 @@ export interface PlantScanReport extends ScanReportBase {
   vitals: { guardianScore: number; statusLabel: StatusLabel };
   /** Model-level, else the top differential, else null — never an invented number. */
   confidencePct: number | null;
+  weather?: ScanWeather | null;
   location: {
     locationAdvice: string;
     seasonalCare: string;
     localPestRisks: string;
     climateCompatibility: string;
+    weather?: ScanWeather | null;
   } | null;
 }
 
@@ -117,6 +126,8 @@ export interface ShapeScanReportInput {
   /** Whether the request carried a location block — gates the location fields. */
   locationProvided?: boolean;
   message?: string;
+  /** Real-time local ambient weather if resolved during the scan. */
+  weather?: ScanWeather | null;
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -398,6 +409,20 @@ export function shapeScanReport(input: ShapeScanReportInput): ScanReport {
     const hasLocation = input.locationProvided === true &&
       Object.values(locationFields).some(v => v.length > 0);
 
+    const rawWeather = input.weather ?? model.weather;
+    const weather: ScanWeather | null =
+      rawWeather &&
+      typeof rawWeather === 'object' &&
+      Number.isFinite(Number(rawWeather.temp)) &&
+      Number.isFinite(Number(rawWeather.humidity))
+        ? {
+            temp: Math.round(Number(rawWeather.temp) * 10) / 10,
+            humidity: Math.round(Number(rawWeather.humidity)),
+            condition: typeof rawWeather.condition === 'string' ? str(rawWeather.condition) || undefined : undefined,
+            windSpeed: Number.isFinite(Number(rawWeather.windSpeed)) ? Math.round(Number(rawWeather.windSpeed)) : undefined,
+          }
+        : null;
+
     return {
       ...base,
       kind: 'plant',
@@ -420,7 +445,8 @@ export function shapeScanReport(input: ShapeScanReportInput): ScanReport {
       vulnerabilityNotes: str(model.vulnerabilityNotes),
       vitals: { guardianScore, statusLabel: statusLabelFromScore(guardianScore) },
       confidencePct: confidence,
-      location: hasLocation ? locationFields : null,
+      weather,
+      location: hasLocation ? { ...locationFields, ...(weather ? { weather } : {}) } : null,
     };
   }
 
@@ -490,5 +516,6 @@ export function coerceLegacyToReport(legacy: any): ScanReport {
       resolution: null,
     },
     message: str(legacy?.message) || undefined,
+    weather: legacy?.weather ?? null,
   });
 }

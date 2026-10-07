@@ -1043,6 +1043,7 @@ app.post("/api/identify", express.json({ limit: '11mb' }), aiLimiter, apiOrGuest
     // that may be stale, absent, or fabricated. Falls back to the client's
     // own weather object when coordinates are missing or the fetch fails.
     let locationBlock = "";
+    let weatherContext: LiveWeather | { temp: number; humidity: number; windSpeed?: number; condition?: string } | null = null;
     if (location && typeof location === 'object') {
       const parts: string[] = [];
       const city = strLimit(location.city, 120);
@@ -1061,6 +1062,7 @@ app.post("/api/identify", express.json({ limit: '11mb' }), aiLimiter, apiOrGuest
       }
       const w = liveWeather ?? (location.weather && typeof location.weather === 'object' ? location.weather : null);
       if (w) {
+        weatherContext = w;
         const temp = Number(w.temp), hum = Number(w.humidity), wind = Number(w.windSpeed);
         const cond = typeof w.condition === 'string' ? strLimit(w.condition, 60) : null;
         parts.push(`Current Weather: ${Number.isFinite(temp) ? temp : '?'}°C, ${Number.isFinite(hum) ? hum : '?'}% humidity, ${cond ?? 'unknown'}${Number.isFinite(wind) ? `, wind ${wind} km/h` : ''}`);
@@ -1395,17 +1397,24 @@ LOCATION-AWARE FIELDS (required if location provided):
     // reward without blocking the diagnosis.
     result.route = 'plant';
     result.provenance = provenanceFull;
+    const scanWeather = weatherContext && Number.isFinite(Number(weatherContext.temp)) && Number.isFinite(Number(weatherContext.humidity)) ? {
+      temp: Number(weatherContext.temp),
+      humidity: Number(weatherContext.humidity),
+      windSpeed: Number.isFinite(Number((weatherContext as any).windSpeed)) ? Number((weatherContext as any).windSpeed) : undefined,
+      condition: typeof weatherContext.condition === 'string' ? weatherContext.condition : undefined,
+    } : null;
     const report = shapeScanReport({
       model: result,
       route: 'plant',
       subject: { kind, confidence: subjectConfidence, description: subjectDescription },
       provenance: provenanceFull,
       locationProvided: Boolean(locationBlock),
+      weather: scanWeather,
     });
     void persistScanReport(report, req);
     // report last: a stray `report` key in the raw model payload must never
     // overwrite the server-shaped one.
-    res.json({ ...result, report });
+    res.json({ ...result, weather: scanWeather, report });
   } catch (error: any) {
     log.error('Gemini request failed', { status: error?.response?.status || error?.status, err: error });
     fail(res, 500, AI_GENERIC_ERROR);

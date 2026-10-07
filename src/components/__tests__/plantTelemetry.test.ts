@@ -71,4 +71,29 @@ describe('PlantTelemetryCard generative UI structure and safety', () => {
     expect(workbenchLight).not.toBeNull();
     expect(workbenchLight![1]).toContain('min-h-[44px]');
   });
+
+  it('PlantTelemetryCard supports live ambient weather seeding and displays the (Live) badge', () => {
+    const cleanTelemetry = stripJsComments(telemetrySource);
+    expect(cleanTelemetry).toContain('hasLiveWeather');
+    expect(cleanTelemetry).toContain('(Live)');
+    expect(cleanTelemetry).toContain('ambientWeather');
+  });
+
+  it('BotanicalLab passes scan ambientWeather into PlantTelemetryCard', () => {
+    const cleanLab = stripJsComments(labSource);
+    expect(cleanLab).toContain('ambientWeather=');
+    expect(cleanLab).toContain('dexResult.report.weather');
+  });
+
+  it('PlantDetail seeds microclimate from latest check-in or location weather and provides accessible Reset Baseline', () => {
+    const cleanDetail = stripJsComments(plantDetailSource);
+    expect(cleanDetail).toContain('latestCheckIn?.weatherTemp');
+    expect(cleanDetail).toContain('latestCheckIn?.weatherHumidity');
+    expect(cleanDetail).toContain('getCachedWeather');
+    expect(cleanDetail).toContain('Reset Baseline');
+
+    const resetBtn = cleanDetail.match(/Reset Baseline[\s\S]*?<\/button>/) || cleanDetail.match(/<button[^>]*>[^<]*Reset Baseline/);
+    expect(resetBtn).not.toBeNull();
+    expect(cleanDetail).toMatch(/Reset Baseline[\s\S]*?min-h-\[44px\]|<button[^>]*min-h-\[44px\][^>]*>[^<]*Reset Baseline/);
+  });
 });

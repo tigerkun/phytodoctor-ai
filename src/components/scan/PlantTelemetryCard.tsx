@@ -18,27 +18,66 @@ import { useEcoMode } from '../../hooks/useEcoMode';
 import type { PlantScanReport } from '../../lib/scanReport';
 import {
   deriveToleranceProfile,
+  inferLightFromWeather,
   simulateMicroclimate,
   type MicroclimateInput,
 } from '../../lib/environmentalSimulation';
+
+export interface TelemetryAmbientWeather {
+  temperatureC?: number | null;
+  humidityPct?: number | null;
+  lightLevel?: 'Direct' | 'Indirect' | 'Low' | null;
+}
 
 interface PlantTelemetryCardProps {
   report: PlantScanReport;
   className?: string;
   compact?: boolean;
+  ambientWeather?: TelemetryAmbientWeather | null;
 }
 
-export default function PlantTelemetryCard({ report, className = '', compact = false }: PlantTelemetryCardProps) {
+export default function PlantTelemetryCard({
+  report,
+  className = '',
+  compact = false,
+  ambientWeather = null,
+}: PlantTelemetryCardProps) {
   const { shouldDisableAnimations } = useEcoMode();
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(0);
   const [showSimulator, setShowSimulator] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({});
 
-  // Environmental simulation state (seeded safely from scan vitals)
+  // Environmental simulation state: prefer live ambient weather from the scan or props,
+  // falling back to parsed care guidelines and soil moisture heuristic.
   const careParsed = report?.careParsed;
-  const initialTemp = careParsed?.temperatureC ?? 22;
-  const initialHumidity = careParsed?.soilMoisture === 'Wet' ? 75 : careParsed?.soilMoisture === 'Dry' ? 35 : 55;
-  const initialLight = careParsed?.lightLevel ?? 'Indirect';
+  const rawWeather = ambientWeather ?? report?.weather ?? report?.location?.weather;
+  const weatherTemp = rawWeather && 'temperatureC' in rawWeather && typeof rawWeather.temperatureC === 'number'
+    ? rawWeather.temperatureC
+    : rawWeather && 'temp' in rawWeather && typeof rawWeather.temp === 'number'
+      ? rawWeather.temp
+      : null;
+  const weatherHumidity = rawWeather && 'humidityPct' in rawWeather && typeof rawWeather.humidityPct === 'number'
+    ? rawWeather.humidityPct
+    : rawWeather && 'humidity' in rawWeather && typeof rawWeather.humidity === 'number'
+      ? rawWeather.humidity
+      : null;
+  const weatherLight = rawWeather && 'lightLevel' in rawWeather && rawWeather.lightLevel
+    ? rawWeather.lightLevel
+    : rawWeather && 'condition' in rawWeather && rawWeather.condition
+      ? inferLightFromWeather(rawWeather.condition)
+      : null;
+
+  const hasLiveWeather = typeof weatherHumidity === 'number' && Number.isFinite(weatherHumidity);
+
+  const initialTemp = typeof weatherTemp === 'number' && Number.isFinite(weatherTemp)
+    ? Math.round(weatherTemp)
+    : (careParsed?.temperatureC ?? 22);
+
+  const initialHumidity = typeof weatherHumidity === 'number' && Number.isFinite(weatherHumidity)
+    ? Math.round(weatherHumidity)
+    : (careParsed?.soilMoisture === 'Wet' ? 75 : careParsed?.soilMoisture === 'Dry' ? 35 : 55);
+
+  const initialLight = weatherLight ?? careParsed?.lightLevel ?? 'Indirect';
 
   const [simEnv, setSimEnv] = useState<MicroclimateInput>({
     temperatureC: initialTemp,
@@ -311,7 +350,13 @@ export default function PlantTelemetryCard({ report, className = '', compact = f
                 {/* Humidity Slider */}
                 <div>
                   <div className="flex items-center justify-between text-[10px] font-mono mb-1">
-                    <span className="text-text-stone">Humidity (%) <span title="Seeded from the scan, not measured">≈</span></span>
+                    <span className="text-text-stone">
+                      Humidity (%) {hasLiveWeather ? (
+                        <span title="Seeded from live local weather" className="text-moss font-bold">(Live)</span>
+                      ) : (
+                        <span title="Seeded from the scan, not measured">≈</span>
+                      )}
+                    </span>
                     <span className="font-bold text-moss">{simEnv.humidityPct}%</span>
                   </div>
                   <input

@@ -701,7 +701,9 @@ export class GameService {
 
     const light = report.careParsed.lightLevel;
     const soilMoisture = report.careParsed.soilMoisture;
-    const weatherTemp = report.careParsed.temperatureC;
+    const weatherTemp = report.weather?.temp ?? report.careParsed.temperatureC;
+    const weatherHumidity = report.weather?.humidity ?? null;
+    const weatherDescription = report.weather?.condition ?? report.healthStatus ?? null;
 
     let finalPhotoUrl = photoUrl;
     if (finalPhotoUrl && finalPhotoUrl.startsWith('data:')) {
@@ -794,8 +796,8 @@ export class GameService {
       driftScore: null,
       driftStatus: score >= 80 ? 'stable' : score >= 55 ? 'watching' : 'alert',
       weatherTemp,
-      weatherHumidity: null,
-      weatherDescription: report.healthStatus || null,
+      weatherHumidity,
+      weatherDescription,
       synced: 0,
     });
 

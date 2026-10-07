@@ -234,4 +234,53 @@ describe('legacy coercion (guest pending-scan restore only)', () => {
     expect(r.kind).toBe('plant');
     expect(r.provenance.verdict).toBe('unverified');
   });
+
+  it('forwards legacy weather if present on unshaped payloads', () => {
+    const r = coerceLegacyToReport({
+      commonName: 'Fern',
+      diagnosis: 'Looks fine.',
+      weather: { temp: 21.4, humidity: 62, condition: 'Partly cloudy' },
+    });
+    expect(r.kind).toBe('plant');
+    expect((r as PlantScanReport).weather).toEqual({
+      temp: 21.4,
+      humidity: 62,
+      condition: 'Partly cloudy',
+      windSpeed: undefined,
+    });
+  });
 });
+
+describe('scan weather integration', () => {
+  it('shapes live weather into PlantScanReport and nests it in location when provided', () => {
+    const r = shapeScanReport({
+      model: PLANT_MODEL,
+      route: 'plant',
+      subject: { kind: 'plant', confidence: 0.9, description: 'leaf' },
+      provenance: PROVENANCE,
+      locationProvided: true,
+      weather: { temp: 24.67, humidity: 55.4, condition: 'Mainly clear', windSpeed: 12.3 },
+    }) as PlantScanReport;
+
+    expect(r.weather).toEqual({
+      temp: 24.7,
+      humidity: 55,
+      condition: 'Mainly clear',
+      windSpeed: 12,
+    });
+    expect(r.location?.weather).toEqual(r.weather);
+  });
+
+  it('tolerates missing or null weather safely', () => {
+    const r = shapeScanReport({
+      model: PLANT_MODEL,
+      route: 'plant',
+      subject: { kind: 'plant', confidence: 0.9, description: 'leaf' },
+      provenance: PROVENANCE,
+      locationProvided: false,
+    }) as PlantScanReport;
+
+    expect(r.weather).toBeNull();
+  });
+});
+
