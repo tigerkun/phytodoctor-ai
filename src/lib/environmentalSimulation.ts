@@ -153,7 +153,9 @@ export function simulateMicroclimate(
   }
 
   if (lightMismatch >= 50) {
-    alerts.push(`Photoperiod mismatch: specimen thrives under ${normIdealLight.toLowerCase()} light.`);
+    // "Photoperiod" means day LENGTH; this is light-intensity mismatch.
+    // The copy says what the simulation actually computes.
+    alerts.push(`Light exposure mismatch: specimen thrives under ${normIdealLight.toLowerCase()} light.`);
   }
 
   let statusDescription = 'Microclimatic parameters align with physiological equilibrium.';
@@ -174,4 +176,16 @@ export function simulateMicroclimate(
     statusDescription,
     alerts,
   };
+}
+
+/**
+ * The vitality nudge a logged watering earns.
+ *
+ * Deliberately small and named: PlantDetail used to inline a bare "+2", an
+ * untested policy decision. A watering log is a care event, not a diagnosis —
+ * it may nudge vitality upward but can never manufacture health.
+ */
+export function vitalityAfterWatering(currentScore: number | null | undefined): number {
+  const base = typeof currentScore === 'number' && Number.isFinite(currentScore) ? currentScore : 50;
+  return Math.min(100, Math.max(0, Math.round(base + 2)));
 }

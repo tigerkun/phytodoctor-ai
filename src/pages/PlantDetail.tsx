@@ -22,7 +22,7 @@ import NotificationOptIn from '../components/NotificationOptIn';
 import CheckInFlow from '../components/CheckInFlow';
 import { renderShareCard, shareCaption } from '../lib/cardShareImage';
 import { shareCard } from '../lib/share';
-import { deriveToleranceProfile, simulateMicroclimate } from '../lib/environmentalSimulation';
+import { deriveToleranceProfile, simulateMicroclimate, vitalityAfterWatering } from '../lib/environmentalSimulation';
 
 
 const containerVariants = {
@@ -329,7 +329,7 @@ if (!plant) {
     try {
       const now = new Date();
       const nextDue = new Date(now.getTime() + wateringInterval * 86_400_000);
-      const newScore = Math.min(100, (plant.guardianScore ?? 50) + 2);
+      const newScore = vitalityAfterWatering(plant.guardianScore);
       await PlantService.updatePlant(id, {
         lastWateredAt: now,
         nextWaterDue: nextDue,

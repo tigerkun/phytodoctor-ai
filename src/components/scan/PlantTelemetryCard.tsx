@@ -14,6 +14,7 @@ import {
   Thermometer,
   Zap,
 } from 'lucide-react';
+import { useEcoMode } from '../../hooks/useEcoMode';
 import type { PlantScanReport } from '../../lib/scanReport';
 import {
   deriveToleranceProfile,
@@ -28,6 +29,7 @@ interface PlantTelemetryCardProps {
 }
 
 export default function PlantTelemetryCard({ report, className = '', compact = false }: PlantTelemetryCardProps) {
+  const { shouldDisableAnimations } = useEcoMode();
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(0);
   const [showSimulator, setShowSimulator] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({});
@@ -52,6 +54,7 @@ export default function PlantTelemetryCard({ report, className = '', compact = f
       lightLevel: initialLight,
     });
     setSelectedPhaseIdx(0);
+    setCompletedSteps({});
   }, [initialTemp, initialHumidity, initialLight, report?.scientificName, report?.displayName]);
 
   const toleranceProfile = useMemo(
@@ -119,7 +122,7 @@ export default function PlantTelemetryCard({ report, className = '', compact = f
           {/* Photoperiod */}
           <div className="p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-border-light">
             <div className="flex items-center justify-between text-text-stone text-[9px] font-mono uppercase tracking-wider mb-1">
-              <span>Photoperiod</span>
+              <span>Light Exposure</span>
               <Sun size={12} className="text-yellow-500" />
             </div>
             <p className="text-xs font-bold truncate">{careParsed?.lightLevel || 'Indirect'}</p>
@@ -180,8 +183,7 @@ export default function PlantTelemetryCard({ report, className = '', compact = f
           {currentPhase && (
             <motion.div
               key={selectedPhaseIdx}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
+              {...(!shouldDisableAnimations ? { initial: { opacity: 0, y: 4 }, animate: { opacity: 1, y: 0 } } : {})}
               className="p-3.5 sm:p-4 rounded-xl bg-black/5 dark:bg-white/5 border border-border-light space-y-2.5"
             >
               <div className="flex items-start justify-between gap-3">
@@ -309,7 +311,7 @@ export default function PlantTelemetryCard({ report, className = '', compact = f
                 {/* Humidity Slider */}
                 <div>
                   <div className="flex items-center justify-between text-[10px] font-mono mb-1">
-                    <span className="text-text-stone">Humidity (%)</span>
+                    <span className="text-text-stone">Humidity (%) <span title="Seeded from the scan, not measured">≈</span></span>
                     <span className="font-bold text-moss">{simEnv.humidityPct}%</span>
                   </div>
                   <input

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   deriveToleranceProfile,
   simulateMicroclimate,
+  vitalityAfterWatering,
   type PlantToleranceProfile,
 } from '../environmentalSimulation';
 
@@ -121,5 +122,19 @@ describe('environmentalSimulation', () => {
       profile
     );
     expect(sim.alerts.some(a => a.includes('Thermal deficit'))).toBe(true);
+  });
+});
+
+describe('vitalityAfterWatering', () => {
+  it('nudges vitality by exactly +2 and caps at 100', () => {
+    expect(vitalityAfterWatering(50)).toBe(52);
+    expect(vitalityAfterWatering(99)).toBe(100);
+    expect(vitalityAfterWatering(100)).toBe(100);
+  });
+
+  it('treats missing scores as the 50 baseline rather than NaN', () => {
+    expect(vitalityAfterWatering(null)).toBe(52);
+    expect(vitalityAfterWatering(undefined)).toBe(52);
+    expect(vitalityAfterWatering(Number.NaN)).toBe(52);
   });
 });
