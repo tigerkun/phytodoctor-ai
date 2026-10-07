@@ -1358,6 +1358,50 @@ LOCATION-AWARE FIELDS (required if location provided):
   }
 });
 
+// ── Scan history ───────────────────────────────────────────────────────────
+// The archive half of the report pipeline: every persisted analysis, readable
+// by the account that produced it. Authenticated only — guests have no
+// account to attach a history to. Paginated, newest first.
+app.get("/api/scan-history", generalLimiter, apiGate, async (req, res) => {
+  const userId = (req as any).authUserId as string | undefined;
+  if (!userId) return fail(res, 401, 'Sign in to view your scan history.');
+
+  const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
+  const offset = Math.max(0, Number(req.query.offset) || 0);
+
+  try {
+    const { data, error, count } = await supabaseAdmin
+      .from('scan_reports')
+      .select('id, created_at, kind, route, report', { count: 'exact' })
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (error) throw error;
+
+    res.json({
+      items: (data ?? []).map((row: any) => ({
+        id: row.id,
+        createdAt: row.created_at,
+        kind: row.kind,
+        route: row.route,
+        report: row.report,
+      })),
+      total: count ?? 0,
+      limit,
+      offset,
+    });
+  } catch (err: any) {
+    const missing = err?.code === 'PGRST205' || err?.code === '42P01' || /does not exist/i.test(String(err?.message));
+    if (missing) {
+      // The migration has not been applied yet — say so honestly instead of
+      // pretending the history is empty.
+      return res.json({ items: [], total: 0, limit, offset, unavailable: true });
+    }
+    log.error('Scan history read failed', { err });
+    fail(res, 500, AI_GENERIC_ERROR);
+  }
+});
+
 app.post("/api/sandbox", express.json({ limit: '64kb' }), aiLimiter, apiGate, tierGate("assess"), async (req, res) => {
   try {
     const { mode, species, environment } = req.body;

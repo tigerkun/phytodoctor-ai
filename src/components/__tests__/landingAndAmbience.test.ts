@@ -114,6 +114,23 @@ describe('Species-Aware Scan Reports & Non-Plant Safeguards', () => {
     expect(persistBody).not.toMatch(/base64|image/i);
   });
 
+  it('the scan history API is authenticated, paginated and user-scoped', () => {
+    const server = stripJsComments(readSource('server.ts'));
+    expect(server).toContain('app.get("/api/scan-history"');
+    expect(server).toMatch(/apiGate, async \(req, res\) => \{\s*const userId = \(req as any\)\.authUserId/);
+    // The archive is per-account: the query must filter by the caller.
+    expect(server).toMatch(/\.eq\('user_id', userId\)/);
+    // A missing migration reads as "unavailable", never as an empty history.
+    expect(server).toMatch(/unavailable: true/);
+  });
+
+  it('the lab carries the Herbarium Archive with photo-less re-indexing', () => {
+    expect(lab).toContain('ScanHistoryPanel');
+    expect(lab).toMatch(/activeTab === 'history' && \(/);
+    // null, not '': a photo-less re-index must not store an empty image URL.
+    expect(lab).toMatch(/indexScannedPlant\(report, null, userId\)/);
+  });
+
   it('predict-growth validates the model JSON instead of passing it raw', () => {
     const server = stripJsComments(readSource('server.ts'));
     expect(server).toContain('The growth forecast came back malformed');
