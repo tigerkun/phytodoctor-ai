@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Calendar, ShieldCheck, Activity, AlertCircle, Droplets, Sun, TrendingUp, Box, Camera, Clock, Star, Sprout, Crown, Zap, Plus, Loader2, Book, Bookmark, Send, Share2 } from 'lucide-react';
+import { ChevronLeft, Calendar, ShieldCheck, Activity, AlertCircle, Droplets, Sun, TrendingUp, Box, Camera, Clock, Star, Sprout, Crown, Zap, Plus, Loader2, Book, Bookmark, Send, Share2, Microscope } from 'lucide-react';
 import { db, type PlantNote } from '../db/database';
 import { useAppBack } from '../hooks/useAppBack';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -354,7 +354,7 @@ const children = lineage?.filter(candidate => candidate.parentPlantId === plant?
       },
       {
         day: 'Day 7',
-        action: 'Foliar Hygiene & Photoperiod Balancing',
+        action: 'Foliar Hygiene & Light Exposure Balancing',
         expectedOutcome: 'Optimize transpiration rate and light capture efficiency.',
       },
       {
@@ -599,22 +599,31 @@ const children = lineage?.filter(candidate => candidate.parentPlantId === plant?
                     </div>
                   </div>
 
-                  <div className="bg-[#2a2017] p-5 rounded-2xl border-2 border-[#5a422e] text-[#f7f0e4] flex flex-col justify-center items-start gap-1.5 shadow-sm relative overflow-hidden">
-                    <div className="flex items-center justify-between w-full">
-                      <span className="text-[9px] font-mono uppercase tracking-widest text-[#c4a574]">Clinical Status</span>
-                      <ShieldCheck size={16} className="text-[#52b788]" />
+                  <div className="bg-[#2a2017] p-5 rounded-2xl border-2 border-[#5a422e] text-[#f7f0e4] flex flex-col justify-between items-start gap-2 shadow-sm relative overflow-hidden">
+                    <div className="w-full">
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-[9px] font-mono uppercase tracking-widest text-[#c4a574]">Clinical Status</span>
+                        <ShieldCheck size={16} className="text-[#52b788]" />
+                      </div>
+                      <div className="mt-1 px-3 py-1 bg-[#52b788]/20 border border-[#52b788]/50 rounded text-[11px] font-mono font-bold uppercase tracking-wider text-[#7ae0aa] inline-block">
+                        {plant.status || 'Active Guardian'}
+                      </div>
                     </div>
-                    <div className="mt-1 px-3 py-1 bg-[#52b788]/20 border border-[#52b788]/50 rounded text-[11px] font-mono font-bold uppercase tracking-wider text-[#7ae0aa]">
-                      {plant.status || 'Active Guardian'}
-                    </div>
-                    <p className="text-[9px] text-[#c4b193]/70 font-mono tracking-wide mt-1">Telemetry synchronized daily</p>
+                    <button
+                      type="button"
+                      onClick={() => transitionTo(`/lab?tab=pathology&plantId=${encodeURIComponent(plant.id)}`, 'Pathology Workbench')}
+                      className="min-h-[44px] w-full px-3 py-2 bg-[#52b788]/15 hover:bg-[#52b788]/25 border border-[#52b788]/40 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider text-[#7ae0aa] flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <Microscope size={13} />
+                      <span>Compare Leaf Pathology</span>
+                    </button>
                   </div>
                 </div>
 
                 {/* Telemetry Strip */}
                 <div className="grid grid-cols-3 gap-3">
                   <DetailStat icon={<Droplets size={16} />} label="Soil Moisture" value={history?.[history.length-1]?.soilMoisture || 'Normal'} />
-                  <DetailStat icon={<Sun size={16} />} label="Photoperiod" value={history?.[history.length-1]?.lightLevel || 'Filtered'} />
+                  <DetailStat icon={<Sun size={16} />} label="Light Exposure" value={history?.[history.length-1]?.lightLevel || 'Filtered'} />
                   <DetailStat icon={<Clock size={16} />} label="Intake Cycle" value="Daily Review" />
                 </div>
 

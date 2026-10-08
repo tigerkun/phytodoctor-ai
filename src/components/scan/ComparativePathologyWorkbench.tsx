@@ -219,6 +219,7 @@ export default function ComparativePathologyWorkbench({
   const [insight, setInsight] = useState<ClinicalInsight | null>(null);
   const [isCalculating, setIsCalculating] = useState<boolean>(false);
   const [calcError, setCalcError] = useState<string | null>(null);
+  const [computeTick, setComputeTick] = useState<number>(0);
 
   useEffect(() => {
     if (!timepointA || !timepointB || !selectedPlant) {
@@ -293,7 +294,7 @@ export default function ComparativePathologyWorkbench({
     return () => {
       active = false;
     };
-  }, [timepointA, timepointB, selectedPlant]);
+  }, [timepointA, timepointB, selectedPlant, computeTick]);
 
   // Quick Preset Handlers
   const handlePresetBaselineVsLatest = () => {
@@ -387,7 +388,10 @@ export default function ComparativePathologyWorkbench({
                 label: 'Choose Another Plant',
                 onClick: () => {
                   const alt = sanctuaryPlants.find(p => p.id !== selectedPlantId);
-                  if (alt) setSelectedPlantId(alt.id);
+                  if (alt) {
+                    setSelectedPlantId(alt.id);
+                    onSelectPlant?.(alt.id);
+                  }
                 },
                 variant: 'secondary',
               }}
@@ -627,7 +631,7 @@ export default function ComparativePathologyWorkbench({
               message={calcError}
               onRetry={() => {
                 setCalcError(null);
-                setSpecimenAId((prev) => prev);
+                setComputeTick((t) => t + 1);
               }}
             />
           ) : metrics ? (
