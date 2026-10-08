@@ -24,6 +24,7 @@ import {
   Thermometer,
   Compass,
   History,
+  Microscope,
   ArrowRight,
   TrendingUp,
   FileText,
@@ -35,6 +36,7 @@ import { GameService } from '../services/gameService';
 import { identifyPlant, coerceLegacyToReport, type PlantScanReport } from '../services/geminiService';
 import ScanHistoryPanel from '../components/scan/ScanHistoryPanel';
 import PlantTelemetryCard from '../components/scan/PlantTelemetryCard';
+import ComparativePathologyWorkbench from '../components/scan/ComparativePathologyWorkbench';
 import { inferLightFromWeather } from '../lib/environmentalSimulation';
 import { PlantService, onPlantsChange } from '../services/plantService';
 import { StorageService } from '../services/storageService';
@@ -146,13 +148,15 @@ function ProvenanceBadge({ provenance }: { provenance: any }) {
 export default function BotanicalLab() {
   const { success, error } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab: 'dex' | 'sanctuary' | 'history' =
+  const initialTab: 'dex' | 'sanctuary' | 'pathology' | 'history' =
     searchParams.get('tab') === 'sanctuary' ? 'sanctuary'
+    : searchParams.get('tab') === 'pathology' ? 'pathology'
     : searchParams.get('tab') === 'history' ? 'history'
     : 'dex';
 
-  // Tabs: 'dex' = Garden-Dex, 'sanctuary' = My Sanctuary, 'history' = Herbarium Archive
-  const [activeTab, setActiveTab] = useState<'dex' | 'sanctuary' | 'history'>(initialTab);
+  // Tabs: 'dex' = Garden-Dex, 'sanctuary' = My Sanctuary, 'pathology' = Comparative Pathology, 'history' = Herbarium Archive
+  const [activeTab, setActiveTab] = useState<'dex' | 'sanctuary' | 'pathology' | 'history'>(initialTab);
+  const [selectedPathologyPlantId, setSelectedPathologyPlantId] = useState<string | null>(searchParams.get('plantId'));
   
   // Modals & Panels
   const [showLedger, setShowLedger] = useState(false);
@@ -250,6 +254,11 @@ export default function BotanicalLab() {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'sanctuary') {
       setActiveTab('sanctuary');
+    } else if (tabParam === 'pathology') {
+      setActiveTab('pathology');
+      if (searchParams.get('plantId')) {
+        setSelectedPathologyPlantId(searchParams.get('plantId'));
+      }
     } else if (tabParam === 'history') {
       setActiveTab('history');
     } else if (tabParam === 'dex') {
@@ -750,16 +759,16 @@ export default function BotanicalLab() {
 
           <div className="flex flex-wrap items-center gap-3 sm:gap-4 shrink-0">
             <div className="bg-bg-secondary p-1 rounded-full flex relative border border-border-light shadow-sm">
-              {(['dex', 'sanctuary', 'history'] as const).map((tab) => (
+              {(['dex', 'sanctuary', 'pathology', 'history'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => { setActiveTab(tab); setSearchParams({ tab }); }}
-                  className={`relative z-10 px-4 sm:px-6 py-2.5 sm:py-3 min-h-[44px] rounded-full text-xs font-black uppercase tracking-wider transition-colors duration-300 flex items-center gap-2 ${
+                  className={`relative z-10 px-3 sm:px-5 py-2.5 sm:py-3 min-h-[44px] rounded-full text-xs font-black uppercase tracking-wider transition-colors duration-300 flex items-center gap-1.5 sm:gap-2 ${
                     activeTab === tab ? 'text-white' : 'text-text-stone hover:text-text-bark'
                   }`}
                 >
-                  {tab === 'dex' ? <Compass size={12} /> : tab === 'sanctuary' ? <Heart size={12} /> : <History size={12} />}
-                  {tab === 'dex' ? 'Plant Database' : tab === 'sanctuary' ? 'Garden Sanctuary' : 'Archive'}
+                  {tab === 'dex' ? <Compass size={12} /> : tab === 'sanctuary' ? <Heart size={12} /> : tab === 'pathology' ? <Microscope size={12} /> : <History size={12} />}
+                  {tab === 'dex' ? 'Plant Database' : tab === 'sanctuary' ? 'Garden Sanctuary' : tab === 'pathology' ? 'Comparative Pathology' : 'Archive'}
                   {activeTab === tab && <motion.div layoutId="labTabIndicator" className="absolute inset-0 bg-moss-deep rounded-full -z-10" />}
                 </button>
               ))}
@@ -1587,6 +1596,17 @@ export default function BotanicalLab() {
                       </motion.button>
 
                       <button
+                        onClick={() => {
+                          setSelectedPathologyPlantId(plant.id);
+                          setActiveTab('pathology');
+                          setSearchParams({ tab: 'pathology', plantId: plant.id });
+                        }}
+                        className="min-h-[44px] w-full py-2.5 px-3 rounded-xl border border-moss/30 bg-moss/5 hover:bg-moss/10 text-moss dark:text-moss-light text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all font-mono shadow-xs"
+                      >
+                        🔬 Compare Pathology
+                      </button>
+
+                      <button
                         onClick={() => transitionTo(`/plant/${plant.id}`, plant.name)}
                         className="min-h-[44px] w-full py-2 text-[9px] font-black uppercase tracking-widest text-moss hover:text-moss-dark flex items-center justify-center gap-1 transition-colors font-mono"
                       >
@@ -1617,6 +1637,22 @@ export default function BotanicalLab() {
 
             </div>
           </div>
+        )}
+
+        {/* ==================== TAB C: COMPARATIVE PATHOLOGY ==================== */}
+        {activeTab === 'pathology' && (
+          <ComparativePathologyWorkbench
+            preselectedPlantId={selectedPathologyPlantId || searchParams.get('plantId')}
+            onNavigateToDex={() => {
+              setActiveTab('dex');
+              setSearchParams({ tab: 'dex' });
+            }}
+            onNavigateToDossier={(plantId, name) => transitionTo(`/plant/${plantId}`, name)}
+            onSelectPlant={(plantId) => {
+              setSelectedPathologyPlantId(plantId);
+              setSearchParams({ tab: 'pathology', plantId });
+            }}
+          />
         )}
 
       </div>
