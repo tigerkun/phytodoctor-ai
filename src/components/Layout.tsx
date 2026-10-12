@@ -88,6 +88,33 @@ export default function Layout({ children }: LayoutProps) {
     }
   }, []);
 
+  // Auto-logout after 15 minutes of inactivity.
+  React.useEffect(() => {
+    if (!hasAuth) return;
+    let t: ReturnType<typeof setTimeout>;
+    let last = Date.now();
+    const logout = () => {
+      supabase?.auth.signOut();
+      localStorage.removeItem('botanical_guardian_auth_token');
+      navigate('/auth', { state: { message: 'Session expired due to inactivity.' }, replace: true });
+    };
+    const reset = () => {
+      const now = Date.now();
+      if (now - last > 1000) {
+        last = now;
+        clearTimeout(t);
+        t = setTimeout(logout, 900_000);
+      }
+    };
+    t = setTimeout(logout, 900_000);
+    const events = ['pointerdown', 'keydown', 'scroll', 'mousemove', 'touchstart'];
+    events.forEach(e => window.addEventListener(e, reset, { passive: true }));
+    return () => {
+      clearTimeout(t);
+      events.forEach(e => window.removeEventListener(e, reset));
+    };
+  }, [hasAuth, navigate]);
+
   // Redirect guard only — depends on the route so a fresh visit to a protected
   // page still bounces to /auth, but navigation between pages is free.
   React.useEffect(() => {

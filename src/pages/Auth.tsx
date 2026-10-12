@@ -8,6 +8,7 @@ import { GameService } from '../services/gameService';
 import { isValidEmail, evaluatePasswordStrength, generateLocalUserId, hashPassword, verifyPassword, isCurrentHashScheme, getAuthLockout, recordAuthFailure, clearAuthFailures } from '../services/authUtils';
 import { supabase, supabaseConfigured } from '../lib/supabase';
 import { consumeAuthReturn } from '../lib/guestHandoff';
+import { useLocation } from 'react-router-dom';
 
 function GoogleMark() {
   return (
@@ -41,6 +42,7 @@ async function persistSession(userId: string, userEmail: string, displayName: st
 
 export default function Auth() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { theme } = useDayNightTheme();
   const [isLogin, setIsLogin] = useState(false);
   const [email, setEmail] = useState('');
@@ -56,6 +58,9 @@ export default function Auth() {
   const [resetSent, setResetSent] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [isRecovery, setIsRecovery] = useState(false);
+
+  // Display timeout message if we were redirected due to inactivity
+  const stateMessage = location.state?.message;
 
   const strength = evaluatePasswordStrength(password);
   const pwdValid = strength.isFullyValid;
@@ -327,6 +332,21 @@ export default function Auth() {
           <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-[#c5a059] pointer-events-none opacity-80" />
           <div className="absolute bottom-2 left-2 w-5 h-5 border-b-2 border-l-2 border-[#c5a059] pointer-events-none opacity-80" />
           <div className="absolute bottom-2 right-2 w-5 h-5 border-b-2 border-r-2 border-[#c5a059] pointer-events-none opacity-80" />
+
+          <AnimatePresence>
+            {stateMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6 relative z-10 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3"
+              >
+                <AlertCircle className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" size={18} />
+                <p className="text-xs font-serif text-amber-800 dark:text-amber-200">
+                  {stateMessage}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Header */}
           <div className="relative z-10 text-center mb-8">
