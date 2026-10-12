@@ -11,6 +11,7 @@ import { supabase } from '../lib/supabase';
 import { rememberAuthReturn } from '../lib/guestHandoff';
 import { isPublicPath } from '../lib/publicPaths';
 import { GameService } from '../services/gameService';
+import { useSessionTimeout } from '../hooks/useSessionTimeout';
 
 interface LayoutProps {
   children: ReactNode;
@@ -87,6 +88,9 @@ export default function Layout({ children }: LayoutProps) {
       return () => subscription.unsubscribe();
     }
   }, []);
+
+  // Initialize session timeout logic for authenticated users
+  useSessionTimeout(hasAuth);
 
   // Redirect guard only — depends on the route so a fresh visit to a protected
   // page still bounces to /auth, but navigation between pages is free.
