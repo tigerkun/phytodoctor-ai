@@ -1,0 +1,1 @@
+## 2024-05-15 - Missing ARIA Labels on Icon Buttons\n**Learning:** The application has several icon-only buttons (like the day/night toggle) that lack proper `aria-label` attributes, making them inaccessible to screen readers.\n**Action:** Ensure all icon-only buttons are given a descriptive `aria-label`.
