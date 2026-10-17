@@ -53,7 +53,10 @@ export const StickyHeader = ({ plantName, healthScore, seeds }: StickyHeaderProp
           </span>
           <span>{seeds}</span>
         </div>
-        <button className="p-2 rounded-full hover:bg-[rgba(0,0,0,0.1)] transition-colors duration-200">
+        <button
+          className="p-2 rounded-full hover:bg-[rgba(0,0,0,0.1)] transition-colors duration-200"
+          aria-label={isDay ? "Switch to night theme" : "Switch to day theme"}
+        >
           {isDay ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
         </button>
       </div>
