@@ -1,0 +1,3 @@
+## 2026-10-20 - Adding `aria-label` to theme toggles and icon-only buttons
+**Learning:** Found that an icon-only button like a day/night theme toggle missed keyboard navigability rules (`focus-visible` styles) and the crucial `aria-label` screen reader requirement, making it inaccessible. We need to actively ensure that all buttons conveying interactive behaviors via icons are correctly labelled and styled.
+**Action:** Adding explicit `aria-label`s based on interactive state (like `isDay ? "Switch to night theme" : "Switch to day theme"`) and applying our standard `focus-visible` tailwind outline classes on buttons across the codebase.
