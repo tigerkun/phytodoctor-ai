@@ -1,0 +1,3 @@
+## 2026-10-20 - Theme Toggle and Tag Removal Accessibility Patterns
+**Learning:** Found that icon-only buttons (like the day/night theme toggle in `StickyHeader`) and dynamic tag deletion buttons ("×") in `PlantDetail` lacked keyboard navigability rules (`focus-visible` styles) and crucial `aria-label` screen reader requirements. Without these, screen readers announce unhelpful labels like "times" or nothing at all, and keyboard focus is invisible.
+**Action:** Always provide explicit `aria-label`s based on interactive state or target names (e.g. `isDay ? "Switch to night theme" : "Switch to day theme"`, `Remove tag ${tag}`) and apply standard `focus-visible` ring outline classes.
