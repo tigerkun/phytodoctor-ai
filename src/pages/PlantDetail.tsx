@@ -1147,7 +1147,7 @@ const children = lineage?.filter(candidate => candidate.parentPlantId === plant?
                               {noteTags.map(tag => (
                                 <span key={tag} className="px-2 py-0.5 bg-[#2e2117]/10 rounded text-[9px] font-mono font-bold flex items-center gap-1 text-[#2e2117]">
                                   #{tag}
-                                  <button onClick={() => removeTag(tag)} className="hover:text-red-500 font-bold">×</button>
+                                  <button onClick={() => removeTag(tag)} aria-label={`Remove tag ${tag}`} className="hover:text-red-500 font-bold focus-visible:ring-2 focus-visible:ring-red-500/50 outline-none rounded-sm">×</button>
                                 </span>
                               ))}
                             </div>

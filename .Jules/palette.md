@@ -1,0 +1,3 @@
+## 2023-10-24 - [Icon-Only Button Accessibility Pattern]
+**Learning:** Found an accessibility issue pattern specific to this app's components where dynamically generated tag removal buttons ("x") lack `aria-label` attributes and keyboard focus styling. Without it, screen reader users only hear "x" or "times" and keyboard users don't see which tag they are focused on.
+**Action:** When adding or reviewing list-like components with inline action buttons, always ensure an `aria-label` interpolates the item's name/value (e.g. `Remove tag ${tag}`) and use tailwind `focus-visible:ring-2 focus-visible:ring-red-500/50 outline-none` to make the keyboard focus visible.
