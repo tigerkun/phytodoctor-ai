@@ -1,4 +1,4 @@
-// v2.2 — two policies only:
+// v2.3 — two policies only:
 //   1. Immutable responses (content-hashed /assets/ and the self-hosted brand
 //      fonts) are cache-first: the same URL can never mean different bytes.
 //   2. Everything else we own is network-first, and every fresh response
@@ -6,7 +6,7 @@
 //      Offline, the page falls back to the precached shell and files to their
 //      last copy. /api/ is never cached at all.
 // The activate handler evicts caches from older versions on load.
-const CACHE_NAME = 'phyto-guard-v2.2';
+const CACHE_NAME = 'phyto-guard-v2.3';
 const PRECACHE = [
   '/',
   '/index.html',
@@ -108,12 +108,27 @@ self.addEventListener('push', (event) => {
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     tag: data.tag || 'plant-alert',
-    data: { url: data.url || '/' }
+    actions: data.actions || [],
+    data: { url: data.url || '/', plantId: data.plantId || null }
   }));
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  if (event.action === 'mark-watered') {
+    const plantId = event.notification.data?.plantId;
+    if (plantId) {
+      // background fetch — no window open
+      event.waitUntil(
+        fetch(`/api/plants/${plantId}/water`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        }).catch(() => {})
+      );
+    }
+    return; // do not open any window
+  }
   const target = event.notification.data?.url || '/';
   event.waitUntil(
     // Reuse an open tab where possible, and navigate it to the alert's plant.

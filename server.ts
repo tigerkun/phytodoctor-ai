@@ -8,6 +8,7 @@ import webpush from "web-push";
 import { randomUUID, createHmac, createHash, timingSafeEqual } from "node:crypto";
 import { createUserScopedClient } from "./src/lib/supabaseUserClient";
 import { clampTo, clampPercent, clampUnit, hasScore, orderRange } from "./src/lib/scoreGuards";
+import { vitalityAfterWatering } from "./src/lib/environmentalSimulation";
 import { cooldownFor, selectModels as chooseModels } from "./src/lib/modelCooldown";
 import { readImageSignals, assessProvenance } from "./src/lib/imageProvenance";
 import { shapeScanReport, type ScanReport } from "./src/lib/scanReport";
@@ -231,7 +232,19 @@ function apiGate(req: express.Request, res: express.Response, next: express.Next
       : 'Authentication service is starting. Please try again.');
   }
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  let token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!token && req.headers.cookie) {
+    const match = req.headers.cookie.match(/(?:^|;\s*)(?:sb-[a-z0-9_-]+-auth-token|sb-access-token|access_token)=([^;]+)/i);
+    if (match) {
+      const raw = decodeURIComponent(match[1]);
+      try {
+        const parsed = JSON.parse(raw);
+        token = Array.isArray(parsed) ? parsed[0] : (parsed?.access_token || raw);
+      } catch {
+        token = raw;
+      }
+    }
+  }
   if (!token) return fail(res, 401, 'Sign in to use the AI features.');
   supabaseAuthClient.auth.getUser(token)
     .then(({ data, error }: any) => {
@@ -478,7 +491,7 @@ async function dropSubscription(id: string, reason: string) {
 }
 
 /** Send one payload. Returns 'sent', 'stale' (endpoint gone) or 'failed'. */
-async function deliver(row: PushRow, payload: Record<string, string>): Promise<'sent' | 'stale' | 'failed'> {
+async function deliver(row: PushRow, payload: Record<string, any>): Promise<'sent' | 'stale' | 'failed'> {
   try {
     await webpush.sendNotification(toSubscription(row), JSON.stringify(payload), { TTL: 60 * 60 });
     return 'sent';
@@ -549,6 +562,8 @@ async function runWateringReminders() {
       body,
       tag: 'watering-reminder',
       url: `/plant/${first.id}`,
+      plantId: first.id,
+      actions: [{ action: 'mark-watered', title: 'Mark Watered' }],
     });
     if (result === 'sent') {
       sent++;
@@ -640,7 +655,218 @@ app.post("/api/push/test", express.json({ limit: '2kb' }), apiGate, async (req, 
   }
 });
 
-// Watering reminders. The per-day throttle inside runWateringReminders keeps a
+// Authenticated watering action (lock-screen push action or in-app quick action).
+app.post("/api/plants/:id/water", express.json({ limit: '4kb' }), apiGate, async (req, res) => {
+  try {
+    const userId = (req as any).authUserId;
+    const plantId = req.params.id;
+    if (!plantId || typeof plantId !== 'string') {
+      return fail(res, 400, "Plant id is required.");
+    }
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      // Local dev mode fallback
+      return res.json({
+        ok: true,
+        nextWaterDue: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+        newScore: 52,
+      });
+    }
+    if (!supabaseAdmin) {
+      return fail(res, 503, "Database service is unavailable.");
+    }
+
+    const { data: plant, error: plantError } = await supabaseAdmin
+      .from('plants')
+      .select('id, user_id, guardian_score, watering_interval_days')
+      .eq('id', plantId)
+      .maybeSingle();
+
+    if (plantError) {
+      log.error('Failed to fetch plant for watering', { plantId, err: plantError.message });
+      return fail(res, 500, "Could not fetch plant.");
+    }
+    if (!plant) {
+      return fail(res, 404, "Plant not found.");
+    }
+    if (plant.user_id !== userId) {
+      return fail(res, 403, "You do not have permission to water this plant.");
+    }
+
+    const newScore = vitalityAfterWatering(plant.guardian_score);
+    const now = Date.now();
+    const intervalDays = typeof plant.watering_interval_days === 'number' && plant.watering_interval_days > 0
+      ? plant.watering_interval_days
+      : 7;
+    const nextWaterDue = new Date(now + intervalDays * 86_400_000).toISOString();
+    const lastWateredAt = new Date(now).toISOString();
+
+    const { error: updateError } = await supabaseAdmin
+      .from('plants')
+      .update({
+        last_watered_at: lastWateredAt,
+        next_water_due: nextWaterDue,
+        guardian_score: newScore,
+      })
+      .eq('id', plantId);
+
+    if (updateError) {
+      log.error('Failed to update plant watering status', { plantId, err: updateError.message });
+      return fail(res, 500, "Could not update plant watering status.");
+    }
+
+    const { error: logErr } = await supabaseAdmin
+      .from('push_alert_log')
+      .insert({
+        user_id: userId,
+        plant_id: plantId,
+        kind: 'watering-action',
+      });
+    if (logErr) {
+      log.warn('Could not record watering action in push_alert_log', { err: logErr.message });
+    }
+
+    log.info('Plant watered successfully', { plantId, userId, newScore, nextWaterDue });
+    res.json({ ok: true, nextWaterDue, newScore });
+  } catch (error: any) {
+    log.error('Plant water endpoint error', { err: error });
+    fail(res, 500, "Failed to record watering.");
+  }
+});
+
+/**
+ * Milestone push reminders for plants undergoing a recovery roadmap.
+ * Checks recovery_roadmap.timeline and alerts the user when a step is due.
+ */
+async function runTreatmentRoadmapReminders() {
+  if (!pushEnabled) return { skipped: 'push not configured' };
+  const now = Date.now();
+  const since23h = new Date(now - 23 * 3600 * 1000).toISOString();
+
+  let plants: any[] = [];
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('plants')
+      .select('id, user_id, name, created_at, updated_at, recovery_roadmap')
+      .not('recovery_roadmap', 'is', null);
+
+    if (error) {
+      log.warn('Treatment roadmap reminders skipped (plants query failed or recovery_roadmap missing)', { err: error.message });
+      return { sent: 0, skipped: error.message };
+    }
+    plants = data || [];
+  } catch (err: any) {
+    log.warn('Treatment roadmap reminders query error', { err: err?.message });
+    return { sent: 0, skipped: err?.message };
+  }
+
+  if (!plants.length) return { sent: 0, plantsWithRoadmap: 0 };
+
+  const subsResult = await supabaseAdmin
+    .from('push_subscriptions')
+    .select('id, user_id, endpoint, p256dh, auth_key, last_sent_at');
+  if (subsResult.error) {
+    log.error('Treatment roadmap reminders subs query failed', { err: subsResult.error.message });
+    return { sent: 0, err: subsResult.error.message };
+  }
+  const subs = (subsResult.data || []) as PushRow[];
+  if (!subs.length) return { sent: 0, subs: 0 };
+
+  const subsByUser = new Map<string, PushRow[]>();
+  for (const sub of subs) {
+    if (!sub.user_id) continue;
+    if (!subsByUser.has(sub.user_id)) subsByUser.set(sub.user_id, []);
+    subsByUser.get(sub.user_id)!.push(sub);
+  }
+
+  const alertedKeys = new Set<string>();
+  try {
+    let recentAlerts = await supabaseAdmin
+      .from('push_alert_log')
+      .select('plant_id, kind')
+      .gte('sent_at', since23h)
+      .like('kind', 'treatment%');
+
+    if (recentAlerts.error && /column.*does not exist|PGRST204/i.test(recentAlerts.error.message)) {
+      recentAlerts = await supabaseAdmin
+        .from('push_alert_log')
+        .select('plant_id, kind')
+        .gte('created_at', since23h)
+        .like('kind', 'treatment%');
+    }
+    for (const r of recentAlerts.data || []) {
+      if (r.plant_id && r.kind) alertedKeys.add(`${r.plant_id}:${r.kind}`);
+    }
+  } catch (err: any) {
+    log.warn('Could not read recent treatment alerts from push_alert_log', { err: err?.message });
+  }
+
+  let sent = 0;
+  for (const plant of plants) {
+    if (!plant.user_id) continue;
+    const userSubs = subsByUser.get(plant.user_id);
+    if (!userSubs || !userSubs.length) continue;
+
+    let roadmap = plant.recovery_roadmap;
+    if (typeof roadmap === 'string') {
+      try { roadmap = JSON.parse(roadmap); } catch { roadmap = null; }
+    }
+    const timeline = Array.isArray(roadmap?.timeline)
+      ? roadmap.timeline
+      : Array.isArray(roadmap)
+        ? roadmap
+        : [];
+    if (!timeline.length) continue;
+
+    const baseDateStr = plant.created_at || plant.updated_at;
+    const baseTime = baseDateStr ? Date.parse(baseDateStr) : NaN;
+    if (isNaN(baseTime)) continue;
+
+    for (const step of timeline) {
+      if (!step || typeof step !== 'object') continue;
+      const dayMatch = String(step.day || '').match(/\d+/);
+      if (!dayMatch) continue;
+      const dayNum = parseInt(dayMatch[0], 10);
+      if (isNaN(dayNum) || dayNum < 0) continue;
+
+      const targetTime = baseTime + dayNum * 86_400_000;
+      if (now < targetTime) continue;
+
+      const kindKey = `treatment-d${dayNum}`;
+      if (alertedKeys.has(`${plant.id}:${kindKey}`)) continue;
+
+      let anyDelivered = false;
+      for (const sub of userSubs) {
+        const result = await deliver(sub, {
+          title: 'Recovery Action Due',
+          body: `${plant.name}: ${step.action}`,
+          tag: `treatment-${plant.id}-d${dayNum}`,
+          url: `/plant/${plant.id}`,
+        });
+        if (result === 'sent') anyDelivered = true;
+      }
+
+      if (anyDelivered) {
+        sent++;
+        alertedKeys.add(`${plant.id}:${kindKey}`);
+        const { error: insErr } = await supabaseAdmin
+          .from('push_alert_log')
+          .insert({
+            user_id: plant.user_id,
+            plant_id: plant.id,
+            kind: kindKey,
+          });
+        if (insErr) {
+          log.warn('Could not insert treatment milestone into push_alert_log', { err: insErr.message, kind: kindKey });
+        }
+      }
+    }
+  }
+
+  log.info('Treatment roadmap reminders run', { sent });
+  return { sent };
+}
+
+// Watering and treatment reminders. The per-day throttle inside runWateringReminders keeps a
 // still-due plant to one push. Render's free tier sleeps an idle web service,
 // so this fires on wake rather than on a fixed wall clock — good enough for a
 // reminder, and the work is skipped entirely when nobody is using the app.
@@ -649,12 +875,129 @@ function scheduleWateringReminders() {
   if (!pushEnabled) return;
   const tick = () => {
     supabaseAdminPromise
-      ?.then(() => runWateringReminders())
-      .catch((err) => log.error('Watering reminder run failed', { err }));
+      ?.then(async () => {
+        try {
+          await runWateringReminders();
+        } catch (err) {
+          log.error('Watering reminder run failed', { err });
+        }
+        try {
+          await runTreatmentRoadmapReminders();
+        } catch (err) {
+          log.error('Treatment roadmap reminder run failed', { err });
+        }
+      })
+      .catch((err) => log.error('Push reminders runner failed', { err }));
   };
   setTimeout(tick, 15_000).unref();
   setInterval(tick, PUSH_INTERVAL_MIN * 60_000).unref();
-  log.info('Watering reminders scheduled', { intervalMinutes: PUSH_INTERVAL_MIN });
+  log.info('Watering and treatment reminders scheduled', { intervalMinutes: PUSH_INTERVAL_MIN });
+}
+
+/**
+ * Daily DB retention maintenance daemon.
+ * - Prunes scan_reports older than 90 days.
+ * - Prunes guest_scan_quota older than 3 days.
+ * - Prunes push_alert_log older than 30 days.
+ */
+async function runDailyMaintenance() {
+  if (!supabaseAdmin) return { skipped: 'database not configured' };
+  log.info('Starting daily DB retention cleanup maintenance');
+
+  const now = Date.now();
+  let scanReportsPruned: number | null = null;
+  let guestQuotaPruned: number | null = null;
+  let pushAlertsPruned: number | null = null;
+
+  // 1. Prune scan_reports older than 90 days
+  try {
+    const scanCutoff = new Date(now - 90 * 86_400_000).toISOString();
+    const { count, error } = await supabaseAdmin
+      .from('scan_reports')
+      .delete({ count: 'exact' })
+      .lt('created_at', scanCutoff);
+    if (error) {
+      if (!/does not exist|42P01|PGRST205/i.test(error.message)) {
+        log.warn('Daily maintenance: scan_reports prune failed', { err: error.message });
+      }
+    } else {
+      scanReportsPruned = count ?? 0;
+    }
+  } catch (err: any) {
+    log.warn('Daily maintenance: scan_reports prune exception', { err: err?.message });
+  }
+
+  // 2. Prune guest_scan_quota rows older than 3 days
+  try {
+    const guestCutoff = new Date(now - 3 * 86_400_000).toISOString().slice(0, 10);
+    const { count, error } = await supabaseAdmin
+      .from('guest_scan_quota')
+      .delete({ count: 'exact' })
+      .lt('day', guestCutoff);
+    if (error) {
+      if (!/does not exist|42P01|PGRST205/i.test(error.message)) {
+        log.warn('Daily maintenance: guest_scan_quota prune failed', { err: error.message });
+      }
+    } else {
+      guestQuotaPruned = count ?? 0;
+    }
+  } catch (err: any) {
+    log.warn('Daily maintenance: guest_scan_quota prune exception', { err: err?.message });
+  }
+
+  // 3. Prune push_alert_log rows older than 30 days
+  try {
+    const alertCutoff = new Date(now - 30 * 86_400_000).toISOString();
+    const sentRes = await supabaseAdmin
+      .from('push_alert_log')
+      .delete({ count: 'exact' })
+      .lt('sent_at', alertCutoff);
+
+    if (sentRes.error && /column.*does not exist|PGRST204/i.test(sentRes.error.message)) {
+      const createdRes = await supabaseAdmin
+        .from('push_alert_log')
+        .delete({ count: 'exact' })
+        .lt('created_at', alertCutoff);
+      if (createdRes.error && !/does not exist|42P01|PGRST205/i.test(createdRes.error.message)) {
+        log.warn('Daily maintenance: push_alert_log prune failed', { err: createdRes.error.message });
+      } else {
+        pushAlertsPruned = createdRes.count ?? 0;
+      }
+    } else if (sentRes.error) {
+      if (!/does not exist|42P01|PGRST205/i.test(sentRes.error.message)) {
+        log.warn('Daily maintenance: push_alert_log prune failed', { err: sentRes.error.message });
+      }
+    } else {
+      pushAlertsPruned = sentRes.count ?? 0;
+    }
+  } catch (err: any) {
+    log.warn('Daily maintenance: push_alert_log prune exception', { err: err?.message });
+  }
+
+  log.info('Daily DB retention cleanup completed', {
+    scanReportsPruned: scanReportsPruned ?? 'skipped',
+    guestQuotaPruned: guestQuotaPruned ?? 'skipped',
+    pushAlertsPruned: pushAlertsPruned ?? 'skipped',
+  });
+
+  return {
+    ok: true,
+    scanReportsPruned,
+    guestQuotaPruned,
+    pushAlertsPruned,
+  };
+}
+
+function scheduleDailyMaintenance() {
+  if (!supabaseAdmin) return;
+  const tick = () => {
+    supabaseAdminPromise
+      ?.then(() => runDailyMaintenance())
+      .catch((err) => log.error('Daily maintenance failed', { err }));
+  };
+  setTimeout(tick, 30_000).unref();
+  setInterval(tick, 24 * 60 * 60_000).unref();
+  log.info('Daily maintenance scheduled', { delayMs: 30_000, intervalMs: 24 * 60 * 60_000 });
 }
 
 async function grantPro(userId: string, paymentId: string, amount: number, currency: string) {
@@ -2153,6 +2496,7 @@ async function startServer() {
   });
 
   scheduleWateringReminders();
+  scheduleDailyMaintenance();
 
   app.listen(PORT, "0.0.0.0", () => {
     log.info('Server listening', { url: `http://localhost:${PORT}` });
