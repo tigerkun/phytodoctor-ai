@@ -234,14 +234,20 @@ function apiGate(req: express.Request, res: express.Response, next: express.Next
   const header = req.headers.authorization || '';
   let token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
   if (!token && req.headers.cookie) {
-    const match = req.headers.cookie.match(/(?:^|;\s*)(?:sb-[a-z0-9_-]+-auth-token|sb-access-token|access_token)=([^;]+)/i);
+    const match = req.headers.cookie.match(/(?:^|;\s*)(?:sb-[a-z0-9_.-]+-auth-token(?:\.\d+)?|sb-access-token|access_token|botanical_guardian_auth_token)=([^;]+)/i);
     if (match) {
       const raw = decodeURIComponent(match[1]);
+      let candidate = raw;
+      if (candidate.startsWith('base64-')) {
+        try {
+          candidate = Buffer.from(candidate.slice(7), 'base64').toString('utf-8');
+        } catch {}
+      }
       try {
-        const parsed = JSON.parse(raw);
-        token = Array.isArray(parsed) ? parsed[0] : (parsed?.access_token || raw);
+        const parsed = JSON.parse(candidate);
+        token = Array.isArray(parsed) ? parsed[0] : (parsed?.access_token || candidate);
       } catch {
-        token = raw;
+        token = candidate;
       }
     }
   }
@@ -468,7 +474,9 @@ app.post("/api/predict-growth", express.json({ limit: '16kb' }), aiLimiter, apiG
 const PUSH_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:alerts@phytodoctor.ai';
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
-const pushEnabled = Boolean(VAPID_PUBLIC && VAPID_PRIVATE && supabaseAdmin);
+function isPushEnabled(): boolean {
+  return Boolean(VAPID_PUBLIC && VAPID_PRIVATE && supabaseAdmin);
+}
 
 if (VAPID_PUBLIC && VAPID_PRIVATE) {
   webpush.setVapidDetails(PUSH_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
@@ -525,7 +533,7 @@ function isDue(
  * record it so a plant that stays overdue does not notify again for a day.
  */
 async function runWateringReminders() {
-  if (!pushEnabled) return { skipped: 'push not configured' };
+  if (!isPushEnabled()) return { skipped: 'push not configured' };
   const now = Date.now();
   const since = new Date(now - 86_400_000).toISOString();
 
@@ -588,7 +596,7 @@ async function runWateringReminders() {
 }
 
 app.post("/api/push/subscribe", express.json({ limit: '16kb' }), apiGate, async (req, res) => {
-  if (!pushEnabled) return fail(res, 503, "Weather alerts are not configured on this server.");
+  if (!isPushEnabled()) return fail(res, 503, "Weather alerts are not configured on this server.");
   try {
     const userId = (req as any).authUserId;
     const client = userClient((req as any).authToken);
@@ -631,7 +639,7 @@ app.post("/api/push/unsubscribe", express.json({ limit: '4kb' }), apiGate, async
 // Lets a user confirm alerts actually reach their device instead of trusting a
 // green tick, and is the hook used to verify delivery end to end.
 app.post("/api/push/test", express.json({ limit: '2kb' }), apiGate, async (req, res) => {
-  if (!pushEnabled) return fail(res, 503, "Weather alerts are not configured on this server.");
+  if (!isPushEnabled()) return fail(res, 503, "Weather alerts are not configured on this server.");
   try {
     const userId = (req as any).authUserId;
     const { data, error } = await supabaseAdmin
@@ -706,6 +714,7 @@ app.post("/api/plants/:id/water", express.json({ limit: '4kb' }), apiGate, async
         last_watered_at: lastWateredAt,
         next_water_due: nextWaterDue,
         guardian_score: newScore,
+        updated_at: lastWateredAt,
       })
       .eq('id', plantId);
 
@@ -738,9 +747,9 @@ app.post("/api/plants/:id/water", express.json({ limit: '4kb' }), apiGate, async
  * Checks recovery_roadmap.timeline and alerts the user when a step is due.
  */
 async function runTreatmentRoadmapReminders() {
-  if (!pushEnabled) return { skipped: 'push not configured' };
+  if (!isPushEnabled()) return { skipped: 'push not configured' };
   const now = Date.now();
-  const since23h = new Date(now - 23 * 3600 * 1000).toISOString();
+  const MS_PER_DAY = 86_400_000;
 
   let plants: any[] = [];
   try {
@@ -778,23 +787,31 @@ async function runTreatmentRoadmapReminders() {
     subsByUser.get(sub.user_id)!.push(sub);
   }
 
+  // Load prior treatment milestone alerts (to never re-send completed milestones)
+  // and identify which plants received an alert in the last 23h (to throttle to 1 alert/plant/day).
   const alertedKeys = new Set<string>();
+  const recentPlantAlerts = new Set<string>();
   try {
-    let recentAlerts = await supabaseAdmin
+    let alertRows = await supabaseAdmin
       .from('push_alert_log')
-      .select('plant_id, kind')
-      .gte('sent_at', since23h)
+      .select('plant_id, kind, sent_at')
       .like('kind', 'treatment%');
 
-    if (recentAlerts.error && /column.*does not exist|PGRST204/i.test(recentAlerts.error.message)) {
-      recentAlerts = await supabaseAdmin
+    if (alertRows.error && /column.*does not exist|PGRST204/i.test(alertRows.error.message)) {
+      alertRows = await supabaseAdmin
         .from('push_alert_log')
-        .select('plant_id, kind')
-        .gte('created_at', since23h)
+        .select('plant_id, kind, created_at')
         .like('kind', 'treatment%');
     }
-    for (const r of recentAlerts.data || []) {
-      if (r.plant_id && r.kind) alertedKeys.add(`${r.plant_id}:${r.kind}`);
+    for (const r of alertRows.data || []) {
+      if (r.plant_id && r.kind) {
+        alertedKeys.add(`${r.plant_id}:${r.kind}`);
+        const timestampStr = r.sent_at || r.created_at;
+        const sentTime = timestampStr ? Date.parse(timestampStr) : NaN;
+        if (!isNaN(sentTime) && sentTime >= now - 23 * 3600 * 1000) {
+          recentPlantAlerts.add(r.plant_id);
+        }
+      }
     }
   } catch (err: any) {
     log.warn('Could not read recent treatment alerts from push_alert_log', { err: err?.message });
@@ -817,9 +834,12 @@ async function runTreatmentRoadmapReminders() {
         : [];
     if (!timeline.length) continue;
 
-    const baseDateStr = plant.created_at || plant.updated_at;
+    const baseDateStr = roadmap?.startedAt || plant.updated_at || plant.created_at;
     const baseTime = baseDateStr ? Date.parse(baseDateStr) : NaN;
     if (isNaN(baseTime)) continue;
+
+    const currentDayOffset = Math.floor(now / MS_PER_DAY) - Math.floor(baseTime / MS_PER_DAY);
+    if (currentDayOffset < 0) continue;
 
     for (const step of timeline) {
       if (!step || typeof step !== 'object') continue;
@@ -828,17 +848,25 @@ async function runTreatmentRoadmapReminders() {
       const dayNum = parseInt(dayMatch[0], 10);
       if (isNaN(dayNum) || dayNum < 0) continue;
 
-      const targetTime = baseTime + dayNum * 86_400_000;
-      if (now < targetTime) continue;
+      // Milestone must be due (today or within 1 day grace period).
+      // Milestones in the distant past (e.g. from months ago) are skipped.
+      if (currentDayOffset < dayNum) continue;
+      if (currentDayOffset > dayNum + 1) continue;
 
       const kindKey = `treatment-d${dayNum}`;
+      // Never re-send an already alerted milestone
       if (alertedKeys.has(`${plant.id}:${kindKey}`)) continue;
+      // Throttle: avoid spamming multiple treatment pushes for the same plant within 23h
+      if (recentPlantAlerts.has(plant.id)) continue;
+
+      const actionText = String(step.action || 'Scheduled recovery step due').trim();
+      const plantName = String(plant.name || 'Plant').trim();
 
       let anyDelivered = false;
       for (const sub of userSubs) {
         const result = await deliver(sub, {
           title: 'Recovery Action Due',
-          body: `${plant.name}: ${step.action}`,
+          body: `${plantName}: ${actionText}`,
           tag: `treatment-${plant.id}-d${dayNum}`,
           url: `/plant/${plant.id}`,
         });
@@ -848,6 +876,7 @@ async function runTreatmentRoadmapReminders() {
       if (anyDelivered) {
         sent++;
         alertedKeys.add(`${plant.id}:${kindKey}`);
+        recentPlantAlerts.add(plant.id);
         const { error: insErr } = await supabaseAdmin
           .from('push_alert_log')
           .insert({
@@ -872,10 +901,11 @@ async function runTreatmentRoadmapReminders() {
 // reminder, and the work is skipped entirely when nobody is using the app.
 const PUSH_INTERVAL_MIN = Number(process.env.PUSH_REMINDER_INTERVAL_MINUTES) || 360;
 function scheduleWateringReminders() {
-  if (!pushEnabled) return;
+  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return;
   const tick = () => {
     supabaseAdminPromise
       ?.then(async () => {
+        if (!isPushEnabled()) return;
         try {
           await runWateringReminders();
         } catch (err) {
@@ -989,7 +1019,7 @@ async function runDailyMaintenance() {
 }
 
 function scheduleDailyMaintenance() {
-  if (!supabaseAdmin) return;
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
   const tick = () => {
     supabaseAdminPromise
       ?.then(() => runDailyMaintenance())

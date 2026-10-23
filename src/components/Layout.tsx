@@ -96,6 +96,9 @@ export default function Layout({ children }: LayoutProps) {
     const logout = () => {
       supabase?.auth.signOut();
       localStorage.removeItem('botanical_guardian_auth_token');
+      try {
+        document.cookie = 'sb-access-token=; path=/; max-age=0; SameSite=Lax';
+      } catch {}
       navigate('/auth', { state: { message: 'Session expired due to inactivity.' }, replace: true });
     };
     const reset = () => {

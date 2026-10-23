@@ -38,6 +38,7 @@ export function postgresToPlant(row: any): Plant {
     parentPlantId: row.parent_plant_id ?? null,
     propagationMethod: row.propagation_method ?? null,
     generation: typeof row.generation === 'number' ? row.generation : 1,
+    recoveryRoadmap: row.recovery_roadmap ?? null,
   };
 }
 
@@ -111,6 +112,7 @@ export function plantToPostgres(plant: Partial<Plant>, userId?: string): Record<
   if (plant.parentPlantId !== undefined) payload.parent_plant_id = plant.parentPlantId;
   if (plant.propagationMethod !== undefined) payload.propagation_method = plant.propagationMethod;
   if (plant.generation !== undefined) payload.generation = plant.generation;
+  if (plant.recoveryRoadmap !== undefined) payload.recovery_roadmap = plant.recoveryRoadmap;
 
   return payload;
 }

@@ -28,10 +28,16 @@ function GoogleMark() {
 async function persistSession(userId: string, userEmail: string, displayName: string, accessToken?: string) {
   if (accessToken) {
     localStorage.setItem('botanical_guardian_auth_token', accessToken);
+    try {
+      document.cookie = `sb-access-token=${encodeURIComponent(accessToken)}; path=/; max-age=2592000; SameSite=Lax`;
+    } catch {}
   } else if (!supabase) {
     localStorage.setItem('botanical_guardian_auth_token', 'token_' + Date.now());
   } else {
     localStorage.removeItem('botanical_guardian_auth_token');
+    try {
+      document.cookie = 'sb-access-token=; path=/; max-age=0; SameSite=Lax';
+    } catch {}
   }
   localStorage.setItem('botanical_guardian_userId', userId);
   localStorage.setItem('botanical_guardian_user_email', userEmail);

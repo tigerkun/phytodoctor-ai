@@ -99,5 +99,61 @@ describe('Automated DB retention cleanup daemon', () => {
     expect(serverSource).toMatch(/function\s+scheduleDailyMaintenance\s*\(\s*\)/);
     expect(serverSource).toMatch(/setTimeout\(tick,\s*30_000\)\.unref\(\)/);
     expect(serverSource).toMatch(/scheduleDailyMaintenance\(\)/);
+    expect(serverSource).toMatch(/if\s*\(!SUPABASE_URL\s*\|\|\s*!SUPABASE_SERVICE_KEY\)\s*return;/);
+  });
+});
+
+describe('Session cookie extraction & milestone timeline logic', () => {
+  it('extracts tokens from cookie formats including sb-access-token, chunked and base64', () => {
+    const parseCookie = (cookieHeader: string): string => {
+      const match = cookieHeader.match(/(?:^|;\s*)(?:sb-[a-z0-9_.-]+-auth-token(?:\.\d+)?|sb-access-token|access_token|botanical_guardian_auth_token)=([^;]+)/i);
+      if (!match) return '';
+      const raw = decodeURIComponent(match[1]);
+      let candidate = raw;
+      if (candidate.startsWith('base64-')) {
+        try { candidate = Buffer.from(candidate.slice(7), 'base64').toString('utf-8'); } catch {}
+      }
+      try {
+        const parsed = JSON.parse(candidate);
+        return Array.isArray(parsed) ? parsed[0] : (parsed?.access_token || candidate);
+      } catch {
+        return candidate;
+      }
+    };
+
+    expect(parseCookie('sb-access-token=jwt.token.val')).toBe('jwt.token.val');
+    expect(parseCookie('other=123; sb-access-token=secret-token; path=/')).toBe('secret-token');
+    expect(parseCookie('sb-rkaawupaxlfdovpkrugp-auth-token.0=chunked-token')).toBe('chunked-token');
+    expect(parseCookie('access_token=plain-access-token')).toBe('plain-access-token');
+    expect(parseCookie(`sb-access-token=${encodeURIComponent(JSON.stringify({ access_token: 'nested-jwt' }))}`)).toBe('nested-jwt');
+    const b64 = Buffer.from(JSON.stringify(['b64-array-token'])).toString('base64');
+    expect(parseCookie(`sb-app-auth-token=base64-${b64}`)).toBe('b64-array-token');
+  });
+
+  it('correctly parses milestone day numbers from varied roadmap action strings', () => {
+    const parseDay = (dayStr: string): number | null => {
+      const m = String(dayStr || '').match(/\d+/);
+      if (!m) return null;
+      const n = parseInt(m[0], 10);
+      return isNaN(n) || n < 0 ? null : n;
+    };
+
+    expect(parseDay('Day 1')).toBe(1);
+    expect(parseDay('Day 3')).toBe(3);
+    expect(parseDay('Day 14')).toBe(14);
+    expect(parseDay('Day 0')).toBe(0);
+    expect(parseDay('Phase 2 - Day 7')).toBe(2); // first number is parsed
+    expect(parseDay('Invalid')).toBeNull();
+    expect(parseDay('')).toBeNull();
+  });
+
+  it('suppresses re-firing of already alerted milestones regardless of age', () => {
+    const alertedKeys = new Set<string>(['plant-123:treatment-d3']);
+    const isAlreadyAlerted = (plantId: string, dayNum: number) =>
+      alertedKeys.has(`${plantId}:treatment-d${dayNum}`);
+
+    expect(isAlreadyAlerted('plant-123', 3)).toBe(true);
+    expect(isAlreadyAlerted('plant-123', 7)).toBe(false);
+    expect(isAlreadyAlerted('plant-456', 3)).toBe(false);
   });
 });

@@ -341,6 +341,9 @@ export default function Profile() {
       localStorage.removeItem('botanical_guardian_auth_token');
       localStorage.removeItem('botanical_guardian_onboarded');
       localStorage.removeItem('botanical_guardian_userId');
+      try {
+        document.cookie = 'sb-access-token=; path=/; max-age=0; SameSite=Lax';
+      } catch {}
       navigate('/auth', { replace: true });
     }
   };
