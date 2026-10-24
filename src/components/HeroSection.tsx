@@ -43,7 +43,12 @@ export const HeroSection = ({ today }: HeroSectionProps) => {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="font-serif text-3xl text-[var(--text-bark)]">{today.nickname}</h2>
-              <button className="text-[var(--text-muted)] hover:text-[var(--moss)]"><Pencil className="w-4 h-4" /></button>
+              <button
+                aria-label={`Edit ${today.nickname}`}
+                className="text-[var(--text-muted)] hover:text-[var(--moss)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] rounded-full p-1 -m-1 transition-colors"
+              >
+                <Pencil className="w-4 h-4" aria-hidden="true" />
+              </button>
             </div>
             <p className="text-sm text-[var(--text-stone)] mt-0.5">{today.speciesName}</p>
           </div>
@@ -79,8 +84,8 @@ export const HeroSection = ({ today }: HeroSectionProps) => {
           ))}
         </div>
         
-        <button className="w-full py-3.5 rounded-2xl bg-[var(--terracotta)] text-white font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-[var(--terracotta)]/20">
-          <Plus className="w-4 h-4" />
+        <button className="w-full py-3.5 rounded-2xl bg-[var(--terracotta)] text-white font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-[var(--terracotta)]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)] focus-visible:ring-offset-2">
+          <Plus className="w-4 h-4" aria-hidden="true" />
           Add a Plant
         </button>
       </div>
