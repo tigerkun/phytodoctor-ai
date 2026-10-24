@@ -1,0 +1,3 @@
+## 2024-05-24 - Interactive Element Focus Rings
+**Learning:** Found that custom-styled buttons, especially those using decorative icons without background fills (like the inline Pencil icon edit buttons), lack visual feedback when navigating via keyboard (Tab) without explicit focus outlines. Screen readers also read the decorative SVGs if they don't have aria-hidden attributes.
+**Action:** Always include `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color)]` on interactive elements and apply `aria-hidden="true"` to pure decorative inner icons. Use template literals for contextual `aria-label`s like `Edit ${plantName}` for better screen reader UX.
