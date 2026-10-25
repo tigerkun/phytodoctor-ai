@@ -900,6 +900,7 @@ export default function Library() {
             />
             {search && (
               <button
+                aria-label="Clear search"
                 onClick={clearSearch}
                 className="
                   absolute right-4 top-1/2 -translate-y-1/2

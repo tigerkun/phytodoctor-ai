@@ -75,7 +75,7 @@ export default function VisualAnalysisLab() {
             Real-time HSV histogram analysis. Deterministic stress detection via color thresholding.
           </p>
         </div>
-        <button 
+        <button aria-label="Start camera feed"
           onClick={startAnalysis}
           className="flex items-center gap-2 px-6 py-3 bg-garden-sage text-garden-earth text-xs font-black uppercase tracking-widest rounded-full hover:scale-105 transition-transform"
         >

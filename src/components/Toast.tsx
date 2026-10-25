@@ -95,7 +95,7 @@ function Toast({ toast, onClose }: { toast: ToastMessage; onClose: () => void })
       <div className="flex-grow">
         <p className="text-sm font-medium text-text-bark whitespace-pre-wrap">{toast.message}</p>
       </div>
-      <button
+      <button aria-label="Close toast"
         onClick={onClose}
         className="shrink-0 text-text-muted hover:text-text-bark transition-colors p-1 rounded-lg hover:bg-bg-tertiary"
       >

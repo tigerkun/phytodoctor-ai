@@ -14,7 +14,7 @@ export default function TechnicalDossier({ onClose }: TechnicalDossierProps) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         className="bg-garden-earth text-white w-full max-w-4xl rounded-[4rem] shadow-2xl border border-white/10 overflow-hidden relative max-h-[90vh] overflow-y-auto"
       >
-        <button 
+        <button aria-label="Close dossier"
           onClick={onClose}
           className="absolute top-10 right-10 w-12 h-12 rounded-3xl bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-colors z-10"
         >
