@@ -1,0 +1,3 @@
+## 2024-10-25 - ARIA Labels for Icon Buttons
+**Learning:** Adding `aria-label` attributes to icon-only buttons improves accessibility for screen reader users by providing descriptive text for interactive elements that otherwise lack textual context. Crucially, I learned *not* to add `aria-label`s to buttons that *already have visible text* (even if they include icons), as this overrides the visible text and violates WCAG 2.5.3 (Label in Name).
+**Action:** When auditing for missing ARIA labels, ensure the check specifically targets elements with *only* icons or decorative children, avoiding those with adjacent text spans.
