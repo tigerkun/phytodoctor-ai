@@ -1,0 +1,3 @@
+## 2024-05-19 - Missing ARIA Labels on Icon-only Buttons
+**Learning:** Found an accessibility pattern where icon-only buttons lack an `aria-label`, specifically noticed on the "Edit nickname" pencil button in the HeroSection component. While adding `aria-label`, it's also important to add `focus-visible` styling (`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2 rounded-sm`) so keyboard users can actually see what element they are focused on.
+**Action:** When creating or modifying icon-only buttons, ensure both an `aria-label` and `focus-visible` styles are included.
