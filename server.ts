@@ -11,6 +11,7 @@ import { clampTo, clampPercent, clampUnit, hasScore, orderRange } from "./src/li
 import { vitalityAfterWatering } from "./src/lib/environmentalSimulation";
 import { cooldownFor, selectModels as chooseModels } from "./src/lib/modelCooldown";
 import { readImageSignals, assessProvenance } from "./src/lib/imageProvenance";
+import { assessImageWithImagga, imaggaStatus } from "./src/lib/imaggaClient";
 import { shapeScanReport, type ScanReport } from "./src/lib/scanReport";
 import { createGuestQuotaStore, digestIp, MemoryQuotaStore, type GuestQuotaStore } from "./src/lib/guestQuotaStore";
 import { classifyStaticRequest } from "./src/lib/spaFallback";
@@ -1446,6 +1447,59 @@ app.post("/api/identify", express.json({ limit: '11mb' }), aiLimiter, apiOrGuest
       }
     }
 
+    // ── Imagga pre-screen: an independent set of eyes before the spend ──
+    // Auto-tags the upload before any Gemini call. Overwhelming object
+    // evidence with essentially no botanical evidence diverts the scan with
+    // the standard non_living response — no Gemini quota spent. Any other
+    // outcome (or Imagga being down / out of quota) falls through unchanged:
+    // Imagga is evidence, never the gatekeeper of an honest scan.
+    const imagga = await assessImageWithImagga(base64Data, mimeType);
+    const imaggaStatusInfo = imaggaStatus();
+    if (imagga) {
+      log.info('Imagga pre-screen', {
+        plantMax: imagga.plantMax,
+        objectMax: imagga.objectMax,
+        requestsUsed: imaggaStatusInfo.requestsUsed,
+        topTags: imagga.tags.slice(0, 10).map((t) => `${t.name}:${t.confidence.toFixed(0)}`),
+      });
+    } else if (imaggaStatusInfo.disabledReason) {
+      log.warn('Imagga disabled — scan proceeds Gemini-only', { reason: imaggaStatusInfo.disabledReason });
+    }
+    const imaggaEvidenceBlock = imagga?.evidence
+      ? `\n\nIMAGE ANALYSIS SERVICE EVIDENCE (independent auto-tagging service — auxiliary evidence only, it can be wrong or incomplete; weigh it against what you actually see):\nTop tags: ${imagga.evidence}`
+      : '';
+
+    if (imagga?.isClearlyNonPlant) {
+      const gateBuffer = Buffer.from(base64Data, 'base64');
+      const gateSignals = readImageSignals(new Uint8Array(gateBuffer));
+      const gateProvenance = assessProvenance(gateSignals, null);
+      const gateProvenanceFull = {
+        verdict: gateProvenance.verdict,
+        checks: gateProvenance.checks,
+        reasons: gateProvenance.reasons.slice(0, 4),
+        container: gateSignals.container,
+        resolution: gateSignals.width && gateSignals.height ? `${gateSignals.width}x${gateSignals.height}` : null,
+      };
+      const gateDescription = strLimit(`Imagga auto-tagging read this image as: ${imagga.evidence}.`, 400) || 'Automated image tagging found no plant subject.';
+      const report = shapeScanReport({
+        model: { commonName: 'Inanimate Object' },
+        route: 'non_living',
+        subject: { kind: 'non_living', confidence: imagga.objectMax / 100, description: gateDescription },
+        provenance: gateProvenanceFull,
+        locationProvided: Boolean(locationBlock),
+        message: 'Only living specimens are analysed. PhytoDoctor AI diagnoses plants — point the lens at a plant, leaf, flower or tree and scan again.',
+      });
+      log.info('Imagga pre-screen diverted a non-plant scan', { objectMax: imagga.objectMax });
+      void persistScanReport(report, req);
+      return res.json({
+        report,
+        route: 'non_living',
+        subject: { kind: 'non_living', confidence: imagga.objectMax / 100, description: gateDescription, subjectKind: 'non_living' },
+        commonName: 'Inanimate Object',
+        message: report.message,
+      });
+    }
+
     const prompt = `You are PhytoDoctor AI, the world's most advanced botanical diagnostician. Perform a clinically precise analysis of the plant in this image.
 
 BEFORE ANYTHING ELSE, triage the subject of this image:
@@ -1466,7 +1520,7 @@ Be specific in every field; keep each field concise:
 7. Write step-by-step treatment instructions (3-5 concise, actionable steps).
 8. Give precise care parameters: watering schedule, light requirements, soil type, temperature range.
 9. List 3-4 specific care tips tailored to the detected condition.
-10. Explain vulnerability notes — WHY this specific specimen shows these symptoms.${locationBlock}
+10. Explain vulnerability notes — WHY this specific specimen shows these symptoms.${locationBlock}${imaggaEvidenceBlock}
 
 LOCATION-AWARE FIELDS (required if location provided):
 - locationAdvice: Specific advice for growing this plant in the user's exact city/region — native range, climate match, whether it's suited to grow outdoors there, seasonal adjustments.

@@ -6,6 +6,9 @@ import {defineConfig, loadEnv} from 'vite';
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
+    test: {
+      exclude: ['**/node_modules/**', '**/dist/**', '.kilo/**', '**/.git/**'],
+    },
     plugins: [react(), tailwindcss()],
     build: {
       rollupOptions: {

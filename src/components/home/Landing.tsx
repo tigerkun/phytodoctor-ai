@@ -1,5 +1,4 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { Leaf, Shield, Swords, Bell, Camera, Upload, ArrowRight, CheckCircle2, AlertTriangle, Sparkles, Lock, ShieldCheck, HeartHandshake, RefreshCw } from 'lucide-react';
 import { prepareScanImage } from '../../utils/imagePipeline';
@@ -7,6 +6,7 @@ import { identifyPlant, type IdentifyResult } from '../../services/geminiService
 import { rememberAuthReturn, stashPendingScan } from '../../lib/guestHandoff';
 import { useEcoMode } from '../../hooks/useEcoMode';
 import NonPlantReport from '../scan/NonPlantReport';
+import { CinematicFooter } from '@/components/ui/motion-footer';
 
 export const FEATURES = [
   {
@@ -150,7 +150,8 @@ export function Landing({ onSignIn }: LandingProps) {
        layer behind it reads through as a faint living texture — it stays
        bright in both themes because the ambience's dark layers sit behind a
        95% cream wash. */
-    <div className="min-h-screen w-full bg-[#FAF7F2]/95 text-[#2C2419] font-sans antialiased">
+    <div className="w-full overflow-x-hidden text-[#2C2419] font-sans antialiased">
+    <div className="relative z-10 min-h-screen w-full bg-[#FAF7F2]/95 rounded-b-3xl">
       {/* Brand Navigation Bar */}
       <header className="sticky top-0 z-40 w-full bg-[#FAF7F2]/90 backdrop-blur-md border-b border-[#E8E1D5] px-6 py-3.5">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -673,41 +674,8 @@ export function Landing({ onSignIn }: LandingProps) {
         </div>
       </section>
 
-      {/* Footer CTA & Essential Navigation */}
-      <footer className="px-6 py-16 bg-[#2C2419] text-[#FAF7F2] text-center">
-        <div className="max-w-2xl mx-auto space-y-6">
-          <h2 className="font-serif text-3xl sm:text-4xl font-black text-white">
-            Ready to nurture your living sanctuary?
-          </h2>
-          <p className="text-xs sm:text-sm text-[#D5CEC2] leading-relaxed">
-            Start cataloging your houseplants, tracking seasonal care, and rescuing ailing leaves — your garden, your data, your pace.
-          </p>
-          <div className="pt-2 flex flex-wrap justify-center gap-4">
-            <button
-              onClick={onSignIn}
-              type="button"
-              className="min-h-[44px] px-8 py-3.5 bg-[#3D5A3D] hover:bg-[#4E724E] text-white rounded-xl text-xs font-mono font-bold uppercase tracking-wider shadow-md transition-all active:scale-95"
-            >
-              Enter Sanctuary
-            </button>
-            <button
-              onClick={onSignIn}
-              type="button"
-              className="min-h-[44px] px-6 py-3.5 bg-transparent hover:bg-white/10 text-[#FAF7F2] border border-[#FAF7F2]/30 rounded-xl text-xs font-mono font-bold uppercase tracking-wider transition-colors"
-            >
-              Sign In to Existing Account
-            </button>
-          </div>
-
-          <div className="pt-8 border-t border-white/10 flex flex-wrap justify-center gap-x-6 text-[11px] font-mono text-[#A89F91]">
-            <Link to="/lab" className="py-2 hover:text-white transition-colors">Lab Notes</Link>
-            <Link to="/library" className="py-2 hover:text-white transition-colors">Library</Link>
-            <Link to="/help" className="py-2 hover:text-white transition-colors">Help &amp; FAQ</Link>
-            <Link to="/privacy" className="py-2 hover:text-white transition-colors">Privacy</Link>
-            <Link to="/terms" className="py-2 hover:text-white transition-colors">Terms</Link>
-          </div>
-        </div>
-      </footer>
+    </div>
+      <CinematicFooter onSignIn={onSignIn} />
     </div>
   );
 }

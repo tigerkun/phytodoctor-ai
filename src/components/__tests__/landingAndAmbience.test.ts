@@ -100,9 +100,9 @@ describe('Species-Aware Scan Reports & Non-Plant Safeguards', () => {
 
   it('the server shapes every identify response into a versioned report', () => {
     const server = stripJsComments(readSource('server.ts'));
-    // All three divert branches plus the plant flow shape + persist.
+    // All divert branches (including Imagga pre-screen) plus the plant flow shape + persist.
     expect(server.match(/shapeScanReport\(/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
-    expect(server.match(/void persistScanReport\(/g)?.length).toBe(4);
+    expect(server.match(/void persistScanReport\(/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
     // Fire-and-forget by contract: a persistence failure can never reject the
     // scan response, and a missing table disables it for the process lifetime.
     expect(server).toContain('scanReportStoreDisabled = true');

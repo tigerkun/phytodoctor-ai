@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   BookOpen,
@@ -10,17 +10,13 @@ import {
   Leaf,
   Sprout,
   Wheat,
-  Info,
-  Sparkles,
   RotateCw,
-  HelpCircle,
   CheckCircle2,
   Globe2,
   ExternalLink,
   Crown,
   Lock,
   Flame,
-  Ear,
   TreePine,
   ChevronDown
 } from 'lucide-react';
@@ -28,6 +24,7 @@ import { getPlantPhoto } from '../utils/plantImage';
 import { GameService } from '../services/gameService';
 import PageWrapper from '../components/home/PageWrapper';
 import { triggerHaptic, playAudio } from '../utils/hapticAudio';
+import BlogsSection from '../components/ui/blogs-3';
 
 const ROMAN_NUMERALS = ['I.', 'II.', 'III.', 'IV.', 'V.'];
 
@@ -232,147 +229,6 @@ const PHYTO_NOTES = [
     severity: "Critical",
     prevalence: "Global",
     image: "https://images.unsplash.com/photo-1627915570222-263a03362a93?q=80&w=600&auto=format&fit=crop"
-  }
-];
-
-const BOTANICAL_FACTS = [
-  {
-    title: "The Acacia's Silent Gas Alarm",
-    fact: "When browsed by herbivores, Acacia trees release ethylene gas. Neighboring trees sense this and instantly pump toxic tannins into their own leaves to defend themselves.",
-    category: "Communication",
-    icon: "📣"
-  },
-  {
-    title: "The Dancing Telegraph Plant",
-    fact: "Codariocalyx motorius (telegraph plant) rotates its leaflets dynamically to follow light. It moves visibly to the naked eye, appearing to dance under the sun.",
-    category: "Movement",
-    icon: "💃"
-  },
-  {
-    title: "Venus Flytrap's Memory & Math",
-    fact: "Venus Flytraps count electrical impulses. Touch 1: nothing. Touch 2: snap! Touch 3+: start digesting. This prevents false alarms from rain or debris.",
-    category: "Cognition",
-    icon: "🧠"
-  },
-  {
-    title: "1,500 Years in the Namib Desert",
-    fact: "Welwitschia mirabilis survives Namib desert heat for over 1,500 years using only two leaves that grow continuously and shred over centuries.",
-    category: "Resilience",
-    icon: "⏳"
-  },
-  {
-    title: "Mimosa Pudica's Seismonasty",
-    fact: "When touched, Mimosa pudica cells drop vacuole water pressure instantly, causing leaves to fold inward. This tricks predators into thinking it has wilted.",
-    category: "Defense",
-    icon: "🛡️"
-  },
-  {
-    title: "Bananas Are Berries. Strawberries Aren't.",
-    fact: "Botanically, a berry is a fruit from one ovary — making bananas, kiwis, and pumpkins true berries, while strawberries are 'accessory fruits' with seeds on the outside.",
-    category: "Classification",
-    icon: "🍌"
-  },
-  {
-    title: "The Oldest Living Resident",
-    fact: "Pando, a quaking aspen colony in Utah, is a single tree with ~47,000 genetically identical stems sharing one root system — estimated at several thousand years old.",
-    category: "Longevity",
-    icon: "🌳"
-  },
-  {
-    title: "Plants That Eavesdrop",
-    fact: "Tomato plants can 'hear' a caterpillar chewing: the vibration alone triggers them to produce more defensive chemicals, even with no chemical signal present.",
-    category: "Sensing",
-    icon: Ear
-  },
-  {
-    title: "Coffee's Caffeine Is a Weapon",
-    fact: "Caffeine exists to poison rivals: it leaches from coffee leaf litter into soil and suppresses germination of competing seedlings — allelopathy in your cup.",
-    category: "Chemistry",
-    icon: "☕"
-  },
-  {
-    title: "The Fastest Recorded Growth",
-    fact: "Bamboo can grow up to 90 cm (35 in) in a single day — roughly 1 mm every 90 seconds — thanks to cells that expand in unison along the whole culm.",
-    category: "Growth",
-    icon: "🎍"
-  },
-  {
-    title: "Orchids That impersonate Wasps",
-    fact: "Ophrys orchids mimic the shape, scent, and texture of female wasps. Males attempt to mate with the flower and carry the pollinia to the next impersonation.",
-    category: "Deception",
-    icon: "🪰"
-  },
-  {
-    title: "Rafflesia: The Giant Corpse Flower",
-    fact: "Rafflesia arnoldii produces the largest single flower on Earth — up to 1 m across — and smells of rotting meat to attract the flies that pollinate it.",
-    category: "Odor",
-    icon: "🥀"
-  },
-  {
-    title: "Roots Know Up From Down",
-    fact: "Roots sense gravity through statoliths — dense starch grains that settle inside root-cap cells — and always grow toward the earth, even in the dark.",
-    category: "Orientation",
-    icon: "🧭"
-  },
-  {
-    title: "Trees Share Sugar Underground",
-    fact: "In 'wood wide web' experiments, shaded seedlings survived because established trees fed them sugars through connected mycorrhizal fungi.",
-    category: "Cooperation",
-    icon: "🕸️"
-  },
-  {
-    title: "A Strawberry Isn't Wearing Its Seeds",
-    fact: "Those 'seeds' on the outside are each a tiny dry fruit called an achene — a single strawberry carries roughly 200 of them.",
-    category: "Botany",
-    icon: "🍓"
-  },
-  {
-    title: "The Dandelion's Parachute Seeds",
-    fact: "Each dandelion seed rides a disk of hollow filaments that creates a vortex ring above it — a detached bubble of air that keeps it aloft for kilometers.",
-    category: "Travel",
-    icon: "🌼"
-  },
-  {
-    title: "Aloe has been 'medicine' for 3,500 years",
-    fact: "Aloe vera appears in Egyptian Ebers Papyrus (c. 1550 BCE) as a treatment for burns and sores — one of the oldest written plant remedies.",
-    category: "History",
-    icon: "📜"
-  },
-  {
-    title: "Lotus Leaves Never Get Wet",
-    fact: "The 'lotus effect': microscopic wax crystals on lotus leaves make water bead and roll off, washing dirt away — the inspiration for self-cleaning paints.",
-    category: "Surface",
-    icon: "🪷"
-  },
-  {
-    title: "Saguaro Cacti Grow Arms at 75",
-    fact: "Saguaros may grow for 50–75 years before growing their first arm, and can live over 150 years — older than most houses they shade.",
-    category: "Patience",
-    icon: "🌵"
-  },
-  {
-    title: "Maple Helicopters Are Single-Seed Wings",
-    fact: "A maple 'helicopter' is a samara: one seed with a wing that spins as it falls, generating lift that lets wind carry it dozens of meters.",
-    category: "Flight",
-    icon: "🍁"
-  },
-  {
-    title: "Plants Sleep, Too",
-    fact: "Many plants perform nyctinasty — legumes fold leaves and poppies close petals at night, likely to reduce heat loss and deter nocturnal herbivores.",
-    category: "Rhythm",
-    icon: "🌙"
-  },
-  {
-    title: "The World's Smallest Flower",
-    fact: "Wolffia, a duckweed, produces flowers so small (0.3 mm) that they float unnoticed on ponds — the entire plant is smaller than a grain of rice.",
-    category: "Miniature",
-    icon: "💧"
-  },
-  {
-    title: "Eucalyptus Forests Smoke Signals",
-    fact: "Some eucalypts rely on fire: seed pods are sealed by resin that only melts in bushfire heat, releasing seeds onto ash-rich, competitor-free soil.",
-    category: "Fire",
-    icon: "🔥"
   }
 ];
 
@@ -648,7 +504,7 @@ function consumeQuizAttempt(): number {
 // ── Daily rotation engine ───────────────────────────────────────────────────
 // A date-seeded shuffle reorders each pool deterministically for the day:
 // everyone gets the same fresh set, and tomorrow the entire library —
-// puzzles, facts, featured specimen — is a different draw.
+// puzzles and featured specimen — is a different draw.
 function seededShuffle(indices: number[], seed: number): number[] {
   let a = (seed >>> 0) || 1;
   const rand = () => {
@@ -677,16 +533,12 @@ export default function Library() {
   const dayNumber = getDayNumber();
   // Today's draws — stable all day, completely different tomorrow.
   const todaysQuizOrder = useMemo(() => seededShuffle(DAILY_QUIZZES.map((_, i) => i), dayNumber), [dayNumber]);
-  const todaysFactOrder = useMemo(() => seededShuffle(BOTANICAL_FACTS.map((_, i) => i), dayNumber + 0x9E37), [dayNumber]);
   const [earthEvents, setEarthEvents] = useState<EarthEvent[]>(FALLBACK_EARTH_EVENTS);
   const [earthIndex, setEarthIndex] = useState(0);
   const [earthLive, setEarthLive] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [quizMessage, setQuizMessage] = useState('');
   const [answered, setAnswered] = useState(false);
-  // Facts are free reading: every refresh opens the codex at a random leaf,
-  // and "New Leaf" walks today's shuffled volume. Unlimited.
-  const [factPtr, setFactPtr] = useState(() => Math.floor(Math.random() * BOTANICAL_FACTS.length));
   // Ladder state: streak of consecutive correct answers; the sprout sits
   // `streak * PACES_PER_SOLVE` paces up the pole. Persisted like chess.com's
   // puzzle streak so it survives reloads.
@@ -714,8 +566,6 @@ export default function Library() {
   // captured at mount went stale when a tab stayed open past midnight — the
   // new day granted three fresh attempts while puzzlesLocked kept reading 0.
   const attemptsLeft = Math.max(0, QUIZZES_PER_DAY - attemptsUsedToday());
-  // Illuminated Codex leaf: deterministic per day.
-  const codexFact = BOTANICAL_FACTS[todaysFactOrder[(dayNumber * 5 + 7) % todaysFactOrder.length]];
   const currentEvent = earthEvents[earthIndex % earthEvents.length];
   const profile = useLiveQuery(() => GameService.getProfile());
 
@@ -824,12 +674,6 @@ export default function Library() {
     setAnswered(false);
   };
 
-  const drawNextFact = () => {
-    triggerHaptic('light');
-    playAudio('leaf-rustle');
-    setFactPtr((p) => (p + 1) % todaysFactOrder.length);
-  };
-
   const nextEarthEvent = () => {
     triggerHaptic('light');
     setEarthIndex((prev) => (prev + 1) % earthEvents.length);
@@ -844,9 +688,6 @@ export default function Library() {
     triggerHaptic('light');
     setSearch('');
   };
-
-  // Botanical Oracle leaf: walks today's shuffled volume, free to read.
-  const currentFact = BOTANICAL_FACTS[todaysFactOrder[factPtr % todaysFactOrder.length]];
 
   return (
     <PageWrapper className="relative skin-library px-4 sm:px-6 py-8 sm:py-12">
@@ -913,101 +754,10 @@ export default function Library() {
           </div>
         </motion.div>
 
-        {/* ── INTERACTIVE FACT & CURIOSITY HUB ─────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.99 }}
-            animate={{ opacity: 1, scale: 1 }}
-            whileHover={{ y: -3 }}
-            className="p-5 sm:p-6 rounded-xl antique-folio-plate shadow-md relative overflow-hidden flex flex-col gap-4 hover:shadow-lg transition-shadow duration-300"
-          >
-            {/* Gold folio corner ornaments */}
-            <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-[#b89542]/50 rounded-tl-xl pointer-events-none" />
-            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-[#b89542]/50 rounded-br-xl pointer-events-none" />
-            <div className="absolute -right-6 -top-6 w-20 h-20 rounded-full bg-[#b89542]/8 blur-xl pointer-events-none" />
+        <BlogsSection />
 
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-[#5f7161]/25 to-[#b89542]/15 flex items-center justify-center flex-shrink-0 border border-[#b89542]/30 shadow-inner">
-                <Sparkles size={18} className="animate-pulse text-[#b89542]" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-sans font-semibold uppercase tracking-[0.08em] text-[#8c6d46] dark:text-[#caa651] block leading-none mb-1">
-                  Illuminated Codex
-                </span>
-                <h3 className="font-serif font-bold text-text-bark text-[15px] leading-snug">
-                  {codexFact.title}
-                </h3>
-              </div>
-            </div>
-            <p className="text-[13px] text-text-stone leading-[1.65] font-sans relative pl-3 border-l-2 border-[#b89542]/30 italic">
-              {codexFact.fact}
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.99 }}
-            animate={{ opacity: 1, scale: 1 }}
-            whileHover={{ y: -3 }}
-            className="p-5 sm:p-6 rounded-xl antique-folio-plate shadow-md relative overflow-hidden flex flex-col justify-between gap-4 hover:shadow-lg transition-shadow duration-300"
-          >
-            {/* Terracotta accent wash */}
-            <div className="absolute -left-8 -bottom-8 w-24 h-24 rounded-full bg-terracotta/8 blur-xl pointer-events-none" />
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <motion.span
-                  className="text-xl shrink-0"
-                  animate={{ rotate: [0, -8, 8, 0] }}
-                  transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-                >
-                  {(() => { const I = currentFact.icon; return <I size={22} aria-hidden="true" />; })()}
-                </motion.span>
-                <div className="min-w-0">
-                  <span className="text-[10px] font-sans font-semibold uppercase tracking-[0.08em] text-terracotta block leading-none mb-1">
-                    Botanical Oracle
-                  </span>
-                  <h4 className="font-serif font-bold text-text-bark text-[15px] leading-snug mt-0.5">
-                    {currentFact.title}
-                  </h4>
-                </div>
-              </div>
-              <span className="px-2 py-1 bg-terracotta/10 text-terracotta text-[9px] font-sans font-semibold tracking-normal rounded border border-terracotta/20 shrink-0 text-center leading-none">
-                Free to read
-              </span>
-            </div>
-
-            <div className="min-h-[56px] flex items-center">
-              <AnimatePresence mode="wait">
-                <motion.p
-                  key={factPtr}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -5 }}
-                  transition={{ duration: 0.2 }}
-                  className="text-[13px] text-text-stone leading-[1.65] font-sans"
-                >
-                  {currentFact.fact}
-                </motion.p>
-              </AnimatePresence>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-[#8c7355]/20">
-              <span className="text-[10px] font-sans font-semibold text-text-stone/70 tracking-normal">
-                {currentFact.category}
-              </span>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={drawNextFact}
-                // min-h-[44px]: measured 29px tall at 390px, on the control
-                // that draws the next fact.
-                className="flex items-center gap-2 min-h-[44px] px-3 py-1.5 bg-moss hover:bg-moss-dark text-white rounded-md text-[10px] font-sans font-bold uppercase tracking-[0.06em] transition-colors shadow-xs"
-              >
-                <RotateCw size={11} />
-                New Leaf
-              </motion.button>
-            </div>
-          </motion.div>
-
+        {/* ── QUIZ & TELEGRAPH ───────────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Socratic Study Carrel · Daily Puzzle Ladder */}
           <motion.div
             initial={{ opacity: 0, scale: 0.99 }}
