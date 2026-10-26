@@ -28,6 +28,7 @@ import type { Plant, SoilType } from '@/types';
 import { useNavigate, Link } from 'react-router-dom';
 import { usePageTransition } from '@/components/home/PageTransitionContext';
 import Landing from '@/components/home/Landing';
+import BentoGrid01 from '@/components/ui/bento-grid-01';
 
 
 // ─── Welcome Landing (first-time visitors) ───────────────────────────
@@ -240,6 +241,8 @@ export default function HomePage() {
           onAddPlant={() => setIsAddModalOpen(true)}
         />
 
+
+        <BentoGrid01 />
 
         {/* Quickstart Usage Manual & Top-Up Guide */}
         <QuickstartGuide 
