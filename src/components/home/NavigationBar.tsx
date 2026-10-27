@@ -9,7 +9,7 @@ import { NAV_DESTINATIONS, isDestinationActive } from '@/lib/navRoutes';
 import { useAppBack } from '@/hooks/useAppBack';
 import { usePageTransition } from './PageTransitionContext';
 
-export function NavigationBar() {
+export function NavigationBar({ className }: { className?: string } = {}) {
   const { theme, toggleTheme, isAutomatic } = useDayNightTheme();
   const profile = useLiveQuery(() => GameService.getProfile());
   const seedCount = profile?.seeds || 0;
@@ -26,7 +26,7 @@ export function NavigationBar() {
 
   return (
     <header
-      className="sticky top-0 z-50 border-b bg-bg-primary/95 backdrop-blur-sm"
+      className={`sticky top-0 z-50 border-b bg-bg-primary/95 backdrop-blur-sm ${className || ''}`}
       style={{
         background: theme === 'day'
           ? 'linear-gradient(180deg, rgba(255, 248, 240, 0.92), rgba(255, 248, 240, 0.72))'
@@ -57,7 +57,8 @@ export function NavigationBar() {
             className="flex min-h-11 items-center gap-2 cursor-pointer transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-moss"
             style={{ color: 'var(--text-primary)' }}
           >
-            <Leaf size={20} aria-hidden="true" className="text-moss shrink-0" />
+            <img src="/icon.svg" alt="" aria-hidden="true" className="w-7 h-7 rounded-lg shrink-0 object-contain shadow-xs" />
+            <Leaf size={20} aria-hidden="true" className="text-moss shrink-0 sr-only" />
             <span className="font-serif text-xl font-bold relative">PhytoDoctor</span>
           </button>
         </div>

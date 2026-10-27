@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
 import { NavigationBar } from './home/NavigationBar';
 import MobileBottomNav from './home/MobileBottomNav';
+import { Sidebar } from './home/Sidebar';
 import { PageTransitionProvider } from './home/PageTransitionContext';
 import GardenAmbience from './GardenAmbience';
 import RouteAnnouncer from './RouteAnnouncer';
@@ -28,6 +29,23 @@ export default function Layout({ children }: LayoutProps) {
   const [hasAuth, setHasAuth] = React.useState(() =>
     Boolean(localStorage.getItem('botanical_guardian_auth_token'))
   );
+  const [isOnboarded, setIsOnboarded] = React.useState(() =>
+    typeof window !== 'undefined' && localStorage.getItem('botanical_guardian_onboarded') === '1'
+  );
+  const [hasLocalUser, setHasLocalUser] = React.useState(() =>
+    typeof window !== 'undefined' && Boolean(localStorage.getItem('botanical_guardian_userId'))
+  );
+
+  React.useEffect(() => {
+    const checkUser = () => {
+      setIsOnboarded(localStorage.getItem('botanical_guardian_onboarded') === '1');
+      setHasLocalUser(Boolean(localStorage.getItem('botanical_guardian_userId')));
+    };
+    window.addEventListener('storage', checkUser);
+    return () => window.removeEventListener('storage', checkUser);
+  }, []);
+
+  const showNav = !isAuthPage && (hasAuth || isOnboarded || hasLocalUser);
 
   // Auth guard & Supabase session sync. This used to re-run on every route
   // change, refetching the session and hitting /api/economy/profile each time
@@ -148,27 +166,30 @@ export default function Layout({ children }: LayoutProps) {
 
         <RouteAnnouncer />
 
-        {/* Only show nav when authenticated */}
-        {!isAuthPage && hasAuth && (
-          <>
-            <NavigationBar />
-            <MobileBottomNav />
-          </>
-        )}
+        {/* Navigation chrome: Sidebar on desktop, NavigationBar on mobile, MobileBottomNav on small phones */}
+        <div className="flex-grow flex flex-col md:flex-row w-full min-w-0">
+          {showNav && <Sidebar />}
 
-        {/* tabIndex and focus:outline-none are a pair: the outline rule gives
-            RouteAnnouncer somewhere to put focus after a route change, and
-            outline-none stops that programmatic move from painting a ring
-            around the whole page. The skip link keeps its own ring. */}
-        <main
-          id="main-content"
-          tabIndex={-1}
-          className="flex-grow relative z-10 w-full min-w-0 pb-28 md:pb-12 overflow-x-visible overflow-y-auto focus:outline-none"
-        >
-          {children}
-        </main>
+          <div className="flex-1 flex flex-col min-w-0 w-full">
+            {showNav && <NavigationBar className="md:hidden" />}
 
-        {!isAuthPage && !(!hasAuth && location.pathname === '/' && typeof window !== 'undefined' && localStorage.getItem('botanical_guardian_onboarded') !== '1') && <Footer />}
+            {/* tabIndex and focus:outline-none are a pair: the outline rule gives
+                RouteAnnouncer somewhere to put focus after a route change, and
+                outline-none stops that programmatic move from painting a ring
+                around the whole page. The skip link keeps its own ring. */}
+            <main
+              id="main-content"
+              tabIndex={-1}
+              className="flex-grow relative z-10 w-full min-w-0 pb-28 md:pb-12 overflow-x-visible overflow-y-auto focus:outline-none"
+            >
+              {children}
+            </main>
+
+            {!isAuthPage && !(!hasAuth && location.pathname === '/' && typeof window !== 'undefined' && localStorage.getItem('botanical_guardian_onboarded') !== '1') && <Footer />}
+          </div>
+        </div>
+
+        {showNav && <MobileBottomNav />}
       </PageTransitionProvider>
     </div>
   );
