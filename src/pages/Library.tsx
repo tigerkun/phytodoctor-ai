@@ -25,6 +25,8 @@ import { GameService } from '../services/gameService';
 import PageWrapper from '../components/home/PageWrapper';
 import { triggerHaptic, playAudio } from '../utils/hapticAudio';
 import BlogsSection from '../components/ui/blogs-3';
+import EnvironmentalNewsCarousel from '../components/library/EnvironmentalNewsCarousel';
+import { fetchLibraryDaily, type DailyQuizItem, type EnvironmentalNewsItem } from '../services/libraryService';
 
 const ROMAN_NUMERALS = ['I.', 'II.', 'III.', 'IV.', 'V.'];
 
@@ -533,9 +535,10 @@ export default function Library() {
   const dayNumber = getDayNumber();
   // Today's draws — stable all day, completely different tomorrow.
   const todaysQuizOrder = useMemo(() => seededShuffle(DAILY_QUIZZES.map((_, i) => i), dayNumber), [dayNumber]);
-  const [earthEvents, setEarthEvents] = useState<EarthEvent[]>(FALLBACK_EARTH_EVENTS);
-  const [earthIndex, setEarthIndex] = useState(0);
-  const [earthLive, setEarthLive] = useState(false);
+  const [dynamicQuizzes, setDynamicQuizzes] = useState<DailyQuizItem[] | null>(null);
+  const [newsItems, setNewsItems] = useState<EnvironmentalNewsItem[]>([]);
+  const [newsStale, setNewsStale] = useState(false);
+  const [quizTheme, setQuizTheme] = useState<string>('');
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [quizMessage, setQuizMessage] = useState('');
   const [answered, setAnswered] = useState(false);
@@ -548,30 +551,62 @@ export default function Library() {
   const [justFell, setJustFell] = useState(false);
   const answeringRef = useRef(false);
   const userId = GameService.getUserId();
-  // The current attempt's puzzle: attempt N serves today's Nth draw.
-  const quizIndex = todaysQuizOrder[attemptsUsedToday() % todaysQuizOrder.length];
-  const dailyQuiz = DAILY_QUIZZES[quizIndex];
-  // Every bank entry lists its correct option first, so the raw order let a
-  // player who always taps the top answer win ~94% of the time. Shuffling the
-  // options with the same date seed as the quiz rotation keeps a day's layout
-  // identical for everyone while moving the answer somewhere else.
+
+  // Active quiz selection: prefers dynamic SerpApi+Gemini shaped questions
+  // for today's date, falling back smoothly to static DAILY_QUIZZES if unavailable.
+  const isDynamicQuiz = Boolean(dynamicQuizzes && dynamicQuizzes.length >= 3);
+  const currentQuizIndex = isDynamicQuiz
+    ? attemptsUsedToday() % dynamicQuizzes!.length
+    : todaysQuizOrder[attemptsUsedToday() % todaysQuizOrder.length];
+  const dailyQuiz = isDynamicQuiz
+    ? dynamicQuizzes![currentQuizIndex]
+    : DAILY_QUIZZES[currentQuizIndex];
+
+  // Shuffling options with the date seed moves the answer to a varied position
+  // while keeping today's layout deterministic for the same day.
   const presentedQuiz = useMemo(() => {
-    const order = seededShuffle(dailyQuiz.options.map((_, i) => i), dayNumber * 131 + quizIndex * 17 + 7);
+    const order = seededShuffle(dailyQuiz.options.map((_, i) => i), dayNumber * 131 + currentQuizIndex * 17 + 7);
     return {
       options: order.map(i => dailyQuiz.options[i]),
       answer: order.indexOf(dailyQuiz.answer),
     };
-  }, [dailyQuiz, dayNumber, quizIndex]);
+  }, [dailyQuiz, dayNumber, currentQuizIndex]);
+
   // Derived, not state: attemptsUsedToday() keys on the local date, but state
   // captured at mount went stale when a tab stayed open past midnight — the
   // new day granted three fresh attempts while puzzlesLocked kept reading 0.
   const attemptsLeft = Math.max(0, QUIZZES_PER_DAY - attemptsUsedToday());
-  const currentEvent = earthEvents[earthIndex % earthEvents.length];
   const profile = useLiveQuery(() => GameService.getProfile());
 
   useEffect(() => {
     GameService.isPro(userId).then(setIsProUser).catch(() => setIsProUser(false));
   }, [userId]);
+
+  // Daily Library feed (dynamic questions + top 10 environmental news)
+  useEffect(() => {
+    let cancelled = false;
+    fetchLibraryDaily()
+      .then((data) => {
+        if (cancelled) return;
+        if (Array.isArray(data?.quiz) && data.quiz.length >= 3) {
+          setDynamicQuizzes(data.quiz);
+        }
+        if (Array.isArray(data?.news) && data.news.length > 0) {
+          setNewsItems(data.news);
+          setNewsStale(Boolean(data.newsStale));
+        }
+        if (data?.quizTheme) {
+          setQuizTheme(data.quizTheme);
+        }
+      })
+      .catch((err) => {
+        console.warn('[Library] Dynamic daily refresh unavailable, using static fallback:', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const puzzlesLocked = !isProUser && attemptsLeft <= 0;
   // Visible paces clamp to the pole; the streak number keeps counting.
@@ -587,32 +622,6 @@ export default function Library() {
 
   // Random featured specimen per visit
   const dailyFeaturedSpecimen = PHYTO_NOTES[dayNumber % PHYTO_NOTES.length];
-
-  // Fetch live NASA EONET events, fall back to static cards on failure
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch('https://eonet.gsfc.nasa.gov/api/v3/events?limit=6&status=open', { signal: controller.signal })
-      .then(r => { if (!r.ok) throw new Error('EONET'); return r.json(); })
-      .then(data => {
-        const events: EarthEvent[] = (data.events || []).map((e: any) => ({
-          title: e.title,
-          category: e.categories?.[0]?.title || 'Natural Event',
-          date: e.geometry?.[0]?.date?.slice(0, 10) || 'Recent',
-          source: e.sources?.[0]?.id || 'NASA',
-          url: e.sources?.[0]?.url || 'https://eonet.gsfc.nasa.gov/',
-          magnitude: e.geometry?.[0]?.magnitudeValue
-            ? `${e.geometry[0].magnitudeValue} ${e.geometry[0].magnitudeUnit || ''}`
-            : undefined,
-        }));
-        if (events.length > 0) {
-          setEarthEvents(events);
-          setEarthLive(true);
-        }
-      })
-      .catch(() => { /* keep fallback */ });
-
-    return () => controller.abort();
-  }, []);
 
   const answerQuiz = async (index: number) => {
     // answered/selectedAnswer are state, so two clicks landing in the same tick
@@ -672,11 +681,6 @@ export default function Library() {
     setSelectedAnswer(null);
     setQuizMessage('');
     setAnswered(false);
-  };
-
-  const nextEarthEvent = () => {
-    triggerHaptic('light');
-    setEarthIndex((prev) => (prev + 1) % earthEvents.length);
   };
 
   const handleFilterChange = (filter: 'All' | 'Species Profile' | 'Pathology' | 'Pest') => {
@@ -770,7 +774,7 @@ export default function Library() {
             <div className="flex items-start justify-between gap-3 pt-1">
               <div className="min-w-0">
                 <span className="text-[10px] font-sans font-semibold uppercase tracking-[0.08em] text-[#8c6d46] dark:text-[#caa651] block leading-none mb-1.5">
-                  Daily Examination
+                  Daily Examination {isDynamicQuiz && quizTheme ? `· ${quizTheme}` : ''}
                 </span>
                 <h4 className="font-serif font-bold text-text-bark text-[15px] leading-snug">
                   {puzzlesLocked ? 'The carrel is closed for today' : dailyQuiz.question}
@@ -938,49 +942,13 @@ export default function Library() {
             )}
           </motion.div>
 
-          {/* Expeditionary Botanical Telegraph Wire */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.99 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="p-5 sm:p-6 rounded-xl telegraph-ticker-tape shadow-sm relative overflow-hidden flex flex-col justify-between gap-4"
-          >
-            {/* Circular Ink Cancellation Stamp */}
-            <div className="ink-cancellation-stamp" />
-
-            <div className="flex items-start justify-between gap-3 relative z-10">
-              <div className="flex items-center gap-2 min-w-0">
-                <Globe2 size={17} className="text-moss shrink-0" />
-                <div className="min-w-0">
-                  <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[#8c6d46] dark:text-[#caa651] block">
-                    Telegraph Wire
-                  </span>
-                  <h4 className="font-serif font-bold text-text-bark text-sm sm:text-base leading-tight mt-0.5 line-clamp-2">
-                    {currentEvent.title}
-                  </h4>
-                </div>
-              </div>
-              <span className={`px-2 py-0.5 text-[8px] font-mono font-bold uppercase tracking-wider rounded border shrink-0 ${
-                earthLive ? 'bg-moss/10 text-moss border-moss/30' : 'bg-black/5 dark:bg-white/5 text-text-stone border-[#8c7355]/20'
-              }`}>
-                {earthLive ? 'Live' : 'Archive'}
-              </span>
-            </div>
-
-            <div className="space-y-1.5 relative z-10 font-mono">
-              <p className="text-xs text-text-stone leading-relaxed">
-                {currentEvent.category} // {currentEvent.date}
-              </p>
-              {currentEvent.magnitude && (
-                <p className="text-[10px] font-bold uppercase tracking-wider text-terracotta">
-                  MAG: {currentEvent.magnitude}
-                </p>
-              )}
-              <p className="text-[10px] text-text-muted">SOURCE: {currentEvent.source}</p>
-            </div>
-
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#8c7355]/20 relative z-10">
+          {/* Expeditionary Botanical Telegraph Wire · Daily Environmental News Corner */}
+          <EnvironmentalNewsCarousel
+            items={newsItems}
+            stale={newsStale}
+            actionLink={(item) => (
               <a
-                href={currentEvent.url}
+                href={item.link}
                 target="_blank"
                 rel="noreferrer"
                 // Inline text link that measured 17px tall: min-h makes the
@@ -988,17 +956,10 @@ export default function Library() {
                 // from disturbing the card row it sits on.
                 className="-my-3 inline-flex items-center min-h-[44px] gap-1.5 py-3 text-[10px] font-mono font-bold uppercase tracking-widest text-moss hover:text-moss-dark"
               >
-                Open Record <ExternalLink size={11} />
+                Open Record <ExternalLink size={11} aria-hidden="true" />
               </a>
-              <button
-                onClick={nextEarthEvent}
-                className="inline-flex items-center gap-1.5 min-h-[44px] px-3 py-1.5 bg-black/5 dark:bg-white/5 hover:bg-moss/10 text-text-bark rounded text-[10px] font-mono font-bold uppercase tracking-widest transition-colors border border-[#8c7355]/25"
-              >
-                <RotateCw size={11} />
-                Next
-              </button>
-            </div>
-          </motion.div>
+            )}
+          />
         </div>
 
         {/* ── CATEGORY FILTER TABS ─────────────────────────────────── */}

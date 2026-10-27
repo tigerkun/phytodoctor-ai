@@ -17,6 +17,7 @@ import { createGuestQuotaStore, digestIp, MemoryQuotaStore, type GuestQuotaStore
 import { classifyStaticRequest } from "./src/lib/spaFallback";
 import { clientIpOf as resolveClientIp } from "./src/lib/clientIp";
 import { log, withRequestContext, setRequestUser, currentRequestId } from "./src/lib/logger";
+import { registerLibraryDailyRoute } from "./src/server/libraryDaily";
 
 dotenv.config();
 
@@ -1343,6 +1344,9 @@ async function generateWithRetry(params: any, retries = 1, client: GoogleGenAI =
   }
   throw new Error("Gemini API generateContent failed across all models");
 }
+
+// ── Daily Library Feed (SerpApi Q&A + Top 10 Environmental News) ───────────
+registerLibraryDailyRoute(app, { aiFast, log, generateWithRetry }, [generalLimiter]);
 
 // ── Scan report persistence ────────────────────────────────────────────────
 // Every finished analysis is recorded in scan_reports: the account (or hashed
