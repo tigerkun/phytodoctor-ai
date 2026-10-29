@@ -12,7 +12,7 @@ import { readSource } from '../../test/helpers';
  */
 
 const hook = readSource('src/hooks/useInstallPrompt.ts');
-const profile = readSource('src/pages/Profile.tsx');
+const settings = readSource('src/pages/Settings.tsx');
 
 describe('the install prompt hook', () => {
   it('catches and holds the beforeinstallprompt event', () => {
@@ -36,21 +36,21 @@ describe('the install prompt hook', () => {
   });
 });
 
-describe('the profile install card', () => {
+describe('the settings install card', () => {
   it('renders from the hook, not its own event listener', () => {
-    expect(profile).toContain('useInstallPrompt()');
+    expect(settings).toContain('useInstallPrompt()');
   });
 
   it('hides for installed users and for dismissed hints', () => {
-    expect(profile).toMatch(/!\s*standalone && !dismissedInstall && \(canInstall \|\| isIOS\)/);
+    expect(settings).toMatch(/!\s*standalone && !dismissedInstall && \(canInstall \|\| isIOS\)/);
   });
 
   it('shows an actionable Install button only when the browser allows it', () => {
-    expect(profile).toMatch(/canInstall \? \(/);
-    expect(profile).toMatch(/outcome === 'accepted'/);
+    expect(settings).toMatch(/canInstall \? \(/);
+    expect(settings).toMatch(/outcome === 'accepted'/);
   });
 
   it('persists the iOS hint dismissal', () => {
-    expect(profile).toMatch(/localStorage\.setItem\('phyto_install_hint_dismissed', '1'\)/);
+    expect(settings).toMatch(/localStorage\.setItem\('phyto_install_hint_dismissed', '1'\)/);
   });
 });

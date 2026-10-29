@@ -170,12 +170,12 @@ describe('the text-size setting', () => {
     expect(boot.indexOf('initTextSize()')).toBeLessThan(boot.indexOf('runDbMigration()'));
   });
 
-  it('has a labelled, per-option-announced control in Profile settings', () => {
-    const profile = stripJsComments(readSource('src/pages/Profile.tsx'));
-    expect(profile).toMatch(/role="group" aria-label="Text size"/);
+  it('has a labelled, per-option-announced control in Settings', () => {
+    const settings = stripJsComments(readSource('src/pages/Settings.tsx'));
+    expect(settings).toMatch(/role="group" aria-label="Text size"/);
     // aria-pressed, not aria-selected: these are toggle buttons, and a
     // screen reader must hear which one is in force.
-    expect(profile).toMatch(/aria-pressed=\{textSize === size\}/);
+    expect(settings).toMatch(/aria-pressed=\{textSize === size\}/);
   });
 });
 
@@ -211,10 +211,10 @@ describe('the motion-preference setting', () => {
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.garden-ambience:not\(\[data-motion='full'\]\) \.garden-pool/);
   });
 
-  it('has a labelled, per-option-announced control in Profile settings', () => {
-    const profile = stripJsComments(readSource('src/pages/Profile.tsx'));
-    expect(profile).toMatch(/role="group" aria-label="Garden motion"/);
-    expect(profile).toMatch(/aria-pressed=\{motionPreference === preference\}/);
+  it('has a labelled, per-option-announced control in Settings', () => {
+    const settings = stripJsComments(readSource('src/pages/Settings.tsx'));
+    expect(settings).toMatch(/role="group" aria-label="Garden motion"/);
+    expect(settings).toMatch(/aria-pressed=\{motionPreference === preference\}/);
   });
 });
 

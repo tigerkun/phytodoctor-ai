@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   Sun, Moon, ChevronLeft, Sparkles, PlusCircle,
   Stethoscope, MessageSquare, User, HelpCircle, Shield,
-  Award, Coins
+  Award, Coins, Sliders
 } from 'lucide-react';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -183,15 +183,24 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Bottom Dock: Theme & Profile */}
-      <div className="p-3 border-t border-border-light flex items-center justify-between gap-2 text-text-secondary">
+      {/* Bottom Dock: Theme & Profile / Settings */}
+      <div className="p-3 border-t border-border-light flex items-center justify-between gap-1 text-text-secondary">
         <NavLink
           to="/profile"
           aria-label="Open profile"
-          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 hover:text-text-bark dark:hover:text-[#FAF7F2] text-xs font-medium transition-colors"
+          className={({ isActive }) => `flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 hover:text-text-bark dark:hover:text-[#FAF7F2] text-xs font-medium transition-colors ${isActive ? 'bg-moss/10 text-moss font-bold' : ''}`}
         >
-          <User size={16} aria-hidden="true" />
-          <span>Passport</span>
+          <User size={15} aria-hidden="true" />
+          <span>Profile</span>
+        </NavLink>
+
+        <NavLink
+          to="/settings"
+          aria-label="Open settings"
+          className={({ isActive }) => `flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 hover:text-text-bark dark:hover:text-[#FAF7F2] text-xs font-medium transition-colors ${isActive ? 'bg-moss/10 text-moss font-bold' : ''}`}
+        >
+          <Sliders size={15} aria-hidden="true" />
+          <span>Settings</span>
         </NavLink>
 
         <button
@@ -199,9 +208,9 @@ export function Sidebar() {
           onClick={toggleTheme}
           aria-label={theme === 'day' ? 'Switch to night theme' : 'Switch to day theme'}
           title={isAutomatic ? 'Theme: Auto mode' : 'Theme: Manual mode'}
-          className="w-9 h-9 grid place-items-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 hover:text-text-bark dark:hover:text-[#FAF7F2] transition-colors"
+          className="w-8 h-8 grid place-items-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 hover:text-text-bark dark:hover:text-[#FAF7F2] transition-colors shrink-0"
         >
-          {theme === 'day' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
+          {theme === 'day' ? <Moon size={15} aria-hidden="true" /> : <Sun size={15} aria-hidden="true" />}
         </button>
       </div>
     </aside>

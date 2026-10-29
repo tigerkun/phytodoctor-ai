@@ -77,6 +77,7 @@ const OTHER_ROUTE_TITLES: Record<string, string> = {
   '/terms': 'Terms of service',
   '/clinic': 'The Clinic',
   '/profile': 'Your profile',
+  '/settings': 'Sanctuary Settings',
   '/assistant': 'The Master Gardener',
   '/audit': 'System audit',
 };

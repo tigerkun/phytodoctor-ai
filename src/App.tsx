@@ -18,6 +18,7 @@ const BotanicalLab = lazy(() => import('./pages/BotanicalLab'));
 const Market = lazy(() => import('./pages/Market'));
 const Arena = lazy(() => import('./pages/Arena'));
 const Profile = lazy(() => import('./pages/Profile'));
+const Settings = lazy(() => import('./pages/Settings'));
 const PlantDetail = lazy(() => import('./pages/PlantDetail'));
 const Assistant = lazy(() => import('./pages/Assistant'));
 const Auth = lazy(() => import('./pages/Auth'));
@@ -156,8 +157,9 @@ function RoutedContent() {
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
 
-            {/* Specialist Profile */}
+            {/* Specialist Profile & Sanctuary Settings */}
             <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
+            <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
 
             {/* Deep-Tissue Specimen Analytics */}
             <Route path="/plant/:id" element={<RequireAuth><PlantDetail /></RequireAuth>} />

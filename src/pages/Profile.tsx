@@ -11,12 +11,7 @@ import {
   TrendingUp,
   Calendar,
   Zap,
-  LogOut,
   Flame,
-  Volume2,
-  VolumeX,
-  Vibrate,
-  Bell,
   Sparkles,
   BookOpen,
   Clock,
@@ -26,16 +21,10 @@ import {
   ArrowUpRight,
   RefreshCw,
   Coins,
-  CloudUpload as CloudUp,
-  Download,
-  Share2,
-  Type,
-  Accessibility,
-  X
+  Leaf,
+  Microscope,
+  Sliders
 } from 'lucide-react';
-import { getTextSize, setTextSize, TEXT_SIZES, type TextSize } from '../utils/textSize';
-import { getMotionPreference, setMotionPreference, MOTION_PREFERENCES, type MotionPreference } from '../utils/motionPreference';
-import NotificationOptIn from '../components/NotificationOptIn';
 import { useNavigate } from 'react-router-dom';
 import { db, type SeedTransaction } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -43,11 +32,9 @@ import { GameService } from '../services/gameService';
 import { RewardService } from '../services/rewardService';
 import { SanctuaryService } from '../services/sanctuaryService';
 import { RESTORED_STREAK } from '../game/SANCTUARY_DATA';
-import { MigrationService } from '../services/migrationService';
 import PageWrapper from '../components/home/PageWrapper';
 import { usePageTransition } from '../components/home/PageTransitionContext';
 import { useToast } from '../components/Toast';
-import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import { triggerHaptic, playAudio } from '../utils/hapticAudio';
 import {
   evaluateProfileBadges,
@@ -57,23 +44,22 @@ import {
   parseSettingToggle
 } from '../services/profileUtils';
 
-export type ProfileFolio = 'passport' | 'mastery' | 'badges' | 'treasury' | 'settings';
+export type ProfileFolio = 'passport' | 'knowledge' | 'mastery' | 'badges' | 'treasury';
 
 /** The five parts of the passport, in the order they appear in the document.
  *  Exported so the phone tab bar and its test cannot drift apart. */
 export const PROFILE_FOLIOS: ReadonlyArray<{ id: ProfileFolio; label: string }> = [
   { id: 'passport', label: 'Passport' },
+  { id: 'knowledge', label: 'Knowledge' },
   { id: 'mastery', label: 'Mastery' },
   { id: 'badges', label: 'Badges' },
   { id: 'treasury', label: 'Treasury' },
-  { id: 'settings', label: 'Settings' },
 ];
 
 export default function Profile() {
   const navigate = useNavigate();
   const { transitionTo } = usePageTransition();
   const { success, error } = useToast();
-  const { canInstall, standalone, isIOS, install } = useInstallPrompt();
   const userId = GameService.getUserId();
   // Set when the records below could not be created, so the loading guard can
   // say so instead of spinning forever.
@@ -135,20 +121,12 @@ export default function Profile() {
   // and the desktop arrangement is untouched.
   const [folio, setFolio] = useState<ProfileFolio>('passport');
 
-  // Hardware and notification settings
-  const [audioEnabled, setAudioEnabled] = useState(() => parseSettingToggle(localStorage.getItem('botanical_audio_enabled'), true));
-  const [hapticEnabled, setHapticEnabled] = useState(() => parseSettingToggle(localStorage.getItem('botanical_haptic_enabled'), true));
-  const [notificationsEnabled, setNotificationsEnabled] = useState(() => parseSettingToggle(localStorage.getItem('botanical_notifications_enabled'), true));
-  const [textSize, setTextSizeState] = useState<TextSize>(() => getTextSize());
-  const [motionPreference, setMotionPreferenceState] = useState<MotionPreference>(() => getMotionPreference());
-
-  // The iOS install hint carries no browser event, so its dismissal is the
-  // only thing standing between the visitor and a permanent nag. Persisted.
-  const [dismissedInstall, setDismissedInstall] = useState(() => localStorage.getItem('phyto_install_hint_dismissed') === '1');
+  // Audio & haptics for interactions
+  const audioEnabled = parseSettingToggle(localStorage.getItem('botanical_audio_enabled'), true);
+  const hapticEnabled = parseSettingToggle(localStorage.getItem('botanical_haptic_enabled'), true);
 
   // Upgrading feedback
   const [isUpgrading, setIsUpgrading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -174,43 +152,6 @@ export default function Profile() {
     setIsEditing(false);
     if (hapticEnabled) triggerHaptic('medium');
     if (audioEnabled) playAudio('success');
-  };
-
-  const handleToggleAudio = () => {
-    const next = !audioEnabled;
-    setAudioEnabled(next);
-    localStorage.setItem('botanical_audio_enabled', String(next));
-    if (next) playAudio('chime');
-  };
-
-  const handleToggleHaptic = () => {
-    const next = !hapticEnabled;
-    setHapticEnabled(next);
-    localStorage.setItem('botanical_haptic_enabled', String(next));
-    if (next) triggerHaptic('heavy');
-  };
-
-  const handleToggleNotifications = () => {
-    const next = !notificationsEnabled;
-    setNotificationsEnabled(next);
-    localStorage.setItem('botanical_notifications_enabled', String(next));
-    if (hapticEnabled) triggerHaptic('light');
-  };
-
-  const handleTextSize = (size: TextSize) => {
-    setTextSizeState(size);
-    // Persists the choice and rescales <html> in the same call, so every
-    // rem-based size in the app moves at once — no reload needed.
-    setTextSize(size);
-    if (hapticEnabled) triggerHaptic('light');
-  };
-
-  const handleMotionPreference = (preference: MotionPreference) => {
-    setMotionPreferenceState(preference);
-    // Persists and dispatches the change event that live useEcoMode
-    // consumers listen for, so the garden calms without a reload.
-    setMotionPreference(preference);
-    if (hapticEnabled) triggerHaptic('light');
   };
 
   const handleUpgradeToPro = async () => {
@@ -303,52 +244,26 @@ export default function Profile() {
     }
   };
 
-  const handleSync = async () => {
-    setSyncing(true);
-    try {
-      // The button promises a ledger sync, so deliver the seed ledger first.
-      // Without this the only thing that moved seeds to the cloud was the
-      // automatic flush on the next earning, leaving a user whose deltas were
-      // stranded by an outage with no way to push them but wait.
-      await GameService.flushSeedSyncOutbox();
-      const result = await MigrationService.migratePlantsToCloud();
-      if (result.success) {
-        if (hapticEnabled) triggerHaptic('medium');
-        if (audioEnabled) playAudio('success');
-        // A native alert() blocked the whole page mid-flow and read as a
-        // system error rather than the app's own confirmation.
-        success(
-          result.count > 0
-            ? `Backed up ${result.count} ${result.count === 1 ? 'plant' : 'plants'} to the Sanctuary cloud!`
-            : 'Ledger synced — no plants on this device to back up yet.'
-        );
-      } else {
-        error(`Sync failed: ${result.error}`);
-      }
-    } catch (err: any) {
-      error(`Sync error: ${err?.message || 'Unknown error occurred'}`);
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const handleSignOut = async () => {
-    if (window.confirm('Surrender your Guild Passport and sign out of the active terminal session?')) {
-      const { supabase } = await import('../lib/supabase');
-      if (supabase) {
-        await supabase.auth.signOut();
-      }
-      localStorage.removeItem('botanical_guardian_auth_token');
-      localStorage.removeItem('botanical_guardian_onboarded');
-      localStorage.removeItem('botanical_guardian_userId');
-      try {
-        document.cookie = 'sb-access-token=; path=/; max-age=0; SameSite=Lax';
-      } catch {}
-      navigate('/auth', { replace: true });
-    }
-  };
-
   const folioSerial = useMemo(() => formatFolioSerial(userId), [userId]);
+
+  // Species Codex & Knowledge Analytics
+  const discoveredSpeciesList = useMemo(() => {
+    return Array.isArray(profile?.discoveredSpecies) ? profile.discoveredSpecies : [];
+  }, [profile?.discoveredSpecies]);
+
+  const avgFrankScore = useMemo(() => {
+    if (!checkins || checkins.length === 0) return 0;
+    const sum = checkins.reduce((acc, c) => acc + (c.guardianScore ?? 80), 0);
+    return Math.round(sum / checkins.length);
+  }, [checkins]);
+
+  const rarityCounts = useMemo(() => {
+    const counts: Record<string, number> = { common: 0, uncommon: 0, rare: 0, epic: 0, mythic: 0 };
+    for (const c of cards) {
+      if (counts[c.rarity] !== undefined) counts[c.rarity]++;
+    }
+    return counts;
+  }, [cards]);
 
   const mythicCount = cards.filter(c => c.rarity === 'mythic').length;
   const currentStreak = streakRecord?.currentStreak ?? profile?.currentStreak ?? 0;
@@ -445,6 +360,18 @@ export default function Profile() {
           </div>
 
           <div className="flex items-center justify-center sm:justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => transitionTo('/settings', 'Settings')}
+              className="px-3 py-2 bg-[#faf6ec] dark:bg-[#201a14] hover:bg-[#efe7d5] dark:hover:bg-[#2a221b] rounded-xl border border-[#d8cbba] dark:border-[#3f3223] text-center shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Sanctuary Terminal Settings"
+            >
+              <Sliders size={13} className="text-[#c5a059]" />
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#3b2816] dark:text-[#ebd6b2]">
+                Settings
+              </span>
+            </button>
+
             <div className="px-3 py-2 bg-[#faf6ec] dark:bg-[#201a14] rounded-xl border border-[#d8cbba] dark:border-[#3f3223] text-center shadow-xs">
               <p className="text-[9px] font-mono uppercase tracking-widest text-[#8c7459] dark:text-[#bba388]">Official Folio</p>
               <p className="font-mono text-xs font-bold text-[#3b2816] dark:text-[#ebd6b2]">{folioSerial}</p>
@@ -796,12 +723,182 @@ export default function Profile() {
               hidden siblings, opening a gap above the one that is showing. */}
           <div className="lg:col-span-7 space-y-0 lg:space-y-8">
 
-            {/* ── FOLIO 1: LEVEL ACCREDITATION & CANOPY VIGILANCE ── */}
+            {/* ── FOLIO 1: BOTANICAL KNOWLEDGE & SPECIES CODEX ── */}
+            <section className={`passport-visa-folio rounded-3xl p-6 sm:p-8 relative ${folio === 'knowledge' ? '' : 'hidden lg:block'}`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6 pb-3 border-b border-[#c5a059]/30">
+                <div>
+                  <span className="text-[9px] font-mono uppercase tracking-[0.25em] text-[#8c7355] dark:text-[#baa07c]">
+                    Folio Section I · Botanical Knowledge
+                  </span>
+                  <h3 className="font-serif text-2xl font-black text-[#2e2117] dark:text-[#fbf7ee]">
+                    Species Codex & Field Intelligence
+                  </h3>
+                </div>
+                <div className="px-3 py-1 bg-[#3c6b44]/10 dark:bg-[#3c6b44]/30 border border-[#3c6b44]/40 rounded-full text-[9px] font-mono font-bold uppercase text-[#2c5332] dark:text-[#79cb91] tracking-wider self-start sm:self-auto flex items-center gap-1.5">
+                  <Sparkles size={11} className="text-[#3c6b44] dark:text-[#79cb91]" />
+                  <span>Guild Naturalist Codex</span>
+                </div>
+              </div>
+
+              {/* Quad Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                <div className="p-3.5 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528]">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[8px] font-mono uppercase tracking-widest text-[#8c7459] dark:text-[#baa489]">Discovered</span>
+                    <Leaf size={13} className="text-[#3c6b44] dark:text-[#79cb91]" />
+                  </div>
+                  <p className="font-serif text-xl font-black text-[#2e2117] dark:text-[#faebd7]">
+                    {discoveredSpeciesList.length}
+                  </p>
+                  <p className="text-[9px] font-mono text-[#7d6751] dark:text-[#a6927d]">Registered Flora</p>
+                </div>
+
+                <div className="p-3.5 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528]">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[8px] font-mono uppercase tracking-widest text-[#8c7459] dark:text-[#baa489]">Herbarium</span>
+                    <BookOpen size={13} className="text-[#c5a059]" />
+                  </div>
+                  <p className="font-serif text-xl font-black text-[#2e2117] dark:text-[#faebd7]">
+                    {cards.length}
+                  </p>
+                  <p className="text-[9px] font-mono text-[#7d6751] dark:text-[#a6927d]">Living Specimen</p>
+                </div>
+
+                <div className="p-3.5 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528]">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[8px] font-mono uppercase tracking-widest text-[#8c7459] dark:text-[#baa489]">Care Patrols</span>
+                    <ShieldCheck size={13} className="text-[#1e3a5f] dark:text-[#82b5ed]" />
+                  </div>
+                  <p className="font-serif text-xl font-black text-[#2e2117] dark:text-[#faebd7]">
+                    {checkins.length}
+                  </p>
+                  <p className="text-[9px] font-mono text-[#7d6751] dark:text-[#a6927d]">Visas Recorded</p>
+                </div>
+
+                <div className="p-3.5 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528]">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[8px] font-mono uppercase tracking-widest text-[#8c7459] dark:text-[#baa489]">Avg Frank</span>
+                    <Star size={13} className="text-[#b85323] dark:text-[#f48a60]" />
+                  </div>
+                  <p className="font-serif text-xl font-black text-[#2e2117] dark:text-[#faebd7]">
+                    {avgFrankScore > 0 ? `${avgFrankScore}%` : '—'}
+                  </p>
+                  <p className="text-[9px] font-mono text-[#7d6751] dark:text-[#a6927d]">Diagnostic Health</p>
+                </div>
+              </div>
+
+              {/* Discovered Species Codex */}
+              <div className="p-5 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528] mb-6">
+                <div className="flex items-center justify-between mb-3 pb-2 border-b border-[#d8ccb8]/60 dark:border-[#423528]/60">
+                  <div className="flex items-center gap-2">
+                    <Microscope size={15} className="text-[#3c6b44] dark:text-[#79cb91]" />
+                    <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
+                      Discovered Species Registry
+                    </h4>
+                  </div>
+                  <span className="text-[9px] font-mono text-[#8c7459] dark:text-[#baa489] uppercase tracking-wider">
+                    {discoveredSpeciesList.length} Authenticated
+                  </span>
+                </div>
+
+                {discoveredSpeciesList.length === 0 ? (
+                  <div className="py-6 px-4 text-center space-y-3">
+                    <p className="font-serif italic text-sm text-[#7e6955] dark:text-[#bda68e]">
+                      &quot;No wild or cultivated species catalogued in the Registry yet. Survey botanical specimens in the Diagnostic Lab to engrave their scientific classification.&quot;
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => transitionTo('/lab', 'Diagnostic Lab')}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2e4a34] hover:bg-[#395c41] text-[#f4eee1] text-[10px] font-mono font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                    >
+                      <Microscope size={13} />
+                      <span>Conduct Botanical Assessment</span>
+                      <ArrowUpRight size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {discoveredSpeciesList.map((species, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#efe7d5] dark:bg-[#2e251d] border border-[#d8cbba] dark:border-[#423528] text-xs font-serif font-bold text-[#2e2117] dark:text-[#faebd7]"
+                      >
+                        <Leaf size={11} className="text-[#3c6b44] dark:text-[#79cb91] shrink-0" />
+                        <span>{species}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Herbarium Archive Distribution & Rarity */}
+              <div className="p-5 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528] mb-6">
+                <div className="flex items-center justify-between mb-3 pb-2 border-b border-[#d8ccb8]/60 dark:border-[#423528]/60">
+                  <div className="flex items-center gap-2">
+                    <Award size={15} className="text-[#c5a059]" />
+                    <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
+                      Specimen Archival Tiers
+                    </h4>
+                  </div>
+                  <span className="text-[9px] font-mono text-[#8c7459] dark:text-[#baa489] uppercase tracking-wider">
+                    Living Herbarium Rarity
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-5 gap-2 text-center">
+                  <div className="p-2.5 rounded-xl bg-[#efe7d5]/60 dark:bg-[#201a14]/60 border border-[#d8ccb8] dark:border-[#382d22]">
+                    <p className="text-[8px] font-mono uppercase text-[#7d6751] dark:text-[#a6927d]">Common</p>
+                    <p className="font-serif text-lg font-black text-[#2e2117] dark:text-[#faebd7]">{rarityCounts.common}</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-[#3c6b44]/10 dark:bg-[#3c6b44]/20 border border-[#3c6b44]/30">
+                    <p className="text-[8px] font-mono uppercase text-[#2c5332] dark:text-[#79cb91]">Uncommon</p>
+                    <p className="font-serif text-lg font-black text-[#2c5332] dark:text-[#79cb91]">{rarityCounts.uncommon}</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-[#1e3a5f]/10 dark:bg-[#1e3a5f]/20 border border-[#1e3a5f]/30">
+                    <p className="text-[8px] font-mono uppercase text-[#1e3a5f] dark:text-[#82b5ed]">Rare</p>
+                    <p className="font-serif text-lg font-black text-[#1e3a5f] dark:text-[#82b5ed]">{rarityCounts.rare}</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-[#6b21a8]/10 dark:bg-[#6b21a8]/20 border border-[#6b21a8]/30">
+                    <p className="text-[8px] font-mono uppercase text-[#6b21a8] dark:text-[#c084fc]">Epic</p>
+                    <p className="font-serif text-lg font-black text-[#6b21a8] dark:text-[#c084fc]">{rarityCounts.epic}</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-[#c5a059]/15 dark:bg-[#c5a059]/25 border border-[#c5a059]/40">
+                    <p className="text-[8px] font-mono uppercase text-[#73541e] dark:text-[#f4d38c]">Mythic</p>
+                    <p className="font-serif text-lg font-black text-[#73541e] dark:text-[#f4d38c]">{rarityCounts.mythic}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dedicated Settings Route Gateway */}
+              <div className="p-4 rounded-2xl border border-[#c5a059]/40 bg-[#c5a059]/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#c5a059]/25 text-[#4d3714] dark:text-[#faebd7] flex items-center justify-center shrink-0">
+                    <Sliders size={18} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-[#2e2117] dark:text-[#faebd7]">Sanctuary Terminal Preferences</p>
+                    <p className="text-xs text-[#7c6650] dark:text-[#a6917a]">
+                      Hardware audio chimes, tactile haptics, weather push telegrams, text scaling & cloud sync
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => transitionTo('/settings', 'Settings')}
+                  className="shrink-0 min-h-[44px] px-4 rounded-xl bg-[#2e4a34] hover:bg-[#395c41] text-[#f4eee1] text-[10px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Sliders size={13} />
+                  <span>Open Settings</span>
+                </button>
+              </div>
+            </section>
+
+            {/* ── FOLIO 2: LEVEL ACCREDITATION & CANOPY VIGILANCE ── */}
             <section className={`passport-visa-folio rounded-3xl p-6 sm:p-8 relative ${folio === 'mastery' ? '' : 'hidden lg:block'}`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6 pb-3 border-b border-[#c5a059]/30">
                 <div>
                   <span className="text-[9px] font-mono uppercase tracking-[0.25em] text-[#8c7355] dark:text-[#baa07c]">
-                    Folio Section I · Visa Stamp
+                    Folio Section II · Visa Stamp
                   </span>
                   <h3 className="font-serif text-2xl font-black text-[#2e2117] dark:text-[#fbf7ee]">
                     Mastery & Canopy Vigilance
@@ -900,12 +997,12 @@ export default function Profile() {
               </div>
             </section>
 
-            {/* ── FOLIO 2: CONSULAR DISTINCTIONS & GUILD SEALS (BADGES) ── */}
+            {/* ── FOLIO 3: CONSULAR DISTINCTIONS & GUILD SEALS (BADGES) ── */}
             <section className={`passport-visa-folio rounded-3xl p-6 sm:p-8 relative ${folio === 'badges' ? '' : 'hidden lg:block'}`}>
               <div className="flex items-center justify-between mb-6 pb-3 border-b border-[#c5a059]/30">
                 <div>
                   <span className="text-[9px] font-mono uppercase tracking-[0.25em] text-[#8c7355] dark:text-[#baa07c]">
-                    Folio Section II · Accreditations
+                    Folio Section III · Accreditations
                   </span>
                   <h3 className="font-serif text-2xl font-black text-[#2e2117] dark:text-[#fbf7ee]">
                     Consular Distinctions & Seals
@@ -923,12 +1020,12 @@ export default function Profile() {
               </div>
             </section>
 
-            {/* ── FOLIO 3: SEED TREASURY & DIURNAL CHECK-IN VISAS ── */}
+            {/* ── FOLIO 4: SEED TREASURY & DIURNAL CHECK-IN VISAS ── */}
             <section className={`passport-visa-folio rounded-3xl p-6 sm:p-8 relative ${folio === 'treasury' ? '' : 'hidden lg:block'}`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-3 border-b border-[#c5a059]/30">
                 <div>
                   <span className="text-[9px] font-mono uppercase tracking-[0.25em] text-[#8c7355] dark:text-[#baa07c]">
-                    Folio Section III · Consular Folios
+                    Folio Section IV · Consular Folios
                   </span>
                   <h3 className="font-serif text-2xl font-black text-[#2e2117] dark:text-[#fbf7ee]">
                     {ledgerTab === 'seeds' ? 'Consular Seed Treasury Ledger' : 'Diurnal Care & Check-In Visas'}
@@ -1078,253 +1175,6 @@ export default function Profile() {
                     )}
                   </>
                 )}
-              </div>
-            </section>
-
-            {/* ── FOLIO 4: FIELD INSTRUMENTS & DISPATCH SETTINGS ── */}
-            <section className={`passport-visa-folio rounded-3xl p-6 sm:p-8 relative ${folio === 'settings' ? '' : 'hidden lg:block'}`}>
-              <div className="flex items-center justify-between mb-6 pb-3 border-b border-[#c5a059]/30">
-                <div>
-                  <span className="text-[9px] font-mono uppercase tracking-[0.25em] text-[#8c7355] dark:text-[#baa07c]">
-                    Folio Section IV · Terminal Controls
-                  </span>
-                  <h3 className="font-serif text-2xl font-black text-[#2e2117] dark:text-[#fbf7ee]">
-                    Consular Field Instruments
-                  </h3>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                {/* Audio Sound Effects Toggle */}
-                <div className="p-4 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528] flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#c5a059]/15 flex items-center justify-center text-[#c5a059]">
-                      {audioEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
-                    </div>
-                    <div>
-                      <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
-                        Acoustic Harmonic Resonance
-                      </h4>
-                      <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
-                        Apothecary water drops, chimes & discovery fanfares
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleToggleAudio}
-                    className={`passport-toggle-switch ${audioEnabled ? 'is-on' : ''}`}
-                    aria-label="Toggle Acoustic Audio"
-                  >
-                    <span className="passport-toggle-nub" />
-                  </button>
-                </div>
-
-                {/* Haptic Vibration Toggle */}
-                <div className="p-4 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528] flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#3c6b44]/15 flex items-center justify-center text-[#3c6b44] dark:text-[#79cb91]">
-                      <Vibrate size={18} />
-                    </div>
-                    <div>
-                      <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
-                        Tactile Seal Impressions (Haptics)
-                      </h4>
-                      <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
-                        Physical mechanical vibration on stamps & interactions
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleToggleHaptic}
-                    className={`passport-toggle-switch ${hapticEnabled ? 'is-on' : ''}`}
-                    aria-label="Toggle Haptic Feedback"
-                  >
-                    <span className="passport-toggle-nub" />
-                  </button>
-                </div>
-
-                {/* Dispatch Notifications Toggle */}
-                <div className="p-4 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528] flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#1e3a5f]/15 flex items-center justify-center text-[#1e3a5f] dark:text-[#82b5ed]">
-                      <Bell size={18} />
-                    </div>
-                    <div>
-                      <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
-                        Consular Daily Telegrams
-                      </h4>
-                      <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
-                        Expedition alerts, streak warnings & diurnal care dispatches
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleToggleNotifications}
-                    className={`passport-toggle-switch ${notificationsEnabled ? 'is-on' : ''}`}
-                    aria-label="Toggle Consular Telegrams"
-                  >
-                    <span className="passport-toggle-nub" />
-                  </button>
-                </div>
-
-                {/* Web push — the real delivery channel behind the telegram
-                    toggle above. Self-hides when the server has no VAPID
-                    keys configured. */}
-                <div className="p-4 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528] flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-[#c5a059]/15 flex items-center justify-center text-[#c5a059] shrink-0">
-                      <Bell size={18} />
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
-                        Weather Alert Delivery
-                      </h4>
-                      <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
-                        Push notifications to this device for watering and weather dispatches
-                      </p>
-                    </div>
-                  </div>
-                  <NotificationOptIn />
-                </div>
-
-                {/* Text size. One value on <html> rescales every rem-based
-                    size in the app; the micro-labels set in px are decorative
-                    stamps and are deliberately left out. */}
-                <div className="p-4 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528]">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#3c6b44]/15 flex items-center justify-center text-[#3c6b44] dark:text-[#79cb91]">
-                      <Type size={18} />
-                    </div>
-                    <div>
-                      <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
-                        Reading Glass (Text Size)
-                      </h4>
-                      <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
-                        Scales the whole interface, from stamps to headings
-                      </p>
-                    </div>
-                  </div>
-                  <div role="group" aria-label="Text size" className="grid grid-cols-4 gap-2">
-                    {TEXT_SIZES.map((size) => (
-                      <button
-                        key={size}
-                        onClick={() => handleTextSize(size)}
-                        aria-pressed={textSize === size}
-                        className={`min-h-11 rounded-xl border text-xs font-mono font-bold uppercase tracking-wider transition-colors ${
-                          textSize === size
-                            ? 'border-[#3d2a1c] bg-[#3d2a1c] text-[#f4e4c1] dark:border-[#c5a059] dark:bg-[#c5a059]/20 dark:text-[#f4e4c1]'
-                            : 'border-[#d8ccb8] text-[#8a7258] hover:border-[#c5a059] dark:border-[#423528] dark:text-[#b6a087] dark:hover:border-[#c5a059]'
-                        }`}
-                      >
-                        {size === 'extra-large' ? 'Extra' : size.charAt(0).toUpperCase() + size.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Motion preference. prefers-reduced-motion alone hides the
-                    switch inside the OS, which many of the people who need it
-                    never find — this is the same control, in the open. */}
-                <div className="p-4 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528]">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#1e3a5f]/15 flex items-center justify-center text-[#1e3a5f] dark:text-[#82b5ed]">
-                      <Accessibility size={18} />
-                    </div>
-                    <div>
-                      <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
-                        Garden Motion
-                      </h4>
-                      <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
-                        Calms ambient drift and reveals — Auto follows your system
-                      </p>
-                    </div>
-                  </div>
-                  <div role="group" aria-label="Garden motion" className="grid grid-cols-3 gap-2">
-                    {MOTION_PREFERENCES.map((preference) => (
-                      <button
-                        key={preference}
-                        onClick={() => handleMotionPreference(preference)}
-                        aria-pressed={motionPreference === preference}
-                        className={`min-h-11 rounded-xl border text-xs font-mono font-bold uppercase tracking-wider transition-colors ${
-                          motionPreference === preference
-                            ? 'border-[#3d2a1c] bg-[#3d2a1c] text-[#f4e4c1] dark:border-[#c5a059] dark:bg-[#c5a059]/20 dark:text-[#f4e4c1]'
-                            : 'border-[#d8ccb8] text-[#8a7258] hover:border-[#c5a059] dark:border-[#423528] dark:text-[#b6a087] dark:hover:border-[#c5a059]'
-                        }`}
-                      >
-                        {preference === 'auto' ? 'Auto' : preference === 'reduced' ? 'Reduced' : 'Full'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Install the app. Chrome/Android give us a real install
-                    prompt; iOS Safari only offers the Share menu, so it gets
-                    the one-line hint instead. Hidden entirely when already
-                    running installed, or when the visitor dismissed the
-                    offer — nagging an installed user is noise. */}
-                {!standalone && !dismissedInstall && (canInstall || isIOS) && (
-                  <div className="mt-6 p-4 rounded-2xl border border-[#c5a059]/50 bg-[#c5a059]/10 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="w-10 h-10 rounded-xl bg-[#c5a059]/25 text-[#4d3714] dark:text-[#faebd7] flex items-center justify-center shrink-0">
-                        {canInstall ? <Download size={18} /> : <Share2 size={18} />}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-text-bark">Take the garden with you</p>
-                        <p className="text-xs text-text-stone leading-snug">
-                          {canInstall
-                            ? 'Install PhytoDoctor — full screen, home-screen icon, works offline.'
-                            : isIOS
-                              ? 'In Safari: tap Share, then "Add to Home Screen".'
-                              : null}
-                        </p>
-                      </div>
-                    </div>
-                    {canInstall ? (
-                      <button
-                        onClick={async () => {
-                          if (hapticEnabled) triggerHaptic('light');
-                          const outcome = await install();
-                          if (outcome === 'accepted') success('PhytoDoctor installed');
-                        }}
-                        className="shrink-0 min-h-[44px] px-4 rounded-xl bg-[#2e4a34] hover:bg-[#395c41] text-[#f4eee1] text-[10px] font-mono font-bold uppercase tracking-wider flex items-center"
-                      >
-                        Install
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => { setDismissedInstall(true); localStorage.setItem('phyto_install_hint_dismissed', '1'); }}
-                        aria-label="Dismiss install hint"
-                        className="shrink-0 w-11 h-11 flex items-center justify-center text-text-stone hover:text-text-bark"
-                      >
-                        <X size={16} />
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* Sign Out Danger Zone */}
-                <div className="mt-6 pt-4 border-t border-[#d8ccb8] dark:border-[#382d22]">
-                  <button
-                    onClick={handleSync}
-                    disabled={syncing}
-                    className="w-full min-h-[44px] py-3 px-4 bg-[#2e4a34] hover:bg-[#395c41] text-[#f4eee1] rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-between transition-colors mb-4"
-                  >
-                    <span className="flex items-center gap-2">
-                      <CloudUp size={14} /> 
-                      {syncing ? 'Uplinking to Vault...' : 'Sync Local Ledger to Cloud'}
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={handleSignOut}
-                    className="w-full py-3 px-4 bg-red-900/10 hover:bg-red-900/20 border border-red-800/30 text-red-700 dark:text-red-400 rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-between transition-colors"
-                  >
-                    <span className="flex items-center gap-2">
-                      <LogOut size={14} /> Surrender Guild Passport (Sign Out)
-                    </span>
-                    <span className="text-[9px] opacity-70">Purge Active Session</span>
-                  </button>
-                </div>
               </div>
             </section>
 

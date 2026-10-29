@@ -16,7 +16,7 @@ const source = stripJsComments(readSource('src/pages/Profile.tsx'));
 describe('Profile folios', () => {
   it('offers all five parts of the passport', () => {
     expect(PROFILE_FOLIOS.map(f => f.id)).toEqual<ProfileFolio[]>([
-      'passport', 'mastery', 'badges', 'treasury', 'settings',
+      'passport', 'knowledge', 'mastery', 'badges', 'treasury',
     ]);
   });
 
