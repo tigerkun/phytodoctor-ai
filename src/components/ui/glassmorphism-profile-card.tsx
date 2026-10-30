@@ -122,6 +122,7 @@ export default function GlassmorphismProfileCard({
                   type="button"
                   onClick={onToggleEdit}
                   title="Engrave Identity / Edit Profile"
+                  aria-label="Engrave Identity / Edit Profile"
                   className="absolute -bottom-2 -right-2 w-10 h-10 rounded-full bg-gradient-to-br from-[#faecd0] to-[#b89242] border-2 border-[#5c4013] text-[#3b2408] flex items-center justify-center shadow-lg transition-transform hover:scale-110 active:scale-95 z-20 cursor-pointer"
                 >
                   <Edit2 className="h-4 w-4" />
