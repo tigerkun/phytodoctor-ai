@@ -33,6 +33,7 @@ import { RewardService } from '../services/rewardService';
 import { SanctuaryService } from '../services/sanctuaryService';
 import { RESTORED_STREAK } from '../game/SANCTUARY_DATA';
 import PageWrapper from '../components/home/PageWrapper';
+import GlassmorphismProfileCard from '../components/ui/glassmorphism-profile-card';
 import { usePageTransition } from '../components/home/PageTransitionContext';
 import { useToast } from '../components/Toast';
 import { triggerHaptic, playAudio } from '../utils/hapticAudio';
@@ -403,274 +404,195 @@ export default function Profile() {
 
           {/* ════════ LEFT COLUMN: THE GUILD PASSPORT BOOKLET COVER (5 COLS) ════════ */}
           <div className={`lg:col-span-5 ${folio === 'passport' ? 'space-y-8' : 'hidden lg:block'}`}>
-            <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="passport-buckram-booklet rounded-3xl p-6 sm:p-8 text-[#faecd0] overflow-hidden"
+            {/* ════════ REMODELED GLASSMORPHISM PROFILE CARD ════════ */}
+            <GlassmorphismProfileCard
+              name={username || profile.username || 'Guild Master'}
+              role={profile.equippedTitle ? `The ${profile.equippedTitle}` : (profile.gender || 'Botanical Guardian & Sanctuary Scholar')}
+              email={localStorage.getItem('botanical_guardian_user_email') || `${(username || profile.username || 'guildmaster').toLowerCase().replace(/\s+/g, '')}@phytodoctor.sanctuary`}
+              avatarSrc={avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=80'}
+              statusText={profile.tier === 'pro' ? 'Royal Charter Pro' : 'Active Apprentice'}
+              statusColor={profile.tier === 'pro' ? 'bg-[#D4A843]' : 'bg-[#5A7D5A]'}
+              glowText={`Folio: ${folioSerial} · Rank: ${progression.title} (Lvl ${progression.currentLevel})`}
+              isEditing={isEditing}
+              onToggleEdit={() => {
+                setIsEditing(!isEditing);
+                if (hapticEnabled) triggerHaptic('light');
+              }}
             >
-              {/* Stitched Spine & Left Tape */}
-              <div className="absolute left-0 top-0 bottom-0 w-3 passport-spine-tape" />
-
-              {/* Inner Stitched Border */}
-              <div className="passport-stitch-border rounded-2xl p-5 sm:p-6 relative flex flex-col items-center text-center">
-                
-                {/* Debossed Gold Foil Passport Header */}
-                <div className="mb-6 space-y-1">
-                  <div className="flex items-center justify-center gap-2 text-[#c5a059]">
-                    <Sparkles size={14} />
-                    <span className="text-[9px] font-mono uppercase tracking-[0.25em] gold-foil-debossed">
-                      Herbarium Societas Botanica
-                    </span>
-                    <Sparkles size={14} />
-                  </div>
-                  <h2 className="font-serif text-lg font-bold gold-foil-debossed tracking-wider">
-                    FIELD PASSPORT & CREDENTIALS
-                  </h2>
-                  <p className="text-[9px] font-mono uppercase tracking-widest text-[#a8bfab]/70">
-                    DISTRICT IV · SANCTUARY MASTER
-                  </p>
-                </div>
-
-                {/* Tintype Oval Brass Member Locket */}
-                <div className="my-4 relative">
-                  <div className="tintype-locket">
-                    <div className="tintype-hinge" />
-                    <div className="tintype-inner">
-                      {avatarUrl && !imgError ? (
-                        <img
-                          src={avatarUrl}
-                          alt="Guild Master Portrait"
-                          className="w-full h-full object-cover"
-                          onError={() => setImgError(true)}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-radial from-[#324535] via-[#212f24] to-[#141d16] text-[#faecd0] select-none">
-                          <div className="w-14 h-14 rounded-full border border-[#c5a059]/40 flex items-center justify-center bg-[#17241b] shadow-inner mb-0.5">
-                            <span className="font-serif font-black text-xl tracking-wider text-[#dfbe76]">
-                              {(username || profile.username || 'GM')
-                                .split(' ')
-                                .map((w: string) => w[0])
-                                .filter(Boolean)
-                                .slice(0, 2)
-                                .join('')
-                                .toUpperCase() || 'GM'}
-                            </span>
-                          </div>
-                          <span className="text-[7px] font-mono uppercase tracking-[0.2em] text-[#c5a059]/80">SANCTUARY MASTER</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Brass Key Edit Button */}
-                  <button
-                    onClick={() => {
-                      setIsEditing(!isEditing);
-                      if (hapticEnabled) triggerHaptic('light');
-                    }}
-                    title="Engrave Identity"
-                    // 44x44, not w-9 h-9 (36px): it is the only way into
-                    // editing the identity, and it sits on the avatar corner
-                    // where a thumb lands. Absolutely positioned, so growing
-                    // it does not move the layout.
-                    className="absolute -bottom-2 -right-2 w-11 h-11 rounded-full bg-radial from-[#faecd0] to-[#b89242] border-2 border-[#5c4013] text-[#3b2408] flex items-center justify-center shadow-lg transition-transform hover:scale-110 active:scale-95"
-                  >
-                    <Edit2 size={15} />
-                  </button>
-                </div>
-
-                {/* Tilted Consular Visa Ink Stamp */}
-                <div className="consular-visa-stamp -rotate-6 my-4 w-52 py-2 px-3 border-dashed">
+              {/* Consular accreditation stamp */}
+              <div className="flex justify-center my-2">
+                <div className="consular-visa-stamp -rotate-2 w-52 py-2 px-3 border-dashed">
                   <span className="text-[8px] tracking-[0.2em]">★ ROYAL FELLOWSHIP ACCREDITATION ★</span>
-                  <span className="text-[11px] font-black tracking-wider my-0.5">SANCTUARY MASTER</span>
+                  <span className="text-[11px] font-black tracking-wider my-0.5">
+                    {profile.tier === 'pro' ? 'MASTER BOTANIST' : 'SANCTUARY MASTER'}
+                  </span>
                   <span className="text-[8px] font-mono tracking-widest text-[#8b2500]/80 dark:text-[#ff7d58]/80">
                     REG. {folioSerial}
                   </span>
                 </div>
+              </div>
 
-                {/* Identity Form or Display */}
-                <AnimatePresence mode="wait">
-                  {isEditing ? (
-                    <motion.div
-                      key="edit-form"
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="w-full space-y-3 mt-4 text-left"
-                    >
+              {/* Identity Form or Display */}
+              <AnimatePresence mode="wait">
+                {isEditing && (
+                  <motion.div
+                    key="edit-form"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="w-full space-y-3 pt-3 text-left border-t border-[#c5a059]/30"
+                  >
+                    <div>
+                      <label htmlFor="naturalist-call-sign" className="block text-[9px] font-mono uppercase tracking-widest text-[#7c634c] dark:text-[#d8c59d] mb-1">
+                        Naturalist Call Sign
+                      </label>
+                      <input id="naturalist-call-sign"
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#FAF7F2] dark:bg-[#121c15] text-[#2b2118] dark:text-[#f7e8ce] font-serif font-bold text-sm rounded-lg border border-[#c5a059]/40 focus:outline-none focus:border-[#e2bf65]"
+                        placeholder="e.g. Master Linnaeus"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="tintype-portrait-url-optional" className="block text-[9px] font-mono uppercase tracking-widest text-[#7c634c] dark:text-[#d8c59d] mb-1">
+                        Tintype Portrait URL (Optional)
+                      </label>
+                      <input id="tintype-portrait-url-optional"
+                        type="text"
+                        value={avatarUrl}
+                        onChange={(e) => setAvatarUrl(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#FAF7F2] dark:bg-[#121c15] text-[#2b2118] dark:text-[#f7e8ce] font-mono text-xs rounded-lg border border-[#c5a059]/40 focus:outline-none focus:border-[#e2bf65]"
+                        placeholder="https://..."
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="equipped-title-honorific" className="block text-[9px] font-mono uppercase tracking-widest text-[#7c634c] dark:text-[#d8c59d] mb-1">
+                        Equipped Title / Honorific
+                      </label>
+                      <input id="equipped-title-honorific"
+                        type="text"
+                        value={equippedTitle}
+                        onChange={(e) => setEquippedTitle(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#FAF7F2] dark:bg-[#121c15] text-[#2b2118] dark:text-[#f7e8ce] font-serif text-xs rounded-lg border border-[#c5a059]/40 focus:outline-none focus:border-[#e2bf65]"
+                        placeholder="e.g. The Canopy Whisperer"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label htmlFor="naturalist-call-sign" className="block text-[9px] font-mono uppercase tracking-widest text-[#d8c59d] mb-1">
-                          Naturalist Call Sign
+                        <label htmlFor="experience-tier" className="block text-[8px] font-mono uppercase tracking-widest text-[#7c634c] dark:text-[#d8c59d] mb-1">
+                          Experience Tier
                         </label>
-                        <input id="naturalist-call-sign"
-                          type="text"
-                          value={username}
-                          onChange={(e) => setUsername(e.target.value)}
-                          className="w-full px-3 py-2 bg-[#121c15] text-[#f7e8ce] font-serif font-bold text-sm rounded-lg border border-[#c5a059]/40 focus:outline-none focus:border-[#e2bf65]"
-                          placeholder="e.g. Master Linnaeus"
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="tintype-portrait-url-optional" className="block text-[9px] font-mono uppercase tracking-widest text-[#d8c59d] mb-1">
-                          Tintype Portrait URL (Optional)
-                        </label>
-                        <input id="tintype-portrait-url-optional"
-                          type="text"
-                          value={avatarUrl}
-                          onChange={(e) => setAvatarUrl(e.target.value)}
-                          className="w-full px-3 py-2 bg-[#121c15] text-[#f7e8ce] font-mono text-xs rounded-lg border border-[#c5a059]/40 focus:outline-none focus:border-[#e2bf65]"
-                          placeholder="https://..."
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="equipped-title-honorific" className="block text-[9px] font-mono uppercase tracking-widest text-[#d8c59d] mb-1">
-                          Equipped Title / Honorific
-                        </label>
-                        <input id="equipped-title-honorific"
-                          type="text"
-                          value={equippedTitle}
-                          onChange={(e) => setEquippedTitle(e.target.value)}
-                          className="w-full px-3 py-2 bg-[#121c15] text-[#f7e8ce] font-serif text-xs rounded-lg border border-[#c5a059]/40 focus:outline-none focus:border-[#e2bf65]"
-                          placeholder="e.g. The Canopy Whisperer"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label htmlFor="experience-tier" className="block text-[8px] font-mono uppercase tracking-widest text-[#d8c59d] mb-1">
-                            Experience Tier
-                          </label>
-                          <select id="experience-tier"
-                            value={experienceLevel}
-                            onChange={(e) => setExperienceLevel(e.target.value as any)}
-                            className="w-full px-2 py-1.5 bg-[#121c15] text-[#f7e8ce] text-xs rounded-lg border border-[#c5a059]/40 focus:outline-none"
-                          >
-                            <option value="novice">Novice</option>
-                            <option value="intermediate">Intermediate</option>
-                            <option value="expert">Expert</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label htmlFor="sanctuary-habitat" className="block text-[8px] font-mono uppercase tracking-widest text-[#d8c59d] mb-1">
-                            Sanctuary Habitat
-                          </label>
-                          <select id="sanctuary-habitat"
-                            value={environment}
-                            onChange={(e) => setEnvironment(e.target.value as any)}
-                            className="w-full px-2 py-1.5 bg-[#121c15] text-[#f7e8ce] text-xs rounded-lg border border-[#c5a059]/40 focus:outline-none"
-                          >
-                            <option value="greenhouse">Greenhouse</option>
-                            <option value="indoor">Indoor</option>
-                            <option value="outdoor">Outdoor</option>
-                            <option value="mixed">Mixed Terrain</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2 pt-2">
-                        <button
-                          onClick={handleUpdateProfile}
-                          className="flex-1 py-2.5 bg-radial from-[#e0be6c] to-[#9e7a2b] text-[#2c1c08] rounded-xl font-mono text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md hover:brightness-110 active:scale-98 transition-all"
+                        <select id="experience-tier"
+                          value={experienceLevel}
+                          onChange={(e) => setExperienceLevel(e.target.value as any)}
+                          className="w-full px-2 py-1.5 bg-[#FAF7F2] dark:bg-[#121c15] text-[#2b2118] dark:text-[#f7e8ce] text-xs rounded-lg border border-[#c5a059]/40 focus:outline-none"
                         >
-                          <Check size={14} /> Affix Guild Seal
-                        </button>
-                        <button
-                          onClick={() => setIsEditing(false)}
-                          className="px-3 py-2.5 bg-[#17241a] text-[#c9b79b] rounded-xl font-mono text-xs uppercase tracking-wider hover:bg-[#1e2f23]"
+                          <option value="novice">Novice</option>
+                          <option value="intermediate">Intermediate</option>
+                          <option value="expert">Expert</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label htmlFor="sanctuary-habitat" className="block text-[8px] font-mono uppercase tracking-widest text-[#7c634c] dark:text-[#d8c59d] mb-1">
+                          Sanctuary Habitat
+                        </label>
+                        <select id="sanctuary-habitat"
+                          value={environment}
+                          onChange={(e) => setEnvironment(e.target.value as any)}
+                          className="w-full px-2 py-1.5 bg-[#FAF7F2] dark:bg-[#121c15] text-[#2b2118] dark:text-[#f7e8ce] text-xs rounded-lg border border-[#c5a059]/40 focus:outline-none"
                         >
-                          Cancel
-                        </button>
+                          <option value="greenhouse">Greenhouse</option>
+                          <option value="indoor">Indoor</option>
+                          <option value="outdoor">Outdoor</option>
+                          <option value="mixed">Mixed Terrain</option>
+                        </select>
                       </div>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="identity-info"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="mt-3 space-y-1 w-full"
-                    >
-                      <h3 className="font-serif text-2xl sm:text-3xl font-black text-[#faf1de] tracking-tight">
-                        {profile.username || 'Guild Master'}
-                      </h3>
-                      <p className="font-serif italic text-xs sm:text-sm text-[#d1b88a]">
-                        {profile.equippedTitle ? `The ${profile.equippedTitle}` : 'Fellowship Scholar of Rare Flora'}
-                      </p>
-                      <div className="pt-2 flex items-center justify-center gap-2">
-                        <span className="px-2.5 py-0.5 rounded-full bg-[#c5a059]/20 border border-[#c5a059]/40 text-[#faecd0] text-[10px] font-mono uppercase tracking-wider">
-                          Rank: {progression.title} (Lvl {progression.currentLevel})
-                        </span>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                    </div>
 
-                {/* Engraved Copper Credentials Plinth */}
-                <div className="w-full mt-6 copper-plate rounded-xl p-4 text-center">
-                  <div className="absolute top-2 left-2 copper-rivet" />
-                  <div className="absolute top-2 right-2 copper-rivet" />
-                  <div className="absolute bottom-2 left-2 copper-rivet" />
-                  <div className="absolute bottom-2 right-2 copper-rivet" />
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        onClick={handleUpdateProfile}
+                        className="flex-1 py-2.5 bg-radial from-[#e0be6c] to-[#9e7a2b] text-[#2c1c08] rounded-xl font-mono text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md hover:brightness-110 active:scale-98 transition-all cursor-pointer"
+                      >
+                        <Check size={14} /> Affix Guild Seal
+                      </button>
+                      <button
+                        onClick={() => setIsEditing(false)}
+                        className="px-3 py-2.5 bg-[#17241a] text-[#c9b79b] rounded-xl font-mono text-xs uppercase tracking-wider hover:bg-[#1e2f23] cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-                  <div className="flex items-center justify-between px-2 mb-1">
-                    <span className="text-[9px] font-mono uppercase tracking-widest text-[#451e0d] dark:text-[#ffd6ad]">
-                      Credentials Grade
+              {/* Engraved Copper Credentials Plinth */}
+              <div className="w-full mt-6 copper-plate rounded-xl p-4 text-center">
+                <div className="absolute top-2 left-2 copper-rivet" />
+                <div className="absolute top-2 right-2 copper-rivet" />
+                <div className="absolute bottom-2 left-2 copper-rivet" />
+                <div className="absolute bottom-2 right-2 copper-rivet" />
+
+                <div className="flex items-center justify-between px-2 mb-1">
+                  <span className="text-[9px] font-mono uppercase tracking-widest text-[#451e0d] dark:text-[#ffd6ad]">
+                    Credentials Grade
+                  </span>
+                  {profile.tier === 'pro' ? (
+                    <span className="flex items-center gap-1 text-[9px] font-mono font-black uppercase text-[#451e0d] dark:text-[#ffd6ad]">
+                      <Crown size={12} /> PRO COMMISSION
                     </span>
-                    {profile.tier === 'pro' ? (
-                      <span className="flex items-center gap-1 text-[9px] font-mono font-black uppercase text-[#451e0d] dark:text-[#ffd6ad]">
-                        <Crown size={12} /> PRO COMMISSION
-                      </span>
-                    ) : (
-                      <span className="text-[9px] font-mono font-bold uppercase text-[#451e0d] dark:text-[#ffd6ad]">
-                        APPRENTICE (STANDARD)
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="font-serif font-black text-base sm:text-lg text-[#2d1105] dark:text-[#fff2df] tracking-wide">
-                    {profile.tier === 'pro' ? 'MASTER BOTANIST COMMISSION' : 'FELLOWSHIP CANDIDATE'}
-                  </p>
-
-                  {profile.tier !== 'pro' && (
-                    <button
-                      onClick={handleUpgradeToPro}
-                      disabled={isUpgrading}
-                      className="mt-3 w-full py-2 bg-[#2d1407] hover:bg-[#421d0a] text-[#faecd0] text-[10px] font-mono font-black uppercase tracking-widest rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-98"
-                    >
-                      {isUpgrading ? (
-                        <>
-                          <RefreshCw size={12} className="animate-spin" /> Engraving Plate…
-                        </>
-                      ) : (
-                        <>
-                          <Crown size={12} /> Upgrade Commission · 1,000 Seeds
-                        </>
-                      )}
-                    </button>
-                  )}
-                  {RZP_KEY && profile?.tier !== 'pro' && (
-                    <button
-                      onClick={goProWithMoney}
-                      disabled={isUpgrading}
-                      className="mt-2 w-full py-2 bg-[#1b4332] hover:bg-[#24573f] text-[#eaf5ea] text-[10px] font-mono font-black uppercase tracking-widest rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-98 disabled:opacity-50"
-                    >
-                      {isUpgrading ? (
-                        <>
-                          <RefreshCw size={12} className="animate-spin" /> Processing…
-                        </>
-                      ) : (
-                        <>
-                          <Crown size={12} /> Skip the grind — Go Pro · ₹99/month
-                        </>
-                      )}
-                    </button>
+                  ) : (
+                    <span className="text-[9px] font-mono font-bold uppercase text-[#451e0d] dark:text-[#ffd6ad]">
+                      APPRENTICE (STANDARD)
+                    </span>
                   )}
                 </div>
 
+                <p className="font-serif font-black text-base sm:text-lg text-[#2d1105] dark:text-[#fff2df] tracking-wide">
+                  {profile.tier === 'pro' ? 'MASTER BOTANIST COMMISSION' : 'FELLOWSHIP CANDIDATE'}
+                </p>
+
+                {profile.tier !== 'pro' && (
+                  <button
+                    onClick={handleUpgradeToPro}
+                    disabled={isUpgrading}
+                    className="mt-3 w-full py-2 bg-[#2d1407] hover:bg-[#421d0a] text-[#faecd0] text-[10px] font-mono font-black uppercase tracking-widest rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer"
+                  >
+                    {isUpgrading ? (
+                      <>
+                        <RefreshCw size={12} className="animate-spin" /> Engraving Plate…
+                      </>
+                    ) : (
+                      <>
+                        <Crown size={12} /> Upgrade Commission · 1,000 Seeds
+                      </>
+                    )}
+                  </button>
+                )}
+                {RZP_KEY && profile?.tier !== 'pro' && (
+                  <button
+                    onClick={goProWithMoney}
+                    disabled={isUpgrading}
+                    className="mt-2 w-full py-2 bg-[#1b4332] hover:bg-[#24573f] text-[#eaf5ea] text-[10px] font-mono font-black uppercase tracking-widest rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
+                  >
+                    {isUpgrading ? (
+                      <>
+                        <RefreshCw size={12} className="animate-spin" /> Processing…
+                      </>
+                    ) : (
+                      <>
+                        <Crown size={12} /> Skip the grind — Go Pro · ₹99/month
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
-            </motion.div>
+            </GlassmorphismProfileCard>
 
             {/* 4 Consular Circular Franking Seals */}
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
