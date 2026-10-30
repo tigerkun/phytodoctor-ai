@@ -60,7 +60,7 @@ export default function Layout({ children }: LayoutProps) {
       }
 
       const { data: { session } } = await supabase.auth.getSession();
-      setHasAuth(Boolean(session));
+      setHasAuth(Boolean(session || localStorage.getItem('botanical_guardian_auth_token')));
 
       if (session) {
         // Ensure local storage is synced for Dexie / GameService
@@ -95,11 +95,11 @@ export default function Layout({ children }: LayoutProps) {
     // Listen for auth state changes (login, logout, token refresh)
     if (supabase) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        setHasAuth(Boolean(session));
         if (session) {
+          setHasAuth(true);
           localStorage.setItem('botanical_guardian_auth_token', session.access_token);
         } else {
-          localStorage.removeItem('botanical_guardian_auth_token');
+          setHasAuth(Boolean(localStorage.getItem('botanical_guardian_auth_token')));
         }
       });
       return () => subscription.unsubscribe();
@@ -140,9 +140,7 @@ export default function Layout({ children }: LayoutProps) {
   // page still bounces to /auth, but navigation between pages is free.
   React.useEffect(() => {
     if (hasAuth) return;
-    const token = supabase
-      ? null
-      : localStorage.getItem('botanical_guardian_auth_token');
+    const token = localStorage.getItem('botanical_guardian_auth_token');
     if (!token && !isPublicPage) {
       // Send them back to whatever they were reaching for once they sign up.
       rememberAuthReturn(`${location.pathname}${location.search}`);

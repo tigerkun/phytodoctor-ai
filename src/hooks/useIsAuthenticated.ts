@@ -18,10 +18,10 @@ export function useIsAuthenticated(): boolean {
     let mounted = true;
     if (supabase) {
       supabase.auth.getSession().then(({ data: { session } }) => {
-        if (mounted) setAuthed(Boolean(session));
+        if (mounted) setAuthed(Boolean(session || localStorage.getItem('botanical_guardian_auth_token')));
       }).catch(() => {});
       const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-        setAuthed(Boolean(session));
+        setAuthed(Boolean(session || localStorage.getItem('botanical_guardian_auth_token')));
       });
       return () => {
         mounted = false;

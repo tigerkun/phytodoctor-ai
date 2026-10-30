@@ -218,6 +218,20 @@ export default function Auth() {
         if (isLogin) {
           const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
           if (error) {
+            // Check if account exists in local Dexie ledger before failing
+            const localId = generateLocalUserId(email);
+            const { db } = await import('../db/database');
+            const existing = await db.userProfile.get(localId);
+            if (existing?.passwordHash) {
+              const salt = (existing as any).passwordSalt as string | undefined;
+              const ok = await verifyPassword(localId, password, existing.passwordHash as string, salt);
+              if (ok) {
+                clearAuthFailures(email);
+                await persistSession(localId, email.toLowerCase().trim(), existing.username || email.split('@')[0], 'token_' + Date.now());
+                navigate(consumeAuthReturn('/'));
+                return;
+              }
+            }
             setAuthError(error.message === 'Invalid login credentials'
               ? 'Incorrect email or password.'
               : error.message);
@@ -321,6 +335,36 @@ export default function Auth() {
     setEmailError(''); setAuthError('');
     setResetSent(false);
     setIsRecovery(false);
+  };
+
+  const handleGuestEntry = async () => {
+    setLoading(true);
+    try {
+      const guestEmail = localStorage.getItem('botanical_guardian_user_email') || 'keeper@phytodoctor.sanctuary';
+      const guestName = localStorage.getItem('botanical_guardian_user_name') || 'Botanical Master';
+      const userId = localStorage.getItem('botanical_guardian_userId') || generateLocalUserId(guestEmail);
+      const token = 'guest_token_' + Date.now();
+      await persistSession(userId, guestEmail, guestName, token);
+      const { db } = await import('../db/database');
+      const existing = await db.userProfile.get(userId);
+      if (!existing) {
+        await db.userProfile.put({
+          userId,
+          username: guestName,
+          experienceLevel: 'intermediate',
+          environment: 'indoor',
+          tier: 'free',
+          seeds: 500,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as any);
+      }
+      navigate(consumeAuthReturn('/'));
+    } catch (err: any) {
+      setAuthError(err.message || 'Could not enter as guest.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -609,6 +653,18 @@ export default function Auth() {
                 {isLogin ? 'No account on file? Inscribe new record' : 'Already registered? Open folio'}
               </button>
             )}
+
+            <div className="mt-4 flex items-center justify-center">
+              <button
+                type="button"
+                onClick={handleGuestEntry}
+                disabled={loading}
+                className="text-[11px] font-serif font-medium text-[#8a7a58] hover:text-[#2e4a34] dark:hover:text-[#c5a059] transition-colors flex items-center gap-1.5 py-1.5 px-3.5 rounded-lg border border-[#c5a059]/30 hover:border-[#c5a059]/70 bg-[#c5a059]/10 cursor-pointer"
+              >
+                <span>Enter Sanctuary as Apprentice Keeper</span>
+                <span className="text-[10px] opacity-75">→</span>
+              </button>
+            </div>
           </div>
 
           <div className="mt-6 pt-4 border-t border-[#dcd2c0]/60 dark:border-[#3d2e20] flex items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-widest text-[#6d5628] dark:text-[#c9a86a]">
