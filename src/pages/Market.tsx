@@ -2,19 +2,13 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion, type TargetAndTransition, type Transition } from 'framer-motion';
 import {
-  Sparkles,
-  Sprout,
   ShoppingBag,
   Clock,
   Tag,
-  ChevronRight,
   Star,
-  AlertCircle,
-  ShieldCheck,
   Leaf,
   Bookmark,
   TrendingUp,
-  Zap,
   Gift,
   ExternalLink,
   Crown,
@@ -24,6 +18,9 @@ import {
   Percent,
   Gem
 } from 'lucide-react';
+import { CoverflowCarousel } from '../components/ui/coverflow-carousel';
+import TeamLanyardRail from '../components/ui/team-lanyard-rail';
+import type { LanyardMember } from '../components/ui/team-lanyard-rail';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/database';
@@ -116,7 +113,7 @@ const MOCK_PRODUCTS: MarketProduct[] = [
     category: 'home',
     name: "Full-Spectrum Halo Grow Light",
     subtitle: "Simulates natural morning daylight",
-    image: "https://images.unsplash.com/photo-1598514982205-f36b96d1e8dd?auto=format&fit=crop&w=800&q=80",
+    image: "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=800&q=80",
     amazonUrl: "https://www.amazon.in/s?k=full+spectrum+halo+grow+light+plants",
     rating: 4.7,
     reviewCount: 89,
@@ -132,7 +129,7 @@ const MOCK_PRODUCTS: MarketProduct[] = [
     category: 'care',
     name: "Chunky Aroid Soil Mix (2kg)",
     subtitle: "Orchid bark + perlite + coco coir",
-    image: "https://images.unsplash.com/photo-1596433809252-260c27459d28?auto=format&fit=crop&w=800&q=80",
+    image: "https://images.unsplash.com/photo-1459156212016-c812468e2115?auto=format&fit=crop&w=800&q=80",
     amazonUrl: "https://www.amazon.in/s?k=aroid+soil+mix+perlite+orchid+bark",
     rating: 4.9,
     reviewCount: 341,
@@ -148,7 +145,7 @@ const MOCK_PRODUCTS: MarketProduct[] = [
     category: 'home',
     name: "Decorative Macramé Plant Hanger",
     subtitle: "Handwoven jute, holds up to 5kg",
-    image: "https://images.unsplash.com/photo-1583208754593-9cbfb9b5dbb1?auto=format&fit=crop&w=800&q=80",
+    image: "https://images.unsplash.com/photo-1598880940080-ff9a29891b85?auto=format&fit=crop&w=800&q=80",
     amazonUrl: "https://www.amazon.in/s?k=macrame+plant+hanger",
     rating: 4.6,
     reviewCount: 156,
@@ -178,7 +175,7 @@ const MOCK_PRODUCTS: MarketProduct[] = [
     category: 'home',
     name: "Copper Watering Can (2L)",
     subtitle: "Heirloom design with fine mist nozzle",
-    image: "https://images.unsplash.com/photo-1592424090155-d6d7eebdb4de?auto=format&fit=crop&w=800&q=80",
+    image: "https://images.unsplash.com/photo-1520412099551-62b6bafeb5bb?auto=format&fit=crop&w=800&q=80",
     amazonUrl: "https://www.amazon.in/s?k=copper+watering+can+plants",
     rating: 4.7,
     reviewCount: 89,
@@ -209,7 +206,7 @@ const MOCK_PRODUCTS: MarketProduct[] = [
     category: 'care',
     name: 'Vermicompost Boost (5 kg)',
     subtitle: 'Organic worm-cast soil food',
-    image: 'https://images.unsplash.com/photo-1587315955134-8c27e7b0e0a2?auto=format&fit=crop&w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?auto=format&fit=crop&w=800&q=80',
     amazonUrl: 'https://www.amazon.in/s?k=vermicompost+organic+fertiliser+plants',
     rating: 4.6,
     reviewCount: 312,
@@ -224,7 +221,7 @@ const MOCK_PRODUCTS: MarketProduct[] = [
     category: 'tools',
     name: 'Bypass Pruning Shears',
     subtitle: 'Clean cuts, sap-resistant blade',
-    image: 'https://images.unsplash.com/photo-1598902069229-4f2f0e38a3a2?auto=format&fit=crop&w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1611211232932-da3113c5b960?auto=format&fit=crop&w=800&q=80',
     amazonUrl: 'https://www.amazon.in/s?k=pruning+shears+garden',
     rating: 4.7,
     reviewCount: 256,
@@ -269,7 +266,7 @@ const MOCK_PRODUCTS: MarketProduct[] = [
     category: 'care',
     name: 'Slow-Release Fertiliser Spikes',
     subtitle: '90 days of feeding per spike',
-    image: 'https://images.unsplash.com/photo-1508502726440-477c94bc361e?auto=format&fit=crop&w=800&q=80',
+    image: 'https://images.unsplash.com/photo-1470058869958-2a77ade41c02?auto=format&fit=crop&w=800&q=80',
     amazonUrl: 'https://www.amazon.in/s?k=fertiliser+spikes+plants',
     rating: 4.3,
     reviewCount: 141,
@@ -475,24 +472,52 @@ function todaysHarvest(products: MarketProduct[], day: number) {
   }));
 }
 
-// ── HERO CAROUSEL ──
-function HeroCarousel({ onClaim, seeds, products }: { onClaim: (id: string, refundValue: number) => void; seeds: number; products: MarketProduct[] }) {
-  const [carouselIndex, setCarouselIndex] = useState(0);
-  const heroProducts = products.filter(p => p.isLimited).slice(0, 3);
+// ── FEATURED CRATE SLIDESHOW ──
+// The old hero auto-rotated three limited crates as a two-column advert. The
+// coverflow keeps the same mechanic — date-stall pricing, claimable seed
+// refunds — but hands the shelf to the keeper: swipe or key through the rack,
+// and the pitch panel under it always answers "why should I buy this one".
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCarouselIndex(prev => (prev + 1) % heroProducts.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [heroProducts.length]);
+/** Why each crate earns its price. Written, not generated, for the crates that
+ *  sit on the featured rack; every other stall falls back to its subtitle plus
+ *  the refund mechanic, so the panel never shows an empty pitch. */
+const WHY_BUY: Record<string, string> = {
+  'drop-1': 'The reservoir waters for you while you travel — no more coming home to droop. Terracotta breathes, so overwatering is nearly impossible.',
+  'drop-2': 'One bottle handles 200+ soft-bodied pests and is safe to spray indoors. The cheapest insurance a leaf can buy.',
+  'drop-3': 'Full-spectrum morning light on demand — windowsill plants stop stretching and start growing through winter.',
+  'drop-4': 'Chunky, airy mix means oxygen at the roots. The single cheapest upgrade for a plant that has quietly stalled.',
+  'drop-5': 'Gets your pothos off the floor and into the light it has been reaching for. Holds 5 kg, no worries.',
+  'drop-6': 'Lifts local moisture 10-15% around a tropical — calatheas and ferns stop crisping, no humidifier needed.',
+  'drop-7': 'Copper is antimicrobial, so the standing water stays cleaner between refills — and it outlives every plastic can you have owned.',
+  'drop-8': 'Climbing aroids only grow their mature, fenestrated leaves once the stem can climb. A pole literally changes what the plant becomes.',
+  'drop-11': 'Five kitchen herbs from one windowsill — snipped fresh beats bought every single time.',
+};
 
-  const product = heroProducts[carouselIndex];
-  // Calculate real-world refund logic (e.g., 200 seeds = ₹1)
+function FeaturedCrateSlideshow({ onClaim, seeds, products }: { onClaim: (id: string, refundValue: number) => void; seeds: number; products: MarketProduct[] }) {
+  const [selected, setSelected] = useState(0);
+  const featured = useMemo(
+    () => products.filter(p => p.isLimited || p.tags.includes('bestseller')).slice(0, 6),
+    [products]
+  );
+
+  if (featured.length === 0) return null;
+  const product = featured[Math.min(selected, featured.length - 1)];
   const refundValue = refundValueFor(product);
   const finalPrice = product.cashPrice - refundValue;
   const shortfall = Math.max(0, product.seedPrice - seeds);
   const canAfford = shortfall === 0;
+
+  const slides = featured.map((p) => ({
+    src: imgSize(p.image, 600, 75),
+    alt: p.name,
+    title: p.name,
+    subtitle: p.subtitle,
+    meta: [
+      { label: 'Stall price', value: `₹${p.cashPrice}` },
+      { label: 'After seed refund', value: `₹${p.cashPrice - refundValueFor(p)}` },
+      { label: 'Keepers rate it', value: `${p.rating} ★ · ${p.reviewCount}` },
+    ],
+  }));
 
   return (
     <motion.div
@@ -508,136 +533,188 @@ function HeroCarousel({ onClaim, seeds, products }: { onClaim: (id: string, refu
           boxShadow: 'inset 0 -4px 0 rgba(0,0,0,0.2)',
         }}
       />
-      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 items-center p-6 md:p-10 text-[#faf3e8]">
-        
-        {/* Left: Image with Animation */}
-        <motion.div
-          key={`hero-img-${product.id}`}
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-          className="relative"
-        >
-          <div className="relative rounded-sm overflow-hidden border-[6px] border-[#e8d5b0] shadow-[8px_8px_0_rgba(0,0,0,0.25)] aspect-[4/5] bg-[#1a1410]">
-            <img
-              src={product.image}
-              alt={product.name}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.currentTarget.style.opacity = '0';
-              }}
-            />
-            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent" />
-          </div>
-          <div className="absolute -top-2 -right-2 rotate-12 bg-[#f4e4c1] text-[#3d2a1c] px-4 py-3 shadow-lg border border-[#c4a574]">
-            <p className="text-[9px] font-black uppercase tracking-widest">Stall price</p>
-            <p className="font-serif text-2xl font-bold leading-none">₹{finalPrice}</p>
-            <p className="text-[10px] mt-1 text-moss font-bold">₹{refundValue} seed refund</p>
-          </div>
-        </motion.div>
+      <div className="px-2 pt-2 pb-8 md:px-6 text-[#faf3e8]">
+        <div className="flex items-center justify-between gap-3 px-4 md:px-8 pt-4 pb-1">
+          <p className="inline-flex items-center gap-2 px-3 py-1 bg-[#c17f59] text-[#faf3e8] rounded-sm text-[10px] font-black uppercase tracking-[0.2em]">
+            <Gift size={12} /> Today’s stall · swipe the rack
+          </p>
+          <p className="hidden md:block text-[10px] font-black uppercase tracking-[0.2em] text-[#e8d5b0]/60">
+            Drag · arrow keys · flick
+          </p>
+        </div>
+        <CoverflowCarousel
+          slides={slides}
+          showCaption
+          showNavigation
+          showPagination
+          label="Featured crates at today's stall"
+          cardWidth="clamp(150px, 24vw, 250px)"
+          onSelectChange={setSelected}
+        />
 
-        {/* Right: Content */}
-        <motion.div
-          key={`hero-content-${product.id}`}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-          className="space-y-6"
-        >
-          <div className="space-y-2">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.2 }}
-              className="inline-flex items-center gap-2 px-3 py-1 bg-[#c17f59] text-[#faf3e8] rounded-sm text-[10px] font-black uppercase tracking-[0.2em]"
-            >
-              <Zap size={12} /> Today’s stall · limited crate
-            </motion.div>
-            
-            <h2 className="font-serif text-4xl lg:text-5xl font-semibold leading-tight text-[#faf3e8]">
-              {product.name}
-            </h2>
-            
-            <p className="text-[#e8d5b0]/80 text-base leading-relaxed max-w-lg">
-              {product.subtitle}
-            </p>
-          </div>
-
-          {/* Seed Refund Pricing Mechanic */}
-          <div className="flex flex-col gap-3 py-4 border-y border-[#e8d5b0]/20">
-            <div className="flex justify-between items-end">
-              <div>
-                <p className="text-[10px] font-black text-[#e8d5b0]/70 uppercase tracking-widest mb-1">On Amazon</p>
-                <div className="flex items-baseline gap-2">
+        {/* Why-this-crate panel — follows the centred slide. */}
+        <div className="mx-4 md:mx-8 mt-6 rounded-xl border border-[#e8d5b0]/25 bg-[#2c2419]/70 p-5 md:p-6 backdrop-blur-sm">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#c17f59] mb-2">Why keepers grab this</p>
+              <p className="font-serif text-xl md:text-2xl font-semibold leading-snug text-[#faf3e8]">
+                {WHY_BUY[product.id] ?? `${product.subtitle} — spend seeds here and the stall clips real rupees off the checkout.`}
+              </p>
+              <p className="mt-3 text-xs text-[#e8d5b0]/75 flex items-center gap-1.5 flex-wrap">
+                <Star size={12} className="text-[#d4af37]" aria-hidden="true" />
+                {product.rating} ★ across {product.reviewCount} keepers
+                <span className="text-[#e8d5b0]/40">·</span>
+                <Leaf size={12} className="text-[#9cba9c]" aria-hidden="true" />
+                Spend {product.seedPrice.toLocaleString()} seeds at this stall → ₹{refundValue} clipped off the Amazon checkout.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-end justify-between border-b border-[#e8d5b0]/20 pb-3">
+                <div>
+                  <p className="text-[10px] font-black text-[#e8d5b0]/70 uppercase tracking-widest mb-1">On Amazon</p>
                   <p className="text-2xl font-bold font-mono text-[#faf3e8]">₹{product.cashPrice}</p>
-                  {product.originalPrice && (
-                    <p className="text-xs text-[#e8d5b0]/40 line-through">₹{product.originalPrice}</p>
-                  )}
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black text-[#9cba9c] uppercase tracking-widest mb-1">After refund</p>
+                  <p className="text-2xl font-bold font-mono text-[#9cba9c]">₹{finalPrice}</p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-[10px] font-black text-[#9cba9c] uppercase tracking-widest mb-1">After seed refund</p>
-                <p className="text-2xl font-bold font-mono text-[#9cba9c]">₹{finalPrice}</p>
-              </div>
-            </div>
-            <p className="text-xs text-[#e8d5b0]/70 flex items-center gap-1">
-              Spend <Leaf size={12} className="text-[#9cba9c]" /> {product.seedPrice.toLocaleString()} seeds at this stall to unlock the refund.
-            </p>
-          </div>
-
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <motion.button
-              whileHover={canAfford ? { scale: 1.02 } : undefined}
-              whileTap={canAfford ? { scale: 0.98 } : undefined}
-              onClick={() => {
-                if (!canAfford) return;
-                onClaim(product.id, refundValue);
-              }}
-              disabled={!canAfford}
-              aria-disabled={!canAfford}
-              title={canAfford ? undefined : `You need ${shortfall.toLocaleString()} more seeds`}
-              className={`flex-1 font-black py-4 px-6 rounded-sm transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-[0.16em] ${
-                canAfford
-                  ? "bg-[#c17f59] hover:bg-[#a85a42] text-white shadow-lg cursor-pointer"
-                  : "bg-white/10 text-[#e8d5b0]/45 cursor-not-allowed"
-              }`}
-            >
-              <ShoppingBag size={18} />
-              {canAfford
-                ? <>Buy at stall · claim refund <ExternalLink size={16} className="ml-1" /></>
-                : <>Need {shortfall.toLocaleString()} more seeds</>}
-            </motion.button>
-          </div>
-
-          {/* Carousel Dots */}
-          {/* The dot is drawn by an inner bar; the button around it is the hit
-              area. They used to be the same element, which made every dot an
-              8px-tall button -- unpickable with a thumb on a moving bus. The
-              active bar's colour animates on the bar, exactly as before. */}
-          <div className="flex gap-1 pt-4 justify-start">
-            {heroProducts.map((_, idx) => (
-              <button
-                key={idx}
-                onClick={() => setCarouselIndex(idx)}
-                aria-label={`Go to stall slide ${idx + 1}`}
-                className="min-h-[44px] px-1.5 flex items-center"
+              <motion.button
+                whileHover={canAfford ? { scale: 1.02 } : undefined}
+                whileTap={canAfford ? { scale: 0.98 } : undefined}
+                onClick={() => {
+                  if (!canAfford) return;
+                  onClaim(product.id, refundValue);
+                }}
+                disabled={!canAfford}
+                aria-disabled={!canAfford}
+                title={canAfford ? undefined : `You need ${shortfall.toLocaleString()} more seeds`}
+                className={`w-full font-black py-4 px-6 rounded-sm transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-[0.16em] ${
+                  canAfford
+                    ? "bg-[#c17f59] hover:bg-[#a85a42] text-white shadow-lg cursor-pointer"
+                    : "bg-white/10 text-[#e8d5b0]/45 cursor-not-allowed"
+                }`}
               >
-                <motion.span
-                  animate={{
-                    width: idx === carouselIndex ? 24 : 8,
-                    backgroundColor: idx === carouselIndex ? 'var(--accent-sage)' : 'var(--text-stone)',
-                    opacity: idx === carouselIndex ? 1 : 0.3
-                  }}
-                  className="h-2 rounded-full block"
-                />
-              </button>
-            ))}
+                <ShoppingBag size={16} />
+                {canAfford
+                  ? <>Buy at stall · claim ₹{refundValue} <ExternalLink size={14} className="ml-1" /></>
+                  : <>Need {shortfall.toLocaleString()} more seeds</>}
+              </motion.button>
+              <a
+                href={amazonStallUrl(product.amazonUrl)}
+                target="_blank"
+                rel="noreferrer"
+                className="block text-center text-[10px] font-black uppercase tracking-[0.16em] text-[#9cba9c] hover:text-[#b8d4b8] transition-colors py-2"
+              >
+                Or just peek at the Amazon stall <ExternalLink size={10} className="inline" aria-hidden="true" />
+              </a>
+            </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </motion.div>
   );
+}
+
+// ── DEALS RAIL ──
+// Today's harvest keeps its three date-seeded 40%-off stalls, but the grid of
+// cards is gone: the deals hang as tags on a rail instead. A tag flipped over
+// is the pitch — why the crate earns its price — with the stall links on its
+// back; the claim moves under the rail and follows whichever tag is active.
+function DealsRail({ onClaim, products, day }: { onClaim: (id: string, refundValue: number) => void; products: MarketProduct[]; day: number }) {
+  const deals = useMemo(() => todaysHarvest(products, day), [products, day]);
+  const [activeIdx, setActiveIdx] = useState<number | null>(null);
+  const activeDeal = activeIdx !== null && activeIdx < deals.length ? deals[activeIdx] : null;
+
+  // The rail's physics sim and flip timers keep running while it animates,
+  // even scrolled out of sight behind the stall grid. Gating autoplay on
+  // visibility lets the springs settle and the rAF loop stop when the rail
+  // is offscreen — idle CPU back to zero.
+  const railRef = useRef<HTMLDivElement>(null);
+  const [railInView, setRailInView] = useState(false);
+  useEffect(() => {
+    const el = railRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setRailInView(true);
+      return;
+    }
+    const obs = new IntersectionObserver(
+      ([entry]) => setRailInView(Boolean(entry?.isIntersecting)),
+      { rootMargin: '120px' }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const items: LanyardMember[] = deals.map((p, i) => ({
+    id: p.id,
+    name: p.name,
+    role: `₹${p.cashPrice} · ${p.seedPrice.toLocaleString()} seeds`,
+    team: 'Stall pick · today only',
+    image: imgSize(p.image, 200, 60),
+    bio: WHY_BUY[p.id] ?? `${p.subtitle}. Spend ${p.seedPrice.toLocaleString()} seeds at this stall and clip ₹${refundValueFor(p)} off the Amazon checkout.`,
+    tags: ['40% off seed refund', ...(p.tags.includes('bestseller') ? ['bestseller'] : [])],
+    links: [
+      { label: 'Open stall', href: amazonStallUrl(p.amazonUrl) },
+      { label: 'Flipkart', href: flipkartSearchUrl(p.name) },
+    ],
+    tone: ((i % 5) + 1) as 1 | 2 | 3 | 4 | 5,
+  }));
+
+  return (
+    <div>
+      <motion.h2 initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="font-serif text-2xl md:text-3xl font-semibold mb-1 text-[#3d2a1c]">
+        Today’s harvest
+      </motion.h2>
+      <p className="text-sm text-[#7a6a50] mb-2">
+        Three stalls picked at midnight — <span className="font-bold text-[#5a7d5a]">40% off seed refunds</span>, back to full price tomorrow. Brush the rail, pull a tag, flip it for the pitch.
+      </p>
+      <div ref={railRef}>
+        <TeamLanyardRail
+          items={items}
+          autoplay={railInView}
+          interval={3400}
+          eyebrow="Hanging tags · today only"
+          heading="Deals swinging on the rail"
+          caption="Brush along the rail to meet a deal, pull a tag down, click to flip it."
+          onActiveChange={setActiveIdx}
+          action={
+            activeDeal ? (
+              <button
+                type="button"
+                onClick={() => onClaim(activeDeal.id, refundValueFor(activeDeal))}
+                className="inline-flex items-center gap-2 rounded-full bg-terracotta-deep px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-px hover:shadow-md"
+              >
+                <Tag size={14} aria-hidden="true" />
+                Claim ₹{refundValueFor(activeDeal)} refund · {activeDeal.name.length > 26 ? `${activeDeal.name.slice(0, 26)}…` : activeDeal.name}
+              </button>
+            ) : (
+              <p className="text-xs text-[#7a6a50]">Tap a tag to bring its claim down here.</p>
+            )
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── IMAGE SIZING ──
+// Unsplash URLs carry their own size params (w=800&q=80). An 800px JPEG
+// rendered into a ~250px carousel card or a 56px badge is mostly wasted
+// bytes, and the stall grid loads every card image the moment the tab opens.
+// One rewriter, applied at the point of render, right-sizes each context.
+function imgSize(url: string, w: number, q = 70): string {
+  try {
+    const u = new URL(url);
+    if (!u.hostname.includes('images.unsplash.com')) return url;
+    u.searchParams.set('w', String(w));
+    u.searchParams.set('q', String(q));
+    u.searchParams.set('auto', 'format');
+    u.searchParams.set('fit', 'crop');
+    return u.toString();
+  } catch {
+    return url;
+  }
 }
 
 // ── PRODUCT CARD ──
@@ -663,8 +740,10 @@ function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish, seed
       <div className="h-2 w-full" style={{ background: 'repeating-linear-gradient(90deg, #5a7d5a 0 10px, #c17f59 10px 20px)' }} />
       <div onClick={handleAmazonRedirect} className="relative h-52 overflow-hidden cursor-pointer bg-[#e8dcc8]">
         <img
-          src={product.image}
+          src={imgSize(product.image, 520, 72)}
           alt={product.name}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           onError={(e) => {
             e.currentTarget.style.opacity = '0';
@@ -704,59 +783,71 @@ function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish, seed
         >
           <Bookmark size={16} fill={wished ? 'currentColor' : 'none'} />
         </button>
-        <div className="absolute -bottom-3 right-3 rotate-6 bg-[#fff8e8] border border-[#c4a574] px-3 py-2 shadow-md">
-          <p className="text-[9px] uppercase tracking-widest text-[#7a6a50] font-black">Ask</p>
-          <p className="font-serif text-lg font-bold text-[#3d2a1c] leading-none">₹{product.cashPrice}</p>
+        <div className="absolute bottom-3 right-3 rounded-md bg-[#fff8e8]/95 backdrop-blur-sm border border-[#c4a574] px-2.5 py-1.5 shadow-sm">
+          <p className="text-[8px] uppercase tracking-widest text-[#7a6a50] font-black leading-none mb-0.5">Stall ask</p>
+          <p className="font-mono text-base font-bold text-[#3d2a1c] leading-none">
+            ₹{product.cashPrice}
+            {product.originalPrice && <span className="ml-1.5 text-[10px] font-normal text-[#a08d6e] line-through">₹{product.originalPrice}</span>}
+          </p>
         </div>
       </div>
 
-      <div className="p-4 pt-6 flex flex-col flex-grow">
-        <div className="flex items-start justify-between gap-2 mb-3">
-          <div>
+      <div className="p-4 pt-4 flex flex-col flex-grow">
+        <div className="flex items-start justify-between gap-2 mb-2.5">
+          <div className="min-w-0">
             <h3 onClick={handleAmazonRedirect} className="font-serif text-[17px] font-semibold text-[#2c2419] leading-tight line-clamp-2 cursor-pointer hover:text-moss">
               {product.name}
             </h3>
-            <p className="text-[11px] text-[#7a6a50] mt-1 line-clamp-1">{product.subtitle}</p>
+            <p className="text-xs text-[#7a6a50] mt-1 line-clamp-1">{product.subtitle}</p>
           </div>
-          <div className="flex items-center gap-0.5 text-[#c4a035] text-xs shrink-0">
-            <Star size={11} fill="currentColor" />
-            <span className="font-bold">{product.rating}</span>
+          <div className="flex items-center gap-1 shrink-0 rounded-md bg-black/[0.03] dark:bg-white/[0.04] border border-[#d9c4a0]/60 px-1.5 py-1" title={`${product.reviewCount} keeper reviews`}>
+            <Star size={11} fill="currentColor" className="text-[#c4a035]" aria-hidden="true" />
+            <span className="text-xs font-bold text-[#3d2a1c]">{product.rating}</span>
+            <span className="text-[9px] text-[#a08d6e]">({product.reviewCount})</span>
           </div>
         </div>
 
-        <div className="mt-auto space-y-3">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-[#7a6a50]">After seed refund</span>
-            <span className="font-mono font-bold text-moss">₹{Math.max(0, product.cashPrice - refundValue)}</span>
-          </div>
-          <p className="text-[10px] text-[#7a6a50] flex items-center gap-1">
-            <Leaf size={10} className="text-moss" /> {product.seedPrice.toLocaleString()} seeds at this stall
-            {!canAfford && (
-              <span className="ml-auto text-[#b4552d] font-semibold">
-                {shortfall.toLocaleString()} short
+        <div className="mt-auto space-y-2.5">
+          <div className="rounded-md border border-[#d9c4a0] bg-[#fff8e8] px-3 py-2 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1 rounded-full bg-moss/10 border border-moss/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-moss-dark whitespace-nowrap">
+                <Leaf size={9} aria-hidden="true" /> ₹{refundValue} seed refund
               </span>
-            )}
-          </p>
+              <span className="font-mono text-sm font-bold text-moss">₹{Math.max(0, product.cashPrice - refundValue)}</span>
+            </div>
+            <p className="text-[10px] text-[#7a6a50] flex items-center gap-1">
+              <Leaf size={10} className="text-moss shrink-0" aria-hidden="true" /> {product.seedPrice.toLocaleString()} seeds at this stall
+              {!canAfford && (
+                <span className="ml-auto text-[#b4552d] font-semibold whitespace-nowrap">
+                  {/* A tier-locked crate has no shortfall — "0 short" would read
+                      as a bug. The lock itself is explained on the image overlay. */}
+                  {legendaryLocked ? 'Tier locked' : `${shortfall.toLocaleString()} short`}
+                </span>
+              )}
+            </p>
+          </div>
           <div className="flex gap-2">
             <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => onAddToCart?.(product)}
-              className="flex-1 bg-[#5a7d5a] hover:bg-[#3d6b4a] text-white font-black py-2.5 px-3 text-[10px] uppercase tracking-widest">
+              className="flex-1 bg-[#5a7d5a] hover:bg-[#3d6b4a] text-white font-black py-2.5 px-3 text-[10px] uppercase tracking-widest rounded-sm">
               Add to basket
             </motion.button>
             <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleAmazonRedirect}
-              className="flex-1 border border-[#c4a574] bg-[#fff8e8] hover:bg-[#f4e4c1] text-[#3d2a1c] font-black py-2.5 px-2 text-[10px] uppercase tracking-widest flex items-center justify-center gap-1">
-              Claim <ExternalLink size={11} />
+              className="flex-1 border border-[#c4a574] bg-[#fff8e8] hover:bg-[#f4e4c1] text-[#3d2a1c] font-black py-2.5 px-2 text-[10px] uppercase tracking-widest flex items-center justify-center gap-1 rounded-sm">
+              Claim <ExternalLink size={11} aria-hidden="true" />
             </motion.button>
             <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
               onClick={() => window.open(amazonLiveSearchUrl(product.name), '_blank', 'noopener')}
+              aria-label="Open live Amazon listings for this crate"
               title="See live Amazon listings for this"
-              className="border border-[#c4a574] bg-[#fff8e8] hover:bg-[#f4e4c1] text-[#3d2a1c] font-black py-2.5 px-2.5 text-[10px] uppercase tracking-widest flex items-center justify-center gap-1">
-              <ExternalLink size={11} /> a
+              className="w-9 shrink-0 border border-[#c4a574] bg-[#fff8e8] hover:bg-[#f4e4c1] text-[#3d2a1c] font-serif font-bold text-sm flex items-center justify-center rounded-sm">
+              a
             </motion.button>
             <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
               onClick={() => window.open(flipkartSearchUrl(product.name), '_blank', 'noopener')}
+              aria-label="Open live Flipkart listings for this crate"
               title="See live Flipkart listings for this"
-              className="border border-[#c4a574] bg-[#fff8e8] hover:bg-[#f4e4c1] text-[#3d2a1c] font-black py-2.5 px-2.5 text-[10px] uppercase tracking-widest flex items-center justify-center gap-1">
-              <ExternalLink size={11} /> f
+              className="w-9 shrink-0 border border-[#c4a574] bg-[#fff8e8] hover:bg-[#f4e4c1] text-[#3d2a1c] font-serif font-bold text-sm flex items-center justify-center rounded-sm">
+              f
             </motion.button>
           </div>
         </div>
@@ -1212,30 +1303,6 @@ function SanctuaryShelf({ seeds, userId }: { seeds: number; userId: string }) {
 
 // ── MAIN EXPORT ──
 // ── TODAY'S HARVEST ── three stalls at 40% off, redrawn every midnight ──
-function TodaysHarvest({ onClaim, onAddToCart, seeds, products, day }: { onClaim: (id: string, refundValue: number) => void; onAddToCart?: (product: any) => void; seeds: number; products: MarketProduct[]; day: number }) {
-  const deals = todaysHarvest(products, day);
-  return (
-    <div>
-      <motion.h2 initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="font-serif text-2xl md:text-3xl font-semibold mb-1 text-[#3d2a1c]">
-        Today's harvest
-      </motion.h2>
-      <p className="text-sm text-[#7a6a50] mb-6">Three stalls picked at midnight — <span className="font-bold text-[#5a7d5a]">40% off seed refunds</span>, back to full price tomorrow.</p>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {deals.map((product) => (
-          <ProductCard
-            key={'harvest-' + product.id}
-            product={product}
-            onClaim={onClaim}
-            onAddToCart={onAddToCart}
-            wished={false}
-            seeds={seeds}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ── FRESH FINDS ── the daily garden audit, sourced, with the stall that uses it ──
 function FreshFindsAudit({ onClaim, seeds, products, day }: { onClaim: (id: string, refundValue: number) => void; seeds: number; products: MarketProduct[]; day: number }) {
   const find = todaysFreshFind(day);
@@ -2065,10 +2132,10 @@ export default function GardenMarket() {
                         </p>
                       </motion.div>
                     )}
-                    <HeroCarousel onClaim={handleClaim} seeds={seeds} products={pricedProducts} />
+                    <FeaturedCrateSlideshow onClaim={handleClaim} seeds={seeds} products={pricedProducts} />
 
                     <MarketPulse day={stallDay} />
-                    <TodaysHarvest onClaim={handleClaim} onAddToCart={handleAddToCart} seeds={seeds} products={pricedProducts} day={stallDay} />
+                    <DealsRail onClaim={handleClaim} products={pricedProducts} day={stallDay} />
                     <FreshFindsAudit onClaim={handleClaim} seeds={seeds} products={pricedProducts} day={stallDay} />
 
                     {/* The stall grid. One grid, one chip row — the old layout

@@ -258,14 +258,16 @@ describe('market tap targets', () => {
     expect(tag).toMatch(/\bw-11\b/);
   });
 
-  it('draws the hero dots on an inner bar inside a 44px button', () => {
-    // The dots used to be the animated elements themselves -- 8px-tall
-    // buttons, unpickable with a thumb. The animation now lives on an inner
-    // span and the button is the hit area.
-    const tag = tagAround(market, 'Go to stall slide');
+  it('draws the carousel dots on an inner bar inside a 44px button', () => {
+    // The old hero's dots used to be the animated elements themselves --
+    // 8px-tall buttons, unpickable with a thumb. The hero became the coverflow
+    // slideshow, and the rule moved with it: the dot lives on an inner span
+    // and the 44px button is the hit area.
+    const carousel = stripJsComments(readSource('src/components/ui/coverflow-carousel.tsx'));
+    const tag = tagAround(carousel, 'Go to slide');
     expect(tag).toContain(MIN_44);
-    const at = market.indexOf('Go to stall slide');
-    expect(market.slice(at, market.indexOf('</button>', at))).toMatch(/<motion\.span/);
+    const at = carousel.indexOf('Go to slide');
+    expect(carousel.slice(at, carousel.indexOf('</button>', at))).toMatch(/<span/);
   });
 
   it('keeps the digital goods buttons at the touch minimum', () => {
