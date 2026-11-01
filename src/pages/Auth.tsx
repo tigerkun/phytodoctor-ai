@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Scroll, ArrowRight, User, Mail, Lock, ShieldCheck, Eye, EyeOff, AlertCircle, CheckCircle2, Feather } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import PageWrapper from '../components/home/PageWrapper';
+import { ArrowRight, User, Mail, Lock, ShieldCheck, Eye, EyeOff, AlertCircle, CheckCircle2, Feather, ChevronDown, Sprout } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDayNightTheme } from '../hooks/useDayNightTheme';
 import { GameService } from '../services/gameService';
 import { isValidEmail, evaluatePasswordStrength, generateLocalUserId, hashPassword, verifyPassword, isCurrentHashScheme, getAuthLockout, recordAuthFailure, clearAuthFailures } from '../services/authUtils';
 import { supabase, supabaseConfigured } from '../lib/supabase';
 import { consumeAuthReturn } from '../lib/guestHandoff';
-import { useLocation } from 'react-router-dom';
+import ModernLoginSignup from '../components/ui/modern-login-signup';
 
 function GoogleMark() {
   return (
@@ -17,6 +16,35 @@ function GoogleMark() {
       <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 12 24 12c3.1 0 5.8 1.2 8 3.1l5.7-5.7C34.2 6.1 29.4 4 24 4 16.3 4 9.6 8.3 6.3 14.7z" />
       <path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
       <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1.1 3.1-3.5 5.5-6.6 6.5l6.3 5.3C37.4 37.3 44 32 44 24c0-1.3-.1-2.7-.4-3.5z" />
+    </svg>
+  );
+}
+
+/** The app crest, leaf-only (no icon plate) for the card header. */
+function SanctuaryLeaf({ size = 36 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 512 512" aria-hidden>
+      <defs>
+        <linearGradient id="pd-leaf-auth" x1="0.2" y1="0" x2="0.8" y2="1">
+          <stop offset="0" stopColor="#9bde8b" />
+          <stop offset="1" stopColor="#3fa05f" />
+        </linearGradient>
+      </defs>
+      <path d="M256 48 C 274 48, 300 57, 326 74 C 402 124, 452 200, 444 278 C 434 372, 366 452, 284 462 C 270 464, 258 448, 256 418 C 254 448, 242 464, 228 462 C 146 452, 78 372, 68 278 C 60 200, 110 124, 186 74 C 212 57, 238 48, 256 48 Z" fill="url(#pd-leaf-auth)" />
+      <g stroke="#0c2b1f" strokeWidth="21" strokeLinecap="round" fill="none">
+        <path d="M78 322 L196 266" />
+        <path d="M96 228 L202 210" />
+        <path d="M150 132 L226 154" />
+        <path d="M434 322 L316 266" />
+        <path d="M416 228 L310 210" />
+        <path d="M362 132 L286 154" />
+      </g>
+      <g fill="#0c2b1f">
+        <ellipse cx="212" cy="322" rx="12" ry="21" transform="rotate(-16 212 322)" />
+        <ellipse cx="300" cy="322" rx="12" ry="21" transform="rotate(16 300 322)" />
+      </g>
+      <path d="M256 400 L256 92" stroke="#e9f5e4" strokeWidth="14" strokeLinecap="round" opacity="0.85" fill="none" />
+      <path d="M118 380 L210 380 L234 344 L262 394 L282 350 L292 380 L394 380" fill="none" stroke="#f7dfa8" strokeWidth="20" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -45,6 +73,15 @@ async function persistSession(userId: string, userEmail: string, displayName: st
   localStorage.setItem('botanical_guardian_onboarded', '1');
   await GameService.ensureProfile(userId);
 }
+
+// Shared field chrome: garden glass on cream by day, charcoal glass by night.
+// Height comes from py-3.5, which clears the 44px touch minimum on phones.
+const FIELD =
+  'w-full rounded-xl border bg-white/70 px-4 py-3.5 text-sm font-medium text-[#2C2419] outline-none transition placeholder:text-[#6B6156]/60 focus:ring-2 dark:bg-[rgba(30,35,38,0.75)] dark:text-[#FAF7F2] dark:placeholder:text-[#7E8D76]/60';
+const FIELD_OK =
+  'border-[rgba(44,36,25,0.12)] focus:border-[#5A7D5A] focus:ring-[rgba(90,125,90,0.25)] dark:border-[rgba(255,255,255,0.12)] dark:focus:border-[#8FB58F] dark:focus:ring-[rgba(143,181,143,0.25)]';
+const FIELD_LABEL =
+  'mb-1.5 block pl-1 text-[11px] font-sans font-bold uppercase tracking-[0.1em] text-[#6B6156] dark:text-[#7E8D76]';
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -367,312 +404,332 @@ export default function Auth() {
     }
   };
 
-  return (
-    <div className="skin-gatekeeper min-h-screen relative overflow-hidden transition-colors duration-500">
+  const submitDisabled = loading || ((!isLogin || isRecovery) && !pwdValid) || (!isLogin && (!name || !experienceLevel || !environment));
 
-      <PageWrapper className="min-h-[88vh] flex items-center justify-center p-4 sm:p-6 md:p-10 relative z-10">
+  return (
+    <div className="relative min-h-dvh overflow-hidden bg-[#FAF7F2] text-[#2C2419] transition-colors duration-500 dark:bg-[#0F1419] dark:text-[#FAF7F2]">
+      {/* The living garden field: blooming dot grid, tuned per theme. */}
+      <ModernLoginSignup variant={theme === 'night' ? 'night' : 'day'} />
+
+      <div className="relative z-10 flex min-h-dvh items-center justify-center px-4 py-10 sm:px-6">
         <motion.div
           initial={{ opacity: 0, y: 24, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.45, ease: 'easeOut' }}
-          className="w-full max-w-lg gatekeeper-ledger p-7 sm:p-10 md:p-12 relative overflow-hidden"
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+          className="w-full max-w-md"
         >
-          {/* Brass corner brackets */}
-          <div className="absolute top-2 left-2 w-5 h-5 border-t-2 border-l-2 border-[#c5a059] pointer-events-none opacity-80" />
-          <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-[#c5a059] pointer-events-none opacity-80" />
-          <div className="absolute bottom-2 left-2 w-5 h-5 border-b-2 border-l-2 border-[#c5a059] pointer-events-none opacity-80" />
-          <div className="absolute bottom-2 right-2 w-5 h-5 border-b-2 border-r-2 border-[#c5a059] pointer-events-none opacity-80" />
+          <div className="rounded-2xl border border-[rgba(44,36,25,0.12)] bg-[rgba(255,253,250,0.82)] p-6 shadow-[0_16px_48px_rgba(44,36,25,0.14)] backdrop-blur-xl sm:p-9 dark:border-[rgba(255,255,255,0.12)] dark:bg-[rgba(22,26,29,0.82)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.5)]">
 
-          <AnimatePresence>
-            {stateMessage && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-6 relative z-10 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3"
-              >
-                <AlertCircle className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" size={18} />
-                <p className="text-xs font-serif text-amber-800 dark:text-amber-200">
-                  {stateMessage}
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Header */}
-          <div className="relative z-10 text-center mb-8">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#2e4a34] shadow-lg border border-[#c5a059] mb-4">
-              <Scroll size={26} className="text-[#c5a059]" />
+            {/* Header */}
+            <div className="mb-6 text-center">
+              <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-[#1d5643] to-[#0c2b1f] shadow-lg ring-1 ring-[rgba(143,181,143,0.45)]">
+                <SanctuaryLeaf size={38} />
+              </div>
+              <div className="mb-2 inline-block rounded-full border border-[#c5a059]/40 bg-[rgba(212,168,67,0.08)] px-3 py-1 text-[10px] font-sans font-bold uppercase tracking-[0.25em] text-[#6d5628] dark:bg-[rgba(201,168,106,0.1)] dark:text-[#c9a86a]">
+                PhytoDoctor · Sanctuary Gate
+              </div>
+              <h2 className="auth-heading text-2xl font-serif font-black tracking-tight sm:text-[1.75rem]">
+                {isRecovery
+                  ? 'Restore Your Seal Passphrase'
+                  : isLogin
+                  ? 'Welcome back, Keeper'
+                  : 'Begin Your Sanctuary'}
+              </h2>
+              <p className="mx-auto mt-1.5 max-w-sm text-xs leading-relaxed text-[#6B6156] sm:text-sm dark:text-[#7E8D76]">
+                {isRecovery
+                  ? 'Inscribe a strong new passphrase below to re-seal your botanical folio.'
+                  : isLogin
+                  ? 'Present your seal to walk the beds again.'
+                  : 'A few sprigs of information, and your sanctuary is planted.'}
+              </p>
             </div>
-            {/* The brass ink is theme-aware: the day value alone measured
-                4.19:1 on the parchment and 1.56:1 over its own translucent chip
-                at night — both axe findings at phone width. */}
-            <div className="inline-block px-3 py-1 mb-2 rounded-full border border-[#c5a059]/40 bg-[#f0e8d8]/60 dark:bg-[#3a2d1c]/70 text-[10px] uppercase font-bold tracking-[0.25em] text-[#6d5628] dark:text-[#c9a86a]">
-              Royal Sanctuary Ledger • Vol. IX
-            </div>
-            <h2 className="auth-heading text-2xl sm:text-3xl font-serif font-black tracking-tight">
-              {isRecovery
-                ? 'Restore Your Seal Passphrase'
-                : isLogin
-                ? 'Sign the Sanctuary Registry'
-                : 'Inscribe Your Accreditations'}
-            </h2>
-            <p className="text-xs sm:text-sm font-serif italic text-[#725e4c] dark:text-[#b8a695] mt-1.5 max-w-sm mx-auto">
-              {isRecovery
-                ? 'Inscribe a strong new passphrase below to re-seal your botanical folio.'
-                : isLogin
-                ? 'Welcome back, Fellow. Present your seal to inspect your specimens.'
-                : 'A new naturalist record shall be entered into the fellowship archives.'}
-            </p>
-          </div>
 
-          {/* Google Sign-In (Suppressed during recovery) */}
-          {!isRecovery && (
-            <div className="relative z-10 mb-6">
-              <motion.button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={!supabaseConfigured}
-                whileHover={supabaseConfigured ? { y: -2, boxShadow: '0 10px 22px rgba(45,30,15,0.14)' } : undefined}
-                whileTap={supabaseConfigured ? { y: 0, scale: 0.98 } : undefined}
-                transition={{ type: 'spring', stiffness: 400, damping: 22 }}
-                className={`w-full py-3 px-4 rounded-xl border font-serif font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2e4a34] focus-visible:ring-offset-2 ${
-                  supabaseConfigured
-                    ? 'border-[#c9b491] dark:border-[#523d29] bg-white dark:bg-[#221a14] text-[#2b2118] dark:text-[#ede2d5] hover:bg-[#faf6ee] dark:hover:bg-[#2b2118] cursor-pointer'
-                    : 'border-[#dcd2c0] dark:border-[#3d2e20] bg-[#f4eee1]/60 dark:bg-[#1c160f] text-[#a89a84] dark:text-[#6b5c48] cursor-not-allowed'
-                }`}
-              >
-                <GoogleMark />
-                {supabaseConfigured ? 'Continue with Google' : 'Google Entry Sealed'}
-              </motion.button>
-              {!supabaseConfigured && (
-                <p className="text-[10px] text-center text-[#a89a84] dark:text-[#6b5c48] mt-2 italic">
-                  The gatekeeper's ledger is being prepared — use the folio below instead.
-                </p>
-              )}
-              {authError && (
-                <p className="text-xs text-red-600 dark:text-red-400 font-bold mt-2.5 flex items-center gap-1.5 justify-center">
-                  <AlertCircle size={13} /> {authError}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Divider (Suppressed during recovery) */}
-          {!isRecovery && (
-            <div className="relative z-10 flex items-center gap-3 my-6">
-              <div className="flex-1 h-px bg-[#dcd2c0] dark:bg-[#3d2e20]" />
-              <span className="text-[10px] uppercase tracking-widest font-mono font-bold text-[#6d5628] dark:text-[#c9a86a]">or ledger folio</span>
-              <div className="flex-1 h-px bg-[#dcd2c0] dark:bg-[#3d2e20]" />
-            </div>
-          )}
-
-          {/* Form */}
-          <form onSubmit={isRecovery ? handleResetPasswordSubmit : handleSubmit} className="relative z-10 space-y-4">
-            <AnimatePresence mode="popLayout">
-              {!isLogin && !isRecovery && (
+            <AnimatePresence>
+              {stateMessage && (
                 <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="space-y-4 overflow-hidden"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="mb-5 flex items-start gap-3 rounded-xl border border-[#D4A843]/30 bg-[rgba(212,168,67,0.1)] p-3.5"
                 >
-                  <div className="relative">
-                    <label htmlFor="auth-name" className="block text-[11px] font-sans font-bold uppercase tracking-[0.1em] text-[#6b5325] dark:text-[#caa651] mb-1.5 pl-1">Full Name</label>
-                    <User className="absolute left-4 bottom-3 text-[#8c6e38]" size={17} />
-                    <input
-                      id="auth-name"
-                      type="text"
-                      required={!isLogin}
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      autoComplete="name"
-                      placeholder="Naturalist Full Name"
-                      className="w-full pl-11 pr-4 py-3.5 guest-ledger-input rounded-xl text-sm font-medium"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <select aria-label="Rank" required={!isLogin} value={experienceLevel} onChange={(e) => setExperienceLevel(e.target.value)}
-                      className={`w-full px-3 py-3 guest-ledger-input rounded-xl text-xs font-semibold appearance-none cursor-pointer ${experienceLevel ? '' : 'text-gray-400'}`}>
-                      <option value="" disabled>Rank</option>
-                      <option value="novice">Novice</option>
-                      <option value="intermediate">Keeper</option>
-                      <option value="expert">Master</option>
-                    </select>
-                    <select aria-label="Sanctuary" required={!isLogin} value={environment} onChange={(e) => setEnvironment(e.target.value)}
-                      className={`w-full px-3 py-3 guest-ledger-input rounded-xl text-xs font-semibold appearance-none cursor-pointer ${environment ? '' : 'text-gray-400'}`}>
-                      <option value="" disabled>Sanctuary</option>
-                      <option value="indoor">Indoor</option>
-                      <option value="outdoor">Outdoor</option>
-                      <option value="greenhouse">Glasshouse</option>
-                      <option value="mixed">Mixed</option>
-                    </select>
-                  </div>
+                  <AlertCircle className="mt-0.5 shrink-0 text-[#9A681A] dark:text-[#E8C97A]" size={16} />
+                  <p className="text-xs font-serif text-[#6d5628] dark:text-[#c9a86a]">
+                    {stateMessage}
+                  </p>
                 </motion.div>
               )}
             </AnimatePresence>
 
+            {/* Google Sign-In (Suppressed during recovery) */}
             {!isRecovery && (
+              <div className="mb-5">
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={!supabaseConfigured}
+                  className={`flex min-h-[48px] w-full items-center justify-center gap-2.5 rounded-xl border px-4 py-3 text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5A7D5A] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAF7F2] dark:focus-visible:ring-offset-[#161A1D] ${
+                    supabaseConfigured
+                      ? 'cursor-pointer border-[rgba(44,36,25,0.12)] bg-white/85 text-[#2C2419] shadow-sm hover:bg-white hover:shadow-md dark:border-[rgba(255,255,255,0.14)] dark:bg-[rgba(30,35,38,0.85)] dark:text-[#FAF7F2] dark:hover:bg-[#1E2326]'
+                      : 'cursor-not-allowed border-[rgba(44,36,25,0.08)] bg-white/40 text-[#6B6156]/60 dark:border-[rgba(255,255,255,0.06)] dark:bg-[rgba(30,35,38,0.4)] dark:text-[#7E8D76]/60'
+                  }`}
+                >
+                  <GoogleMark />
+                  {supabaseConfigured ? 'Continue with Google' : 'Google Entry Sealed'}
+                </button>
+                {!supabaseConfigured && (
+                  <p className="mt-2 text-center text-[10px] italic text-[#6B6156] dark:text-[#7E8D76]">
+                    The gatekeeper's ledger is being prepared — use the folio below instead.
+                  </p>
+                )}
+                {authError && (
+                  <p className="mt-2.5 flex items-center justify-center gap-1.5 text-xs font-bold text-[#B4473C] dark:text-[#E07A5F]">
+                    <AlertCircle size={13} /> {authError}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Divider (Suppressed during recovery) */}
+            {!isRecovery && (
+              <div className="mb-5 flex items-center gap-3">
+                <div className="h-px flex-1 bg-[rgba(44,36,25,0.12)] dark:bg-[rgba(255,255,255,0.12)]" />
+                <span className="text-[10px] font-sans font-bold uppercase tracking-[0.2em] text-[#6B6156] dark:text-[#7E8D76]">or with email</span>
+                <div className="h-px flex-1 bg-[rgba(44,36,25,0.12)] dark:bg-[rgba(255,255,255,0.12)]" />
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={isRecovery ? handleResetPasswordSubmit : handleSubmit} className="space-y-4">
+              <AnimatePresence initial={false} mode="popLayout">
+                {!isLogin && !isRecovery && (
+                  <motion.div
+                    key="signup-extras"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-4 overflow-hidden"
+                  >
+                    <div className="relative">
+                      <label htmlFor="auth-name" className={FIELD_LABEL}>Full Name</label>
+                      <User className="pointer-events-none absolute bottom-3 left-4 text-[#5A7D5A] dark:text-[#8FB58F]" size={16} />
+                      <input
+                        id="auth-name"
+                        type="text"
+                        required={!isLogin}
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        autoComplete="name"
+                        placeholder="Naturalist Full Name"
+                        className={`${FIELD} ${FIELD_OK} pl-11`}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="relative">
+                        <select aria-label="Rank" required={!isLogin} value={experienceLevel} onChange={(e) => setExperienceLevel(e.target.value)}
+                          className={`${FIELD} ${FIELD_OK} cursor-pointer appearance-none pr-9 ${experienceLevel ? '' : 'text-[#6B6156]/60 dark:text-[#7E8D76]/60'}`}>
+                          <option value="" disabled>Rank</option>
+                          <option value="novice">Novice</option>
+                          <option value="intermediate">Keeper</option>
+                          <option value="expert">Master</option>
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#5A7D5A] dark:text-[#8FB58F]" size={15} />
+                      </div>
+                      <div className="relative">
+                        <select aria-label="Sanctuary" required={!isLogin} value={environment} onChange={(e) => setEnvironment(e.target.value)}
+                          className={`${FIELD} ${FIELD_OK} cursor-pointer appearance-none pr-9 ${environment ? '' : 'text-[#6B6156]/60 dark:text-[#7E8D76]/60'}`}>
+                          <option value="" disabled>Sanctuary</option>
+                          <option value="indoor">Indoor</option>
+                          <option value="outdoor">Outdoor</option>
+                          <option value="greenhouse">Glasshouse</option>
+                          <option value="mixed">Mixed</option>
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#5A7D5A] dark:text-[#8FB58F]" size={15} />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {!isRecovery && (
+                <div className="relative">
+                  <label htmlFor="auth-email" className={FIELD_LABEL}>Email</label>
+                  <Mail className={`pointer-events-none absolute bottom-3 left-4 ${emailError ? 'text-[#B4473C] dark:text-[#E07A5F]' : 'text-[#5A7D5A] dark:text-[#8FB58F]'}`} size={16} />
+                  <input
+                    id="auth-email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(''); }}
+                    onBlur={() => { if (email && !isValidEmail(email)) setEmailError('Please enter a valid email address.'); }}
+                    autoComplete="email"
+                    placeholder="Dispatches Email Address"
+                    className={`${FIELD} pl-11 ${
+                      emailError
+                        ? 'border-[#C45B4A] focus:border-[#B4473C] focus:ring-[rgba(196,91,74,0.25)] dark:border-[#E07A5F]/60'
+                        : FIELD_OK
+                    }`}
+                  />
+                  <AnimatePresence>
+                    {emailError && (
+                      <motion.p initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                        className="mt-1.5 flex items-center gap-1 pl-1 text-xs font-bold text-[#B4473C] dark:text-[#E07A5F]">
+                        <AlertCircle size={12} /> {emailError}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
               <div className="relative">
-                <label htmlFor="auth-email" className="block text-[11px] font-sans font-bold uppercase tracking-[0.1em] text-[#6b5325] dark:text-[#caa651] mb-1.5 pl-1">Email</label>
-                <Mail className={`absolute left-4 bottom-3 ${emailError ? 'text-red-500' : 'text-[#8c6e38]'}`} size={17} />
+                <div className="mb-1.5 flex items-center justify-between pl-1 pr-1">
+                  <label htmlFor="auth-password" className={FIELD_LABEL}>
+                    {isRecovery ? 'New Passphrase' : 'Passphrase'}
+                  </label>
+                  {isLogin && !isRecovery && supabaseConfigured && (
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      disabled={resetting}
+                      className="cursor-pointer text-[10px] font-sans font-bold text-[#6d5628] underline underline-offset-2 transition-colors hover:text-[#2C2419] disabled:opacity-60 dark:text-[#c9a86a] dark:hover:text-[#FAF7F2]"
+                    >
+                      {resetting ? 'Dispatching...' : 'Lost your seal?'}
+                    </button>
+                  )}
+                </div>
+                <Lock className="pointer-events-none absolute bottom-3 left-4 text-[#5A7D5A] dark:text-[#8FB58F]" size={16} />
                 <input
-                  id="auth-email"
-                  type="email"
+                  id="auth-password"
+                  type={showPassword ? 'text' : 'password'}
                   required
-                  value={email}
-                  onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(''); }}
-                  onBlur={() => { if (email && !isValidEmail(email)) setEmailError('Please enter a valid email address.'); }}
-                  autoComplete="email"
-                  placeholder="Dispatches Email Address"
-                  className={`w-full pl-11 pr-4 py-3.5 guest-ledger-input rounded-xl text-sm font-medium ${emailError ? 'border-red-500' : ''}`}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => setPasswordFocus(true)}
+                  onBlur={() => setPasswordFocus(false)}
+                  autoComplete={isRecovery ? 'new-password' : isLogin ? 'current-password' : 'new-password'}
+                  placeholder={isRecovery ? 'Inscribe New Strong Passphrase' : 'Seal Passphrase'}
+                  className={`${FIELD} ${FIELD_OK} pl-11 pr-11`}
                 />
+                <button type="button" aria-label={showPassword ? 'Hide passphrase' : 'Show passphrase'} onClick={() => setShowPassword(!showPassword)}
+                  className="absolute bottom-0 right-1 cursor-pointer p-3.5 text-[#6B6156] transition-colors hover:text-[#2C2419] focus:outline-none dark:text-[#7E8D76] dark:hover:text-[#FAF7F2]">
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+
                 <AnimatePresence>
-                  {emailError && (
-                    <motion.p initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                      className="text-xs text-red-500 font-bold mt-1.5 flex items-center gap-1 pl-1">
-                      <AlertCircle size={12} /> {emailError}
-                    </motion.p>
+                  {resetSent && !isRecovery && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="mt-2.5 rounded-lg border border-[rgba(61,118,81,0.3)] bg-[rgba(90,158,90,0.1)] p-2.5 text-center text-xs font-serif italic text-[#3D7651] dark:border-[rgba(143,181,143,0.3)] dark:bg-[rgba(143,181,143,0.1)] dark:text-[#A8C9A8]"
+                    >
+                      A recovery dispatch has been transmitted to your email. Check your dispatches to restore your seal.
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <AnimatePresence>
+                  {(!isLogin || isRecovery) && (passwordFocus || password.length > 0) && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden">
+                      <div className="mt-3 rounded-xl border border-[rgba(44,36,25,0.08)] bg-[rgba(245,240,232,0.85)] p-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(30,35,38,0.85)]">
+                        <div className="mb-2 flex gap-2">
+                          {[1, 2, 3].map((level) => (
+                            <div key={level} className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                              strength.score >= level
+                                ? strength.score === 1 ? 'bg-[#9A681A]' : strength.score === 2 ? 'bg-[#D4A843]' : 'bg-[#5A9E5A]'
+                                : 'bg-[rgba(44,36,25,0.12)] dark:bg-[rgba(255,255,255,0.12)]'}`} />
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-3 gap-1 text-[10px] font-mono font-bold text-[#6B6156] dark:text-[#7E8D76]">
+                          {[
+                            [strength.lengthValid, '8+ chars'],
+                            [strength.upperValid, '1 uppercase'],
+                            [strength.numberValid, '1 number'],
+                          ].map(([valid, label]) => (
+                            <div key={label as string} className={`flex items-center gap-1 ${valid ? 'text-[#3D7651] dark:text-[#8FB58F]' : ''}`}>
+                              {valid ? <CheckCircle2 size={11} /> : <div className="h-2.5 w-2.5 rounded-full border border-[#6B6156]/50 dark:border-[#7E8D76]/50" />}
+                              {label}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
                   )}
                 </AnimatePresence>
               </div>
-            )}
 
-            <div className="relative">
-              <div className="flex items-center justify-between mb-1.5 pl-1 pr-1">
-                <label htmlFor="auth-password" className="block text-[11px] font-sans font-bold uppercase tracking-[0.1em] text-[#6b5325] dark:text-[#caa651]">
-                  {isRecovery ? 'New Passphrase' : 'Passphrase'}
-                </label>
-                {isLogin && !isRecovery && supabaseConfigured && (
-                  <button
-                    type="button"
-                    onClick={handleForgotPassword}
-                    disabled={resetting}
-                    className="text-[10px] font-serif font-semibold text-[#6d5628] dark:text-[#c9a86a] hover:text-[#5a3d28] dark:hover:text-[#c5a059] dark:hover:text-[#c5a059] transition-colors underline underline-offset-2 decoration-[#c5a059]/40"
-                  >
-                    {resetting ? 'Dispatching...' : 'Lost your seal?'}
-                  </button>
-                )}
-              </div>
-              <Lock className="absolute left-4 bottom-3 text-[#8c6e38]" size={17} />
-              <input
-                id="auth-password"
-                type={showPassword ? 'text' : 'password'}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onFocus={() => setPasswordFocus(true)}
-                onBlur={() => setPasswordFocus(false)}
-                autoComplete={isRecovery ? 'new-password' : isLogin ? 'current-password' : 'new-password'}
-                placeholder={isRecovery ? 'Inscribe New Strong Passphrase' : 'Seal Passphrase'}
-                className="w-full pl-11 pr-11 py-3.5 guest-ledger-input rounded-xl text-sm font-medium"
-              />
-              <button type="button" aria-label={showPassword ? 'Hide passphrase' : 'Show passphrase'} onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-1 bottom-0 p-4 text-[#8c6e38] hover:text-[#2b2118] dark:hover:text-[#f4eee1] focus:outline-none">
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
+              <motion.button
+                disabled={submitDisabled}
+                type="submit"
+                whileHover={!submitDisabled ? { y: -2, scale: 1.01 } : undefined}
+                whileTap={!submitDisabled ? { y: 0, scale: 0.97 } : undefined}
+                transition={{ type: 'spring', stiffness: 420, damping: 20 }}
+                className={`flex min-h-[48px] w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl py-3.5 font-serif font-bold text-sm uppercase tracking-wider text-white shadow-md transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAF7F2] disabled:cursor-not-allowed disabled:opacity-50 dark:focus-visible:ring-offset-[#161A1D] ${
+                  isRecovery || isLogin
+                    ? 'bg-[#3D5A3D] hover:bg-[#466B46] focus-visible:ring-[#3D5A3D] dark:bg-[#3D5A3D] dark:hover:bg-[#466B46]'
+                    : 'bg-[#B0552F] hover:bg-[#C4704B] focus-visible:ring-[#B0552F]'
+                }`}
+              >
+                {loading
+                  ? <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 1.1, ease: 'linear' }}
+                    >
+                      <Feather size={18} />
+                    </motion.div>
+                  : <><span>{isRecovery ? 'Affix New Seal & Enter' : isLogin ? 'Affix Seal & Enter' : 'Plant My Sanctuary'}</span><ArrowRight size={16} /></>}
+              </motion.button>
+            </form>
 
-              <AnimatePresence>
-                {resetSent && !isRecovery && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="mt-2.5 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-serif italic text-center"
-                  >
-                    A recovery dispatch has been transmitted to your email. Check your dispatches to restore your seal.
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <AnimatePresence>
-                {(!isLogin || isRecovery) && (passwordFocus || password.length > 0) && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden mt-3 p-3 rounded-lg bg-[#faf6ee] dark:bg-[#201812] border border-[#dcd2c0] dark:border-[#423120]">
-                    <div className="flex gap-2 mb-2">
-                      {[1, 2, 3].map((level) => (
-                        <div key={level} className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                          strength.score >= level
-                            ? strength.score === 1 ? 'bg-amber-600' : strength.score === 2 ? 'bg-amber-400' : 'bg-emerald-600'
-                            : 'bg-gray-300 dark:bg-gray-700'}`} />
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-3 gap-1 text-[10px] font-mono font-bold text-gray-500">
-                      {[
-                        [strength.lengthValid, '8+ chars'],
-                        [strength.upperValid, '1 uppercase'],
-                        [strength.numberValid, '1 number'],
-                      ].map(([valid, label]) => (
-                        <div key={label as string} className={`flex items-center gap-1 ${valid ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>
-                          {valid ? <CheckCircle2 size={11} /> : <div className="w-2.5 h-2.5 rounded-full border border-gray-400" />}
-                          {label}
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+            <div className="mt-4 text-center">
+              {isRecovery ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRecovery(false);
+                    resetForm();
+                  }}
+                  className="inline-flex min-h-[44px] cursor-pointer items-center justify-center text-xs font-semibold text-[#6d5628] underline underline-offset-4 transition-colors hover:text-[#2C2419] dark:text-[#c9a86a] dark:hover:text-[#FAF7F2]"
+                >
+                  Cancel recovery · Return to sign in
+                </button>
+              ) : (
+                <button type="button" onClick={resetForm}
+                  className="inline-flex min-h-[44px] cursor-pointer items-center justify-center text-xs text-[#6B6156] transition-colors hover:text-[#2C2419] dark:text-[#7E8D76] dark:hover:text-[#FAF7F2]">
+                  {isLogin
+                    ? <>New to the sanctuary? <span className="ml-1.5 font-bold text-[#3D5A3D] dark:text-[#8FB58F]">Create your ledger</span></>
+                    : <>Already registered? <span className="ml-1.5 font-bold text-[#3D5A3D] dark:text-[#8FB58F]">Open your folio</span></>}
+                </button>
+              )}
             </div>
 
-            <motion.button
-              disabled={loading || ((!isLogin || isRecovery) && !pwdValid) || (!isLogin && (!name || !experienceLevel || !environment))}
-              type="submit"
-              whileHover={!(loading || ((!isLogin || isRecovery) && !pwdValid) || (!isLogin && (!name || !experienceLevel || !environment))) ? { y: -2, scale: 1.01 } : undefined}
-              whileTap={!(loading || ((!isLogin || isRecovery) && !pwdValid) || (!isLogin && (!name || !experienceLevel || !environment))) ? { y: 0, scale: 0.97 } : undefined}
-              transition={{ type: 'spring', stiffness: 420, damping: 20 }}
-              className={`w-full py-4 mt-6 rounded-xl font-serif font-bold text-sm tracking-wider uppercase flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
-                isRecovery || isLogin ? 'ledger-seal-button focus-visible:ring-[#2e4a34]' : 'ledger-inscribe-button focus-visible:ring-[#a47f3b]'
-              }`}
-            >
-              {loading
-                ? <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 1.1, ease: 'linear' }}
-                    className={isLogin || isRecovery ? 'text-[#c5a059]' : 'text-[#2e4a34]'}
-                  >
-                    <Feather size={18} />
-                  </motion.div>
-                : <><span>{isRecovery ? 'Affix New Seal & Enter' : isLogin ? 'Affix Seal & Enter' : 'Inscribe & Enter'}</span><ArrowRight size={16} className={isLogin || isRecovery ? 'text-[#c5a059]' : 'text-[#2e4a34]'} /></>}
-            </motion.button>
-          </form>
-
-          <div className="mt-6 text-center relative z-10">
-            {isRecovery ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRecovery(false);
-                  resetForm();
-                }}
-                className="text-xs font-serif font-semibold text-[#6d5628] dark:text-[#c9a86a] hover:text-[#5a3d28] dark:hover:text-[#c5a059] dark:hover:text-[#c5a059] transition-colors underline underline-offset-4 decoration-[#c5a059]/40"
-              >
-                Cancel recovery · Return to sign in
-              </button>
-            ) : (
-              <button onClick={resetForm}
-                className="py-3 min-h-[44px] text-xs font-serif font-semibold text-[#6d5628] dark:text-[#c9a86a] hover:text-[#5a3d28] dark:hover:text-[#c5a059] dark:hover:text-[#c5a059] transition-colors underline underline-offset-4 decoration-[#c5a059]/40">
-                {isLogin ? 'No account on file? Inscribe new record' : 'Already registered? Open folio'}
-              </button>
-            )}
-
-            <div className="mt-4 flex items-center justify-center">
+            <div className="mt-2 flex items-center justify-center">
               <button
                 type="button"
                 onClick={handleGuestEntry}
                 disabled={loading}
-                className="text-[11px] font-serif font-medium text-[#8a7a58] hover:text-[#2e4a34] dark:hover:text-[#c5a059] transition-colors flex items-center gap-1.5 py-1.5 px-3.5 rounded-lg border border-[#c5a059]/30 hover:border-[#c5a059]/70 bg-[#c5a059]/10 cursor-pointer"
+                className="flex min-h-[44px] cursor-pointer items-center gap-1.5 rounded-full border border-[#5A7D5A]/30 bg-[rgba(90,125,90,0.08)] px-4 py-2 text-xs font-sans font-semibold text-[#3D5A3D] transition-colors hover:border-[#5A7D5A]/60 hover:bg-[rgba(90,125,90,0.15)] disabled:opacity-50 dark:border-[#8FB58F]/30 dark:bg-[rgba(143,181,143,0.1)] dark:text-[#A8C9A8] dark:hover:bg-[rgba(143,181,143,0.18)]"
               >
-                <span>Enter Sanctuary as Apprentice Keeper</span>
-                <span className="text-[10px] opacity-75">→</span>
+                <Sprout size={13} />
+                <span>Wander in as Apprentice Keeper</span>
               </button>
             </div>
-          </div>
 
-          <div className="mt-6 pt-4 border-t border-[#dcd2c0]/60 dark:border-[#3d2e20] flex items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-widest text-[#6d5628] dark:text-[#c9a86a]">
-            <ShieldCheck size={13} className="text-[#2e4a34] dark:text-[#8c6e38]" />
-            <span>{supabaseConfigured ? 'Sealed & Warded · Entries Verified' : 'Local Keyring · Single-Device Ledger'}</span>
+            <div className="mt-6 border-t border-[rgba(44,36,25,0.08)] pt-4 dark:border-[rgba(255,255,255,0.08)]">
+              <p className="text-center text-[11px] leading-relaxed text-[#6B6156] dark:text-[#7E8D76]">
+                By continuing you agree to our{' '}
+                <Link to="/terms" className="font-semibold underline underline-offset-2 transition-colors hover:text-[#2C2419] dark:hover:text-[#FAF7F2]">Terms of Service</Link>
+                {' '}and{' '}
+                <Link to="/privacy" className="font-semibold underline underline-offset-2 transition-colors hover:text-[#2C2419] dark:hover:text-[#FAF7F2]">Privacy Policy</Link>.
+              </p>
+              <div className="mt-3 flex items-center justify-center gap-2 text-[10px] font-sans font-semibold uppercase tracking-[0.2em] text-[#6d5628] dark:text-[#c9a86a]">
+                <ShieldCheck size={13} className="text-[#5A7D5A] dark:text-[#8FB58F]" />
+                <span>{supabaseConfigured ? 'Sealed & Warded · Entries Verified' : 'Local Keyring · Single-Device Ledger'}</span>
+              </div>
+            </div>
           </div>
         </motion.div>
-      </PageWrapper>
+      </div>
     </div>
   );
 }

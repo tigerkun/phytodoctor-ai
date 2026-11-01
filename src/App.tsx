@@ -8,6 +8,7 @@ import FloatingAssistant from './components/FloatingAssistant';
 import RequireAuth from './components/RequireAuth';
 import ErrorBoundary from './components/ErrorBoundary';
 import OnboardingTour from './components/OnboardingTour';
+import SplashGate from './components/SplashGate';
 
 // Everything past the landing page ships on demand. Auth and Home stay in the
 // entry chunk because they are the two routes a first-time visitor hits; the
@@ -65,6 +66,7 @@ export default function App() {
       <MotionConfig reducedMotion="user">
       <ToastProvider>
         <ErrorBoundary>
+        <SplashGate />
         <Layout>
           <FloatingAssistant />
           <OnboardingTour />
