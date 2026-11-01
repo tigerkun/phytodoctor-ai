@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Globe2, ExternalLink, RotateCw, ChevronLeft, ChevronRight, Newspaper } from 'lucide-react';
+import { Globe2, ExternalLink, ChevronLeft, ChevronRight, Newspaper, WifiOff } from 'lucide-react';
 import type { EnvironmentalNewsItem } from '../../services/libraryService';
 
 export interface EnvironmentalNewsCarouselProps {
@@ -34,6 +34,13 @@ export default function EnvironmentalNewsCarousel({
   const newsList = items && items.length > 0 ? items : FALLBACK_ENVIRONMENTAL_NEWS;
   const [index, setIndex] = useState(0);
 
+  // "Live" means today's dispatch actually arrived: items came from the daily
+  // payload and the server did not flag them stale. Everything else -- quota
+  // ceiling, breaker trip, fetch failure, yesterday's cache -- is a saved
+  // roundup, and the notice below says so rather than letting the badge imply
+  // a live feed that is not there.
+  const isLive = !stale && items.length > 0;
+
   const total = newsList.length;
   const current = newsList[index % total];
 
@@ -51,9 +58,6 @@ export default function EnvironmentalNewsCarousel({
       animate={{ opacity: 1, scale: 1 }}
       className="p-5 sm:p-6 rounded-xl telegraph-ticker-tape shadow-sm relative overflow-hidden flex flex-col justify-between gap-4"
     >
-      {/* Circular Ink Cancellation Stamp */}
-      <div className="ink-cancellation-stamp pointer-events-none" aria-hidden="true" />
-
       {/* Header Row */}
       <div className="flex items-start justify-between gap-3 relative z-10">
         <div className="flex items-center gap-2 min-w-0">
@@ -80,12 +84,12 @@ export default function EnvironmentalNewsCarousel({
         <div className="flex items-center gap-1.5 shrink-0">
           <span
             className={`px-2 py-0.5 text-[8px] font-mono font-bold uppercase tracking-wider rounded border ${
-              !stale && items.length > 0
+              isLive
                 ? 'bg-moss/10 text-moss border-moss/30'
                 : 'bg-black/5 dark:bg-white/5 text-text-stone border-[#8c7355]/20'
             }`}
           >
-            {!stale && items.length > 0 ? 'Live Top 10' : 'Archive'}
+            {isLive ? 'Live Top 10' : 'Archive'}
           </span>
           <span className="text-[9px] font-mono font-bold text-text-stone">
             {((index % total) + 1).toString().padStart(2, '0')}/{total.toString().padStart(2, '0')}
@@ -95,6 +99,12 @@ export default function EnvironmentalNewsCarousel({
 
       {/* Body / Snippet */}
       <div className="space-y-1.5 relative z-10 font-mono">
+        {!isLive && (
+          <p className="text-[10px] font-mono text-text-stone leading-relaxed flex items-center gap-1.5">
+            <WifiOff size={11} className="shrink-0 text-[#8c6d46] dark:text-[#caa651]" aria-hidden="true" />
+            <span>The wire is resting today — showing a saved roundup until the morning dispatch returns.</span>
+          </p>
+        )}
         <p className="text-xs text-text-stone leading-relaxed flex items-center gap-2">
           <Newspaper size={12} className="text-moss shrink-0" aria-hidden="true" />
           <span className="font-bold text-text-bark">{current.source}</span>

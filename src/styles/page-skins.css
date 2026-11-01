@@ -333,60 +333,6 @@
   border-bottom-color: rgba(212, 175, 55, 0.6);
 }
 
-/* Circular Ink Cancellation Stamp */
-.ink-cancellation-stamp {
-  position: absolute;
-  right: 14px;
-  bottom: 12px;
-  width: 68px;
-  height: 68px;
-  border: 1.5px solid rgba(175, 45, 35, 0.45);
-  border-radius: 50%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  transform: rotate(-14deg);
-  pointer-events: none;
-  user-select: none;
-  color: rgba(175, 45, 35, 0.65);
-  text-transform: uppercase;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 7px;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  box-shadow: inset 0 0 0 1.5px rgba(175, 45, 35, 0.2);
-}
-
-.ink-cancellation-stamp::before {
-  content: 'EXPEDITION';
-  display: block;
-  font-size: 6px;
-  letter-spacing: 0.12em;
-  line-height: 1;
-}
-
-.ink-cancellation-stamp::after {
-  content: 'DISPATCH';
-  display: block;
-  font-size: 6px;
-  letter-spacing: 0.12em;
-  line-height: 1;
-  border-top: 1px dashed rgba(175, 45, 35, 0.35);
-  margin-top: 3px;
-  padding-top: 2px;
-}
-
-:root[data-theme="night"] .ink-cancellation-stamp {
-  border-color: rgba(220, 80, 70, 0.4);
-  color: rgba(220, 80, 70, 0.5);
-  box-shadow: inset 0 0 0 1.5px rgba(220, 80, 70, 0.15);
-}
-
-:root[data-theme="night"] .ink-cancellation-stamp::after {
-  border-top-color: rgba(220, 80, 70, 0.25);
-}
-
 /* Socratic Study Carrel Quiz Slip */
 .study-carrel-slip {
   background-color: #fdfaf3;

@@ -130,7 +130,7 @@ const PHYTO_NOTES = [
     evidenceLevel: "Validated",
     severity: "Low",
     prevalence: "French Polynesia",
-    image: "https://images.unsplash.com/photo-1600411317281-229af6a88b2c?q=80&w=600&auto=format&fit=crop"
+    image: "https://images.unsplash.com/photo-1598880940080-ff9a29891b85?q=80&w=600&auto=format&fit=crop"
   },
   
   // Pathology
@@ -144,7 +144,7 @@ const PHYTO_NOTES = [
     evidenceLevel: "Validated (Clinical)",
     severity: "Moderate",
     prevalence: "Global",
-    image: "https://images.unsplash.com/photo-1599307736696-26c7104b9016?q=80&w=600&auto=format&fit=crop"
+    image: "https://images.unsplash.com/photo-1520412099551-62b6bafeb5bb?q=80&w=600&auto=format&fit=crop"
   },
   {
     name: "Root Rot",
@@ -168,7 +168,7 @@ const PHYTO_NOTES = [
     evidenceLevel: "Clinical Study",
     severity: "High",
     prevalence: "Warm/Humid",
-    image: "https://images.unsplash.com/photo-1574883193498-8e68cb719ca3?q=80&w=600&auto=format&fit=crop"
+    image: "https://images.unsplash.com/photo-1611211232932-da3113c5b960?q=80&w=600&auto=format&fit=crop"
   },
   {
     name: "Botrytis Blight",
@@ -180,7 +180,7 @@ const PHYTO_NOTES = [
     evidenceLevel: "Validated",
     severity: "Moderate",
     prevalence: "Cool/Damp",
-    image: "https://images.unsplash.com/photo-1508020268012-70b7fb5625ff?q=80&w=600&auto=format&fit=crop"
+    image: "https://images.unsplash.com/photo-1477511801984-4ad318ed9846?q=80&w=600&auto=format&fit=crop"
   },
 
   // Pests
@@ -194,7 +194,7 @@ const PHYTO_NOTES = [
     evidenceLevel: "Field-Tested",
     severity: "High",
     prevalence: "Arid/Indoor Heating",
-    image: "https://images.unsplash.com/photo-1563810444-245f8e562772?q=80&w=600&auto=format&fit=crop"
+    image: "https://images.unsplash.com/photo-1509423350716-97f9360b4e09?q=80&w=600&auto=format&fit=crop"
   },
   {
     name: "Mealybugs",
@@ -206,7 +206,7 @@ const PHYTO_NOTES = [
     evidenceLevel: "Field-Tested",
     severity: "High",
     prevalence: "Indoor/Tropical",
-    image: "https://images.unsplash.com/photo-1596704169727-4c40212f7a07?q=80&w=600&auto=format&fit=crop"
+    image: "https://images.unsplash.com/photo-1591958911259-bee2173bdccc?q=80&w=600&auto=format&fit=crop"
   },
   {
     name: "Fungus Gnats",
@@ -218,7 +218,7 @@ const PHYTO_NOTES = [
     evidenceLevel: "Validated",
     severity: "Low",
     prevalence: "Overwatered Soil",
-    image: "https://images.unsplash.com/photo-1533568016401-447545b736b6?q=80&w=600&auto=format&fit=crop"
+    image: "https://images.unsplash.com/photo-1459156212016-c812468e2115?q=80&w=600&auto=format&fit=crop"
   },
   {
     name: "Thrips",
@@ -230,37 +230,10 @@ const PHYTO_NOTES = [
     evidenceLevel: "Expert Grade",
     severity: "Critical",
     prevalence: "Global",
-    image: "https://images.unsplash.com/photo-1627915570222-263a03362a93?q=80&w=600&auto=format&fit=crop"
+    image: "https://images.unsplash.com/photo-1521334884684-d80222895322?q=80&w=600&auto=format&fit=crop"
   }
 ];
 
-type EarthEvent = {
-  title: string;
-  category: string;
-  date: string;
-  source: string;
-  url: string;
-  magnitude?: string;
-};
-
-const FALLBACK_EARTH_EVENTS: EarthEvent[] = [
-  {
-    title: 'Open global natural event monitor',
-    category: 'NASA EONET',
-    date: 'Updated daily',
-    source: 'NASA EONET',
-    url: 'https://eonet.gsfc.nasa.gov/',
-    magnitude: 'Live feed fallback',
-  },
-  {
-    title: 'Wildfire, storm, volcano, dust and ice records',
-    category: 'Earth Watch',
-    date: 'Near real-time',
-    source: 'NASA Earth Observatory',
-    url: 'https://science.nasa.gov/earth/earth-observatory/',
-    magnitude: 'Curated natural events',
-  },
-];
 
 const DAILY_QUIZZES = [
   {
@@ -1058,7 +1031,12 @@ export default function Library() {
                     aria-expanded={isOpen}
                     className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] transition-colors"
                   >
-                    <div className="card-media-frame w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-bg-secondary border border-[#8c7355]/20">
+                    {/* No `card-media-frame` here: that utility is unlayered CSS
+                        (`width:100%; aspect-ratio:4/3`), which overrides w-14 and
+                        balloons this thumb across the card, squeezing the title
+                        block to zero width. The 4:3 frame is only for the expanded
+                        header image below. */}
+                    <div className="w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-bg-secondary border border-[#8c7355]/20">
                       <img
                         src={disease.image || getPlantPhoto(null, disease.name)}
                         alt=""
