@@ -1168,6 +1168,10 @@ app.get('/healthz', async (_req, res) => {
     supabase: Boolean(SUPABASE_URL && SUPABASE_KEY && SUPABASE_SERVICE_KEY),
     gemini: Boolean(process.env.GEMINI_API_KEY),
     razorpay: Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET && RAZORPAY_WEBHOOK_SECRET),
+    // Same presence tests the clients use (serpApiEnabled / imaggaEnabled), so
+    // healthz never reports a service as configured when the app would skip it.
+    serpapi: Boolean(process.env.SERPAPI_API_KEY?.trim()),
+    imagga: Boolean(process.env.IMAGGA_API_KEY?.trim() && process.env.IMAGGA_API_SECRET?.trim()),
   };
 
   // Cached so a health check polled every few seconds doesn't become eight
