@@ -34,6 +34,11 @@ describe('Library "From your garden" strip', () => {
     expect(library).toContain('gardenFolios.length > 0 &&');
   });
 
+  it('names how many of the Keeper’s plants are featured', () => {
+    expect(library).toContain('gardenPlantCount');
+    expect(library).toContain('of your plant');
+  });
+
   it('a strip click resets filters and jumps to the plate (Surprise-Me contract)', () => {
     expect(library).toContain('const openGardenFolio = (folio: PhytoNote)');
     expect(library).toContain("setActiveFilter('All')");

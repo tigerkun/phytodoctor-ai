@@ -493,6 +493,10 @@ export default function Library() {
     () => folioMatchesForSpecies(PHYTO_NOTES, (dbPlants ?? []).filter(p => !p.isDemo).map(p => p.species)),
     [dbPlants],
   );
+  const gardenPlantCount = useMemo(
+    () => (dbPlants ?? []).filter(p => !p.isDemo && folioMatchesForSpecies(PHYTO_NOTES, [p.species]).length > 0).length,
+    [dbPlants],
+  );
 
   const openGardenFolio = (folio: PhytoNote) => {
     const idx = PHYTO_NOTES.findIndex(n => n.name === folio.name && n.scientific === folio.scientific);
@@ -975,7 +979,7 @@ export default function Library() {
         {gardenFolios.length > 0 && (
           <div role="region" aria-label="Folios from your garden" className="mb-6 px-4 py-3 rounded-xl border border-[#c5a059]/40 bg-[#c5a059]/5">
             <p className="text-[9px] font-mono uppercase tracking-widest text-[#8c7355] dark:text-[#caa651] mb-1.5">
-              From your garden · plates for species you keep
+              From your garden · {gardenPlantCount} of your plant{gardenPlantCount === 1 ? '' : 's'} {gardenPlantCount === 1 ? 'has' : 'have'} a folio here
             </p>
             <div className="flex gap-2 overflow-x-auto pb-1">
               {gardenFolios.map(folio => (

@@ -24,10 +24,17 @@ describe('reset safety net (Settings)', () => {
     expect(settings).toContain('cannot be undone');
   });
 
-  it('offers restore next to export', () => {
+  it('offers restore next to export, under the spec backup filename', () => {
     expect(settings).toContain('restoreBackup(');
     expect(settings).toContain('type="file"');
     expect(settings).toContain('best-effort');
+    expect(settings).toContain('phytodoctor-backup-');
+  });
+
+  it('keeps a weather protection history section', () => {
+    expect(settings).toContain('Weather Protection History');
+    expect(settings).toContain('useLiveQuery(() => db.weatherAdjustments.toArray(), [])');
+    expect(settings).toContain('HISTORY_RETENTION_DAYS');
   });
 });
 
@@ -48,6 +55,14 @@ describe('assistant privacy (Settings + both surfaces)', () => {
     for (const surface of [floating, assistant]) {
       expect(surface).toContain('Garden brief truncated');
     }
+  });
+
+  it('the drawer chat can file the last reply to the notebook', () => {
+    // Real plant id when the caller passed one — never a made-up slug.
+    expect(floating).toContain('plantId: plantIdParam || \'botanical-consultation\'');
+    const button = tagAround(floating, '📝 Save last reply', ['<button']);
+    expect(button).toContain('saveLastReply');
+    expect(floating).toContain('GameService.getUserId()');
   });
 });
 

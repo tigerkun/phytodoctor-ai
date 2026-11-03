@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useRef } from 'react';
+import { useRef, useMemo } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import {
   Volume2,
   VolumeX,
@@ -19,6 +20,7 @@ import {
   Trash2,
   Upload,
   MessageCircle,
+  CloudSun,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getTextSize, setTextSize, TEXT_SIZES, type TextSize } from '../utils/textSize';
@@ -28,6 +30,7 @@ import { NotificationService, type ReminderPrefs } from '../services/notificatio
 import { resetGardenProgress } from '../services/progressReset';
 import { restoreBackup } from '../services/backupRestore';
 import { assistantContextEnabled, setAssistantContextEnabled } from '../lib/assistantContext';
+import { HISTORY_RETENTION_DAYS } from '../services/weatherAdjustments';
 import { gardenerProfile, saveGardenerProfile, type GardenerProfile } from '../services/gardenDashboardService';
 import { db } from '../db/database';
 import { useToast } from '../components/Toast';
@@ -141,6 +144,31 @@ export default function Settings() {
     if (hapticEnabled) triggerHaptic('light');
   };
 
+  // Weather protection history — the pattern survives expiry (rows linger
+  // HISTORY_RETENTION_DAYS past it). Read-only view; the dashboard applies.
+  const weatherRows = useLiveQuery(() => db.weatherAdjustments.toArray(), []) ?? [];
+  const weatherHistory = useMemo(() => {
+    const now = Date.now();
+    const cutoff = now - HISTORY_RETENTION_DAYS * 86_400_000;
+    const KINDS = [
+      { kind: 'frost', label: 'Frost' },
+      { kind: 'heat', label: 'Heat' },
+      { kind: 'dry-air', label: 'Dry air' },
+    ] as const;
+    return KINDS.map(({ kind, label }) => {
+      const recent = weatherRows.filter(
+        r => r.kind === kind && new Date(r.createdAt).getTime() >= cutoff,
+      );
+      const activeCount = weatherRows.filter(
+        r => r.kind === kind && new Date(r.expiresAt).getTime() > now,
+      ).length;
+      const last = recent.length
+        ? Math.max(...recent.map(r => new Date(r.createdAt).getTime()))
+        : null;
+      return { kind, label, count: recent.length, activeCount, last };
+    }).filter(k => k.count > 0 || k.activeCount > 0);
+  }, [weatherRows]);
+
   const handleResetGarden = async () => {
     if (resetting) return;
     setResetting(true);
@@ -190,7 +218,7 @@ export default function Settings() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `phytodoctor-garden-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `phytodoctor-backup-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -635,6 +663,43 @@ export default function Settings() {
                 >
                   <span className="passport-toggle-nub" />
                 </button>
+              </div>
+
+              {/* Weather protection history — applied N times in the last 30
+                  days, per kind. Expired rows linger 30 days so the pattern
+                  stays readable; pruning rides the apply write path. */}
+              <div className="p-4 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528]">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-xl bg-[#1e3a5f]/15 flex items-center justify-center text-[#1e3a5f] dark:text-[#82b5ed] shrink-0">
+                    <CloudSun size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
+                      Weather Protection History
+                    </h3>
+                    <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
+                      Protections applied in the last {HISTORY_RETENTION_DAYS} days
+                    </p>
+                  </div>
+                </div>
+                {weatherHistory.length === 0 ? (
+                  <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
+                    No weather protections applied in the last {HISTORY_RETENTION_DAYS} days.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {weatherHistory.map(k => (
+                      <div key={k.kind} className="flex items-center justify-between gap-3 text-[11px]">
+                        <span className="font-bold text-[#2e2117] dark:text-[#faebd7]">{k.label}</span>
+                        <span className="font-mono text-[10px] text-[#5f7161] dark:text-[#b6a087] text-right">
+                          applied {k.count}× in the last {HISTORY_RETENTION_DAYS} days
+                          {k.activeCount > 0 && ` · ${k.activeCount} plant${k.activeCount === 1 ? '' : 's'} covered now`}
+                          {k.last && ` · last ${new Date(k.last).toLocaleDateString()}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </section>

@@ -12,14 +12,19 @@ import {
 } from '../lib/assistantContext';
 import { buildPriorityQueue } from '../services/gardenDashboardService';
 import { gardenerProfile } from '../services/gardenDashboardService';
+import { GameService } from '../services/gameService';
 import GardenActionChips from './assistant/GardenActionChips';
 
 export default function FloatingAssistant() {
-  const { warning } = useToast();
+  const { warning, success, info } = useToast();
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const plantName = searchParams.get('plantName');
   const species = searchParams.get('species');
+  // The real plant id when the caller knows it (PlantProfileDrawer passes
+  // it) — filing notes under a made-up slug orphans them, the same lesson
+  // the full Assistant page recorded.
+  const plantIdParam = searchParams.get('plantId');
   // Live read, not mount-time: a toggle in Settings applies without a reload.
   const contextOn = assistantContextEnabled();
   const [briefNote, setBriefNote] = useState<string | null>(null);
@@ -128,6 +133,32 @@ export default function FloatingAssistant() {
       setMessages(prev => [...prev, { role: 'model', content: "I'm having trouble connecting right now." }]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // File the last reply into the Field Notebook — the drawer's conversation
+  // had no notes path at all; the full Assistant page's per-message button
+  // set the pattern (real plant id, honest general-consult bucket).
+  const saveLastReply = async () => {
+    const lastModel = [...messages].reverse().find(m => m.role === 'model');
+    if (!lastModel) {
+      info('Nothing to save yet.');
+      return;
+    }
+    try {
+      await db.notes.add({
+        id: `dispatch-${Date.now()}`,
+        plantId: plantIdParam || 'botanical-consultation',
+        userId: GameService.getUserId(),
+        content: lastModel.content.replace(/<[^>]*>?/gm, ''),
+        category: 'observation',
+        tags: ['botanist-dispatch', plantName || 'botanical-advice'],
+        createdAt: new Date(),
+      });
+      success('Saved the last reply to your Field Notebook. 📝');
+    } catch (err) {
+      console.error('[floating-assistant] save to notes failed:', err);
+      info('Could not save the note.');
     }
   };
 
@@ -258,8 +289,19 @@ export default function FloatingAssistant() {
               {briefNote && (
                 <p className="text-[9px] font-mono text-text-muted mb-1.5">{briefNote}</p>
               )}
-              <div className="mb-2">
-                <GardenActionChips variant="glass" />
+              <div className="mb-2 flex gap-2 items-start">
+                <div className="flex-1 min-w-0">
+                  <GardenActionChips variant="glass" />
+                </div>
+                {messages.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={saveLastReply}
+                    className="px-3 py-1 min-h-[32px] shrink-0 bg-bg-primary border border-border-medium rounded-full text-[10px] font-bold uppercase tracking-wider text-text-muted hover:text-moss hover:border-moss transition-all"
+                  >
+                    📝 Save last reply
+                  </button>
+                )}
               </div>
               {messages.length < 3 && (
                 <div className="mb-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">

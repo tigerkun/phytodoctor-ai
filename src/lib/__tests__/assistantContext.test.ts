@@ -84,10 +84,16 @@ describe('buildGardenContext', () => {
     const many = Array.from({ length: 30 }, (_, i) =>
       plant({ name: `P${i}`, species: longSpecies, guardianScore: 50 + i }),
     );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const ctx = buildGardenContext(
       { plants: many, tasks: [{ kind: 'water-due', plantName: 'P0', reason: 'r' }], alerts: [{ kind: 'heat', title: 'Hot', affectedNames: ['P0'] }] },
       NOW,
     )!;
+    // The pruning leaves a debugging breadcrumb — approaching the cap says so.
+    expect(warn).toHaveBeenCalledWith(
+      '[assistant-context] garden context pruned to fit the prompt budget',
+      expect.objectContaining({ bytesBefore: expect.any(Number), limit: GARDEN_CONTEXT_LIMIT }),
+    );
     expect(ctx.truncated).toBe(true);
     // Prune order sheds alerts first, then tasks — the worst plants survive.
     expect(ctx.alerts).toEqual([]);

@@ -182,7 +182,14 @@ export function buildGardenContext(input: {
   // Order sheds the least load-bearing first — weather alerts, then the task
   // queue, then narrow the plant list to the worst few. If even the skeleton
   // is oversize, ship nothing rather than risk a 400 on every message.
-  if (JSON.stringify(ctx).length > CONTEXT_SOFT_LIMIT) {
+  const bytesBefore = JSON.stringify(ctx).length;
+  if (bytesBefore > CONTEXT_SOFT_LIMIT) {
+    // Approaching the server cap — say so. The surfaces also show the
+    // truncated note; this is the debugging breadcrumb.
+    console.warn('[assistant-context] garden context pruned to fit the prompt budget', {
+      bytesBefore,
+      limit: GARDEN_CONTEXT_LIMIT,
+    });
     ctx = { ...ctx, alerts: [] };
     if (JSON.stringify(ctx).length > CONTEXT_SOFT_LIMIT) {
       ctx = { ...ctx, tasks: [] };
