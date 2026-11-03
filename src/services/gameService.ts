@@ -1,6 +1,5 @@
 import { db, type PhytoCard, type CardStats, type Plant, type CheckIn, type UserGameProfile, type RarityTier, type GrowthStage, type SeedTransaction, type UserSubscription, type UserCosmetic, type CareOff } from '../db/database';
 import { SPECIES_DIFFICULTY, MYTHIC_SPECIES } from '../game/RARITY_DATA';
-import { SPECIES_PROFILES } from '../forecasting/speciesProfiles';
 import { ECONOMY_CONFIG, SEED_MULTIPLIERS, MARKETPLACE_ITEMS } from '../game/ECONOMY_DATA';
 import { RewardService } from './rewardService';
 import { applySeedDelta, flushSeedSyncOutbox, hasPendingSeedSyncs } from './seedLedger';
@@ -59,8 +58,13 @@ export class GameService {
       cancelAtPeriodEnd: false
     };
 
-    await db.subscriptions.put(sub);
-    await db.userProfile.update(userId, { tier: 'pro' });
+    // The subscription row and the profile tier must commit together: a sub
+    // with a free profile, or a pro profile with no sub, both lie about what
+    // the player paid for.
+    await db.transaction('rw', [db.subscriptions, db.userProfile], async () => {
+      await db.subscriptions.put(sub);
+      await db.userProfile.update(userId, { tier: 'pro' });
+    });
   }
 
   static readonly PRO_UPGRADE_COST = 1000;
@@ -237,25 +241,31 @@ export class GameService {
     const item = await db.cosmetics.get([userId, itemId]);
     if (!item) throw new Error('Item not owned');
 
-    // If it's a frame, we might want to apply it to a specific card, 
-    // but the task is general. Let's assume global theme/flair first.
-    // For frames, we'll auto-apply to the featured card for simplicity.
-    if (item.itemType === 'frame') {
-       const featuredCard = await db.cards.filter(c => !!c.isFeatured).first();
-       if (featuredCard) {
-          await db.cards.update(featuredCard.id, { frameSkin: itemId });
-       }
-    }
+    // One equip is several writes (featured card frame, unequip-siblings,
+    // equip, profile title). Committed together: an equip that half-landed
+    // would leave the featured card wearing a frame the inventory says is
+    // off, or a title the flair row does not back.
+    await db.transaction('rw', [db.cards, db.cosmetics, db.userProfile], async () => {
+      // If it's a frame, we might want to apply it to a specific card,
+      // but the task is general. Let's assume global theme/flair first.
+      // For frames, we'll auto-apply to the featured card for simplicity.
+      if (item.itemType === 'frame') {
+         const featuredCard = await db.cards.filter(c => !!c.isFeatured).first();
+         if (featuredCard) {
+            await db.cards.update(featuredCard.id, { frameSkin: itemId });
+         }
+      }
 
-    // Unequip others of the same type
-    await db.cosmetics.where('userId').equals(userId).and(c => c.itemType === item.itemType).modify({ equipped: false });
-    // Equip new one
-    await db.cosmetics.update([userId, itemId], { equipped: true });
+      // Unequip others of the same type
+      await db.cosmetics.where('userId').equals(userId).and(c => c.itemType === item.itemType).modify({ equipped: false });
+      // Equip new one
+      await db.cosmetics.update([userId, itemId], { equipped: true });
 
-    if (item.itemType === 'flair') {
-       const marketplaceItem = MARKETPLACE_ITEMS.find(i => i.id === itemId);
-       await db.userProfile.update(userId, { equippedTitle: marketplaceItem?.name || null });
-    }
+      if (item.itemType === 'flair') {
+         const marketplaceItem = MARKETPLACE_ITEMS.find(i => i.id === itemId);
+         await db.userProfile.update(userId, { equippedTitle: marketplaceItem?.name || null });
+      }
+    });
   }
 
   static async getInventory(userId: string = this.getUserId()): Promise<UserCosmetic[]> {
@@ -286,7 +296,7 @@ export class GameService {
   static calculateCardStats(
     plant: Plant,
     checkIns: CheckIn[],
-    rarity: RarityTier
+    _rarity: RarityTier
   ): CardStats {
     const daysAlive = Math.floor((Date.now() - new Date(plant.createdAt).getTime()) / (1000 * 60 * 60 * 24));
     const recentCheckIns = checkIns.slice(-14);
@@ -486,25 +496,32 @@ export class GameService {
 
     const newStats = this.calculateCardStats(plant, allCheckIns, card.rarity);
 
-    await db.cards.update(card.id, {
-      level: newLevel,
-      xp: newXp,
-      xpToNext: newXpToNext,
-      growthStage: newStage,
-      abilityUnlocked: newLevel >= 25,
-      stats: newStats,
-      battleScars,
-      checkInsTotal: card.checkInsTotal + 1,
-      checkInsHealthy: checkIn.guardianScore >= 80 ? card.checkInsHealthy + 1 : card.checkInsHealthy,
-      daysAlive: Math.floor((Date.now() - new Date(plant.createdAt).getTime()) / (1000 * 60 * 60 * 24))
-    });
+    // The card mutation and its XP ledger line are one unit: a crash between
+    // them used to leave the card leveled while the daily-XP guard (which
+    // reads xpLog) believed this check-in had already paid — the level-up was
+    // then never repeatable. Seeds stay outside: applySeedDelta is already
+    // its own atomic, idempotent transaction on disjoint tables.
+    await db.transaction('rw', [db.cards, db.xpLog], async () => {
+      await db.cards.update(card.id, {
+        level: newLevel,
+        xp: newXp,
+        xpToNext: newXpToNext,
+        growthStage: newStage,
+        abilityUnlocked: newLevel >= 25,
+        stats: newStats,
+        battleScars,
+        checkInsTotal: card.checkInsTotal + 1,
+        checkInsHealthy: checkIn.guardianScore >= 80 ? card.checkInsHealthy + 1 : card.checkInsHealthy,
+        daysAlive: Math.floor((Date.now() - new Date(plant.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+      });
 
-    // Record XP gain
-    await db.xpLog.add({
-      plantId,
-      date: today,
-      xp: xpGain,
-      checkInId: checkIn.id
+      // Record XP gain
+      await db.xpLog.add({
+        plantId,
+        date: today,
+        xp: xpGain,
+        checkInId: checkIn.id
+      });
     });
 
     // One transaction per check-in keeps retries idempotent server-side.

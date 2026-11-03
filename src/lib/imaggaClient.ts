@@ -50,6 +50,9 @@ export interface ImaggaAssessment {
   isClearlyNonPlant: boolean;
   /** Tags above the enrichment threshold, formatted "tag (95.2)" for the prompt. */
   evidence: string;
+  /** Custom-classifier species guess — null unless IMAGGA_CLASSIFIER_ID is
+   *  configured and the categorizer answered. */
+  categories: { species: string; confidence: number; alternatives: { species: string; confidence: number }[] } | null;
 }
 
 /** Botanical vocabulary Imagga actually emits for plant photos. */
@@ -90,6 +93,134 @@ const EVIDENCE_THRESHOLD = 30;
 const PLANT_ABSENT_THRESHOLD = 30;
 /** Object evidence at least this strong, with no plant above, diverts the scan. */
 const OBJECT_DIVERT_THRESHOLD = 70;
+
+// ── Diagnostic tag interpretation ───────────────────────────────────────────
+// The tags for a scan are already fetched by the pre-screen, so everything
+// below is PURE interpretation of ImaggaTag[] — no additional API calls, no
+// additional quota. These are weak, auxiliary signals: they pre-diagnose for
+// the Gemini evidence block and surface as hints, never as verdicts.
+
+/** Symptom vocabulary Imagga plausibly emits, mapped to keeper language. */
+const DISEASE_PATTERNS: Array<{ tags: string[]; disease: string }> = [
+  { tags: ['leaf spot', 'spots', 'spotted', 'dots', 'blemish', 'blemishes', 'lesion'], disease: 'Leaf spotting (fungal or bacterial)' },
+  { tags: ['yellowing', 'yellow', 'yellowed', 'chlorosis', 'yellow leaves', 'yellow leaf'], disease: 'Chlorosis (yellowing)' },
+  { tags: ['pest', 'insect', 'bugs', 'aphid', 'aphids', 'scale insect', 'mealybug', 'mealybugs', 'spider mite', 'spider mites'], disease: 'Pest presence' },
+  { tags: ['mold', 'mildew', 'fungus', 'fungal', 'powdery', 'rot', 'rotten'], disease: 'Mold, mildew or rot' },
+  { tags: ['webbing', 'web', 'cobweb'], disease: 'Webbing (spider mite signature)' },
+  { tags: ['holes', 'hole', 'torn', 'eaten', 'chewed', 'damage', 'damaged'], disease: 'Physical damage or chewing' },
+  { tags: ['wilting', 'wilted', 'wilt', 'drooping', 'droopy', ' limp'], disease: 'Wilting' },
+];
+
+export interface ImaggaDiseaseHit {
+  disease: string;
+  confidence: number;
+}
+
+export interface DiseasePatternResult {
+  diseases: ImaggaDiseaseHit[];
+  severity: 'low' | 'medium' | 'high';
+}
+
+/**
+ * Symptom hints from the tag set. Severity is honest about the source:
+ * generic auto-tags cannot distinguish a healthy variegated leaf from
+ * disease, so "high" requires strong confidence on multiple independent
+ * patterns, never a single loud tag.
+ */
+export function detectDiseasePatterns(tags: ImaggaTag[]): DiseasePatternResult {
+  const byName = new Map(tags.map(t => [t.name, t.confidence]));
+  const diseases: ImaggaDiseaseHit[] = [];
+  for (const pattern of DISEASE_PATTERNS) {
+    let best = 0;
+    for (const tag of pattern.tags) {
+      const c = byName.get(tag);
+      if (c !== undefined && c > best) best = c;
+    }
+    if (best >= EVIDENCE_THRESHOLD) diseases.push({ disease: pattern.disease, confidence: Math.round(best) });
+  }
+  const strong = diseases.filter(d => d.confidence >= 60).length;
+  const severity: DiseasePatternResult['severity'] =
+    diseases.length === 0 ? 'low' : strong >= 2 ? 'high' : strong === 1 || diseases.length >= 3 ? 'medium' : 'low';
+  return { diseases, severity };
+}
+
+const GROWTH_STAGE_TAGS: Array<{ stage: 'seedling' | 'juvenile' | 'mature' | 'flowering'; tags: string[] }> = [
+  { stage: 'flowering', tags: ['flowering', 'flower', 'flowers', 'bloom', 'blooming', 'blossom', 'blossoms', 'buds'] },
+  { stage: 'seedling', tags: ['seedling', 'sprout', 'sprouting', 'seed', 'germination', 'cotyledon'] },
+  { stage: 'juvenile', tags: ['new growth', 'young leaves', 'young leaf', 'small plant', 'baby plant'] },
+  { stage: 'mature', tags: ['mature', 'established', 'large plant', 'lush', 'full grown', 'big plant'] },
+];
+
+export interface GrowthStageResult {
+  stage: 'seedling' | 'juvenile' | 'mature' | 'flowering' | null;
+  confidence: number;
+}
+
+/**
+ * Growth stage from the tag set, flowering checked first (it outranks the
+ * foliage stage a flowering plant also tags). Null when nothing in the
+ * vocabulary matched — no stage is invented from silence.
+ */
+export function detectGrowthStage(tags: ImaggaTag[]): GrowthStageResult {
+  const byName = new Map(tags.map(t => [t.name, t.confidence]));
+  for (const { stage, tags: candidates } of GROWTH_STAGE_TAGS) {
+    let best = 0;
+    for (const tag of candidates) {
+      const c = byName.get(tag);
+      if (c !== undefined && c > best) best = c;
+    }
+    if (best >= EVIDENCE_THRESHOLD) return { stage, confidence: Math.round(best) };
+  }
+  return { stage: null, confidence: 0 };
+}
+
+const PROPAGATION_TAGS: Array<{ method: 'cutting' | 'division' | 'offset'; tags: string[] }> = [
+  { method: 'offset', tags: ['offshoot', 'offshoots', 'pup', 'pups', 'runner', 'runners', 'baby plant', 'plantlet'] },
+  { method: 'division', tags: ['cluster', 'clump', 'multiple stems', 'crowded', 'divided'] },
+  { method: 'cutting', tags: ['node', 'nodes', 'stem cutting', 'cutting', 'new growth', 'healthy stem'] },
+];
+
+export interface PropagationReadiness {
+  ready: boolean;
+  method: 'cutting' | 'division' | 'offset' | 'none';
+  confidence: number;
+}
+
+/**
+ * Propagation readiness from what the tags can actually see. Imagga's
+ * /v2/tags carries no bounding boxes, so unlike the original spec there are
+ * no coordinates — the honest output is method + confidence only.
+ */
+export function assessPropagationReadiness(tags: ImaggaTag[]): PropagationReadiness {
+  const byName = new Map(tags.map(t => [t.name, t.confidence]));
+  let bestMethod: PropagationReadiness['method'] = 'none';
+  let bestConfidence = 0;
+  for (const { method, tags: candidates } of PROPAGATION_TAGS) {
+    for (const tag of candidates) {
+      const c = byName.get(tag);
+      if (c !== undefined && c >= EVIDENCE_THRESHOLD && c > bestConfidence) {
+        bestConfidence = c;
+        bestMethod = method;
+      }
+    }
+  }
+  return { ready: bestMethod !== 'none', method: bestMethod, confidence: Math.round(bestConfidence) };
+}
+
+/** The three interpretations, bundled for the identify response. */
+export interface ImaggaInsights {
+  diseases: DiseasePatternResult;
+  growthStage: GrowthStageResult;
+  propagation: PropagationReadiness;
+}
+
+export function interpretImaggaTags(tags: ImaggaTag[]): ImaggaInsights {
+  return {
+    diseases: detectDiseasePatterns(tags),
+    growthStage: detectGrowthStage(tags),
+    propagation: assessPropagationReadiness(tags),
+  };
+}
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_CONSECUTIVE_FAILURES = 3;
@@ -194,6 +325,32 @@ export async function assessImageWithImagga(base64Data: string, mimeType: string
     const tagPayload = await imaggaFetch(`/v2/tags?image_upload_id=${encodeURIComponent(uploadId)}&threshold=20`);
     const rawTags: any[] = Array.isArray(tagPayload?.result?.tags) ? tagPayload.result.tags : [];
     requestsUsed += 2;
+
+    // Species categorizer (Feature: species-specific recognition) rides the
+    // SAME upload — no second upload, one extra read only when a classifier
+    // is configured. Without IMAGGA_CLASSIFIER_ID this is null and generic
+    // tags are never dressed up as species.
+    let categories: { species: string; confidence: number; alternatives: { species: string; confidence: number }[] } | null = null;
+    const classifierId = process.env.IMAGGA_CLASSIFIER_ID?.trim();
+    if (classifierId) {
+      try {
+        const catPayload = await imaggaFetch(`/v2/categorizers/${encodeURIComponent(classifierId)}/analyze?image_upload_id=${encodeURIComponent(uploadId)}`);
+        const raw: any[] = Array.isArray(catPayload?.result?.categorizers?.[0]?.categories)
+          ? catPayload.result.categorizers[0].categories
+          : [];
+        const cats = raw
+          .map(c => ({ species: String(c?.name ?? c?.tag?.en ?? '').trim(), confidence: Math.round(Number(c?.confidence) || 0) }))
+          .filter(c => c.species.length > 0)
+          .sort((a, b) => b.confidence - a.confidence);
+        if (cats.length > 0) {
+          categories = { species: cats[0].species, confidence: cats[0].confidence, alternatives: cats.slice(1, 5) };
+          requestsUsed += 1;
+        }
+      } catch {
+        // A categorizer misfire must not fail the scan — tags still carry the verdict.
+      }
+    }
+
     consecutiveFailures = 0;
 
     const tags: ImaggaTag[] = rawTags
@@ -204,7 +361,7 @@ export async function assessImageWithImagga(base64Data: string, mimeType: string
       .filter((t) => t.name.length > 0 && Number.isFinite(t.confidence));
 
     const { plantMax, objectMax, isClearlyNonPlant, evidence } = evaluateImaggaTags(tags);
-    return { tags, plantMax, objectMax, isClearlyNonPlant, evidence };
+    return { tags, plantMax, objectMax, isClearlyNonPlant, evidence, categories };
   } catch (err: any) {
     consecutiveFailures += 1;
     if (err?.quotaExhausted) {

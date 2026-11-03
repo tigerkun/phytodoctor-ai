@@ -4,11 +4,8 @@ import {
   extractPathologySignatureFromPixels,
   computeComparativePathology,
   extractPathologySignature,
-  generateClinicalInsight,
   type PathologySignature,
-  type PathologyMetrics,
 } from '../pathologyProgressionService';
-import type { PlantSignature } from '../driftDetector';
 
 describe('pathologyProgressionService — Empirical Adversarial Stress Suite', () => {
   describe('1. Hue Boundary & Color Space Wrap-Around Testing', () => {

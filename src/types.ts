@@ -53,6 +53,12 @@ export interface Plant {
     diagnosis?: string;
     timeline: { day: string; action: string; expectedOutcome: string }[];
   } | null;
+  /** Recovery milestones already celebrated for this plant (once-ness).
+   *  Client-only field — preserved across Supabase round-trips by
+   *  plantService's local-field merge. Payment is ledger-idempotent per
+   *  check-in; a lost log line can re-celebrate on a later check-in but
+   *  never silently eats a payout. */
+  milestoneLog?: { kind: string; at: string }[];
 }
 
 export interface CheckIn {
@@ -71,6 +77,10 @@ export interface CheckIn {
   weatherTemp: number | null;
   weatherHumidity: number | null;
   weatherDescription: string | null;
+  /** Imagga's auxiliary read at scan time — symptom/growth/propagation
+   *  hints. Optional and non-indexed: no schema bump, older rows read as
+   *  undefined. */
+  imaggaInsights?: import('./lib/imaggaClient').ImaggaInsights | null;
   synced: number;
   isDemo?: boolean;
 }
@@ -358,5 +368,32 @@ export interface TreatmentActionRecord {
   notes?: string;
   vitalityBonusAwarded?: boolean;
   seedsAwarded?: number;
+}
+
+/** An explicitly scheduled reminder (custom offset the Keeper asked for).
+ *  Implicit due-ness (nextWaterDue, roadmap sequence, check-in cadence) is
+ *  computed from plant data at evaluation time and never stored here — this
+ *  table only holds what someone actually scheduled. */
+export interface ScheduledReminder {
+  id: string;
+  plantId: string;
+  kind: 'watering' | 'treatment' | 'checkin';
+  /** When the reminder should fire. */
+  dueAt: Date;
+  /** Step number for treatment reminders, when the schedule names one. */
+  stepNumber?: number;
+  createdAt: Date;
+}
+
+/** History of reminders actually delivered, in-app or as a browser
+ *  notification. Doubles as the once-per-day dedupe key for a given
+ *  (plantId, kind) and the analytics trail. */
+export interface ReminderLogEntry {
+  id: string;
+  plantId: string;
+  kind: 'watering' | 'treatment' | 'checkin';
+  message: string;
+  channel: 'toast' | 'notification';
+  firedAt: Date;
 }
 

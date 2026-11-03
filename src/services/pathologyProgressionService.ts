@@ -1,5 +1,4 @@
 import { db } from '../db/database';
-import { SPECIES_PROFILES } from '../forecasting/speciesProfiles';
 import type { PlantSignature } from './driftDetector';
 import type { Plant } from '../types';
 
@@ -258,7 +257,7 @@ function getSpectralFractions(sig: PlantSignature): {
 export function computeComparativePathology(
   sigA: PlantSignature,
   sigB: PlantSignature,
-  species?: string
+  _species?: string
 ): PathologyMetrics {
   const fA = getSpectralFractions(sigA);
   const fB = getSpectralFractions(sigB);

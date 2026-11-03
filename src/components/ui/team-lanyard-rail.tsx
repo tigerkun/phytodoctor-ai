@@ -1,3 +1,4 @@
+import { clamp } from '../../lib/scoreGuards';
 import * as React from "react";
 
 export interface LanyardLink {
@@ -87,10 +88,6 @@ const PAPER_TEXT = "text-[#3d2a1c] dark:text-[#f4eee1]";
 const PAPER_EDGE = "border-[#d9c4a0] dark:border-white/10";
 const METAL = "linear-gradient(to right, color-mix(in oklab, var(--text-stone) 70%, black), color-mix(in oklab, var(--text-stone) 22%, white) 38%, var(--text-stone) 70%, color-mix(in oklab, var(--text-stone) 65%, black))";
 const PLASTIC = "linear-gradient(180deg, color-mix(in oklab, var(--text-stone) 30%, var(--bg-primary)), color-mix(in oklab, var(--text-stone) 72%, var(--bg-primary)))";
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
 
 function hash(text: string) {
   let h = 2166136261;

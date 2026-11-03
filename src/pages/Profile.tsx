@@ -1,20 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  User,
-  Shield,
   Award,
-  Edit2,
   Check,
   Crown,
   Star,
-  TrendingUp,
   Calendar,
   Zap,
   Flame,
   Sparkles,
   BookOpen,
-  Clock,
   ShieldCheck,
   Compass,
   Feather,
@@ -25,8 +20,7 @@ import {
   Microscope,
   Sliders
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { db, type SeedTransaction } from '../db/database';
+import { db, } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { GameService } from '../services/gameService';
 import { RewardService } from '../services/rewardService';
@@ -58,7 +52,6 @@ export const PROFILE_FOLIOS: ReadonlyArray<{ id: ProfileFolio; label: string }> 
 ];
 
 export default function Profile() {
-  const navigate = useNavigate();
   const { transitionTo } = usePageTransition();
   const { success, error } = useToast();
   const userId = GameService.getUserId();
@@ -109,7 +102,6 @@ export default function Profile() {
   const [experienceLevel, setExperienceLevel] = useState<'novice' | 'intermediate' | 'expert'>('novice');
   const [environment, setEnvironment] = useState<'indoor' | 'outdoor' | 'greenhouse' | 'mixed'>('indoor');
   const [gender, setGender] = useState('');
-  const [imgError, setImgError] = useState(false);
 
   // Folio 3 dual ledger view: Seed ledger vs Check-in visas
   const [ledgerTab, setLedgerTab] = useState<'seeds' | 'checkins'>('seeds');
@@ -133,7 +125,6 @@ export default function Profile() {
     if (profile) {
       setUsername(profile.username || 'Guild Master');
       setAvatarUrl(profile.avatarUrl || '');
-      setImgError(false);
       setEquippedTitle(profile.equippedTitle || '');
       setExperienceLevel(profile.experienceLevel || 'intermediate');
       setEnvironment(profile.environment || 'greenhouse');

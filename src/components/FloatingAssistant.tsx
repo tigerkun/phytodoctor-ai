@@ -42,7 +42,7 @@ export default function FloatingAssistant() {
         userMessage
       ]).then(response => {
         setMessages(prev => [...prev, { role: 'model', content: response }]);
-      }).catch((err: any) => {
+      }).catch(() => {
         setMessages(prev => [...prev, { role: 'model', content: "I'm having trouble connecting to my botanical knowledge base right now. Please try again later." }]);
       }).finally(() => {
         setLoading(false);
@@ -165,6 +165,9 @@ export default function FloatingAssistant() {
                 <X size={18} />
               </button>
             </div>
+
+            {/* Navigation hops live on the Quick Actions FAB now — this
+                drawer's job is the conversation. */}
 
             {/* Chat Body */}
             <div ref={scrollRef} className="flex-grow overflow-y-auto p-4 space-y-4 scroll-smooth">

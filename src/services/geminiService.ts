@@ -50,6 +50,7 @@ export interface LocationContext {
 // server (which produces it) and every client surface (which renders it).
 export type { ScanReport, PlantScanReport, NonPlantScanReport } from '../lib/scanReport';
 import { coerceLegacyToReport, type ScanReport } from '../lib/scanReport';
+import { createScanCache, scanCacheKey } from '../lib/scanResultCache';
 export { coerceLegacyToReport };
 
 /**
@@ -63,6 +64,44 @@ export { coerceLegacyToReport };
  * fires when the connection itself is stuck.
  */
 const IDENTIFY_TIMEOUT_MS = 120_000;
+
+/**
+ * Single-flight guard. A second scan starting while one is still running
+ * double-bills the Gemini path for the same attention and leaves two
+ * spinners racing for one UI slot. Scans are one-per-surface and surfaces
+ * are one-per-route, so a module-level flag is the whole dedupe story.
+ *
+ * The result cache beside it covers the other duplicate shape: the same
+ * photo re-picked after a page re-mount, where component state is gone but
+ * the verdict is five minutes old at most. Cache lookups run before the
+ * guard — a cached answer is instant and must not be blocked by an
+ * unrelated scan in flight.
+ */
+let identifyInFlight = false;
+const scanCache = createScanCache<IdentifyResult>(20, 5 * 60_000);
+
+export async function identifyPlant(base64Image: string, location?: LocationContext): Promise<IdentifyResult> {
+  const cacheKey = await scanCacheKey(base64Image, location);
+  const cached = scanCache.get(cacheKey);
+  if (cached) {
+    console.info('[gemini] scan cache hit', {
+      key: cacheKey.slice(0, 12),
+      ageSeconds: Math.round((Date.now() - cached.timestamp) / 1000),
+    });
+    return cached.result;
+  }
+  if (identifyInFlight) {
+    throw new Error('A scan is already running — give it a moment to finish.');
+  }
+  identifyInFlight = true;
+  try {
+    const result = await identifyPlantOnce(base64Image, location);
+    scanCache.put(cacheKey, result);
+    return result;
+  } finally {
+    identifyInFlight = false;
+  }
+}
 
 /**
  * What the scan found before any botany: the subject triage and the photo's
@@ -94,6 +133,11 @@ export type IdentifyResult = PlantCare & {
   subject?: IdentifySubject;
   subjectKind?: string;
   provenance?: IdentifyProvenance;
+  /** Imagga's auxiliary read — symptom/growth/propagation hints interpreted
+   *  from tags the server pre-screen already fetched, plus the species
+   *  categorizer guess when one is configured. Absent when Imagga is off. */
+  imaggaInsights?: import('../lib/imaggaClient').ImaggaInsights;
+  imaggaCategories?: import('../lib/imaggaClient').ImaggaAssessment['categories'];
   /** Human-readable explanation, present on the non-plant routes. */
   message?: string;
   /**
@@ -105,7 +149,7 @@ export type IdentifyResult = PlantCare & {
   report: ScanReport;
 };
 
-export async function identifyPlant(base64Image: string, location?: LocationContext): Promise<IdentifyResult> {
+async function identifyPlantOnce(base64Image: string, location?: LocationContext): Promise<IdentifyResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), IDENTIFY_TIMEOUT_MS);
 

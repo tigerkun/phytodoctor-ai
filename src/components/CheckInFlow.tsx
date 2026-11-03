@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Droplets, Sun, Wind, Check, Camera, ArrowRight, X, Loader2, Sparkles, AlertTriangle, Zap } from 'lucide-react';
+import { Droplets, Sun, Camera, ArrowRight, X, Loader2, Sparkles, AlertTriangle, Zap } from 'lucide-react';
 import { db } from '../db/database';
-import { extractSignature, analyzePlantHealth, type DriftResult } from '../services/driftDetector';
+import { analyzePlantHealth, type DriftResult } from '../services/driftDetector';
 import { runGuardianDossier } from '../notifications/alertEngine';
 import { GameService } from '../services/gameService';
+import { detectRecoveryMilestones, RECOVERY_MILESTONES, milestoneMessage } from '../services/rewardService';
+import { NotificationContainer, type RewardToast } from './game/RewardNotification';
+import { useToast } from './Toast';
 import { StorageService } from '../services/storageService';
 import { createSensorProvider } from '../sensors/SensorProvider';
-import { MoistureLevel, LightLevel } from '../types';
+import { MoistureLevel, LightLevel, Plant } from '../types';
 import PhytoCard from './game/PhytoCard';
 
 interface CheckInFlowProps {
@@ -19,6 +22,7 @@ interface CheckInFlowProps {
 }
 
 export default function CheckInFlow({ plantName, plantId, onComplete, onClose }: CheckInFlowProps) {
+  const { success: toastSuccess } = useToast();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [driftResult, setDriftResult] = useState<DriftResult | null>(null);
@@ -26,9 +30,32 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
   // A save that fails must say so. The flow stays on its current step so the
   // Keeper can retry with their answers intact.
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Milestone fanfares ride the same RewardNotification component the scan
+  // rewards use — the confetti tiers already scale with the payout.
+  const [milestoneFanfare, setMilestoneFanfare] = useState<RewardToast[]>([]);
   const completionCard = useLiveQuery(
     () => completion ? db.cards.get(completion.cardId) : undefined,
     [completion?.cardId]
+  );
+  // The completion card opens no live queries of its own: plant and equipped
+  // cosmetics are subscribed to here, once, and handed down as props. The
+  // card's owner id comes from the card record itself.
+  // `equipped` is a boolean (gameService equip/unequip); an `equipped: 1`
+  // where-clause never matches it — IndexedDB does not equate true with 1.
+  const equippedCosmetics = useLiveQuery(
+    async () => {
+      if (!completionCard) return null;
+      const rows = await db.cosmetics.where('userId').equals(completionCard.userId).toArray();
+      return {
+        theme: rows.find(r => r.itemType === 'theme' && r.equipped) || null,
+        flair: rows.find(r => r.itemType === 'flair' && r.equipped) || null,
+      };
+    },
+    [completionCard?.userId]
+  );
+  const completionPlant = useLiveQuery(
+    () => completionCard ? db.plants.get(completionCard.plantId) : undefined,
+    [completionCard?.plantId]
   );
   useEffect(() => {
     if (!completion) return;
@@ -95,6 +122,60 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
     }
   };
 
+  // Recovery milestones — celebrated once per plant, detected against the
+  // score this check-in just overwrote (`plant` was read inside the save
+  // transaction, so plant.guardianScore is the previous reading). Detection
+  // lives in rewardService; payment rides earnSeeds' per-check-in
+  // idempotency key, so retries of this check-in never double-pay; if the
+  // log write is lost after payment, a later check-in may re-celebrate —
+  // accepted over ever losing a payout.
+  const celebrateRecoveryMilestones = async (
+    plant: Plant | undefined,
+    newScore: number,
+    checkInId: string,
+  ) => {
+    if (!plant) return;
+    const prevScore = plant.guardianScore ?? 0;
+    const daysKept = Math.floor((Date.now() - new Date(plant.createdAt).getTime()) / 86_400_000);
+    const seen = new Set((plant.milestoneLog || []).map(m => m.kind));
+    const won = detectRecoveryMilestones(prevScore, newScore, daysKept, seen);
+    if (won.length === 0) return;
+
+    try {
+      const userId = GameService.getUserId();
+      // Pay first, log after. The ledger's per-check-in idempotency key keeps
+      // retries of THIS check-in from double-paying; writing the log only
+      // once the seeds actually landed means a crash between the two can at
+      // worst re-celebrate on a later check-in — a lost payout is worse than
+      // a repeated fanfare.
+      const paid: string[] = [];
+      for (const kind of won) {
+        const message = milestoneMessage(kind, plant.name);
+        await GameService.earnSeeds(RECOVERY_MILESTONES[kind].seeds, 'checkin', `Milestone: ${message}`, userId, `${checkInId}:${kind}`);
+        toastSuccess(message);
+        // The milestone also earns its fanfare: the same tiered celebration
+        // the scan rewards use, with the badge the milestone carries.
+        const celebrationId = crypto.randomUUID();
+        setMilestoneFanfare(prev => [...prev, {
+          id: celebrationId,
+          xp: 0,
+          seeds: RECOVERY_MILESTONES[kind].seeds,
+          actionName: `${RECOVERY_MILESTONES[kind].emoji} ${RECOVERY_MILESTONES[kind].badge} — ${message}`,
+        }]);
+        window.setTimeout(() => {
+          setMilestoneFanfare(prev => prev.filter(n => n.id !== celebrationId));
+        }, 5200);
+        paid.push(kind);
+      }
+      await db.plants.update(plantId, {
+        milestoneLog: [...(plant.milestoneLog || []), ...paid.map(kind => ({ kind, at: new Date().toISOString() }))],
+      });
+    } catch (milestoneErr) {
+      // A milestone is celebration, never a blocker for the check-in itself.
+      console.warn('[CheckInFlow] milestone celebration failed:', milestoneErr);
+    }
+  };
+
   const saveCheckIn = async () => {
     setLoading(true);
     setSaveError(null);
@@ -138,39 +219,49 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
       }
 
       const checkInId = crypto.randomUUID();
-      await db.checkins.add({
-        id: checkInId,
-        plantId,
-        timestamp: new Date(),
-        soilMoisture: data.soilMoisture as MoistureLevel,
-        lightLevel: data.lightLevel as LightLevel,
-        changes: data.changes,
-        photoBlob: data.photoBlob || null,
-        photoUrl: finalPhotoUrl,
-        signature: driftResult?.signature || null,
-        guardianScore: Math.max(0, Math.min(100, gScore)),
-        driftScore: driftResult?.driftScore || null,
-        driftStatus: driftResult?.driftStatus || null,
-        weatherTemp: null,
-        weatherHumidity: null,
-        weatherDescription: null,
-        synced: 0
+
+      // The check-in row and the plant rewrite are one unit of record: a
+      // crash between them used to leave a check-in the plant never saw (or
+      // the reverse). The photo cache stays outside — it is idempotent and
+      // the cloud upload above must never hold a Dexie write-lock open.
+      let plant: Plant | undefined;
+      await db.transaction('rw', [db.checkins, db.plants], async () => {
+        await db.checkins.add({
+          id: checkInId,
+          plantId,
+          timestamp: new Date(),
+          soilMoisture: data.soilMoisture as MoistureLevel,
+          lightLevel: data.lightLevel as LightLevel,
+          changes: data.changes,
+          photoBlob: data.photoBlob || null,
+          photoUrl: finalPhotoUrl,
+          signature: driftResult?.signature || null,
+          guardianScore: Math.max(0, Math.min(100, gScore)),
+          driftScore: driftResult?.driftScore || null,
+          driftStatus: driftResult?.driftStatus || null,
+          weatherTemp: null,
+          weatherHumidity: null,
+          weatherDescription: null,
+          synced: 0
+        });
+
+        // Update plant status and baseline if needed. Read inside the
+        // transaction: guardianScore here is the pre-check-in value the
+        // milestone detector below measures against.
+        const updates: any = {
+          guardianScore: Math.max(0, Math.min(100, gScore)),
+          status: driftResult ? (driftResult.driftStatus === 'stable' ? 'Stable' : driftResult.driftStatus === 'watching' ? 'Watching' : 'Alert') : 'Stable',
+          updatedAt: new Date()
+        };
+
+        plant = await db.plants.get(plantId);
+        if (plant && !plant.baselineSignature && driftResult?.signature) {
+          updates.baselineSignature = driftResult.signature;
+        }
+
+        await db.plants.update(plantId, updates);
       });
 
-      // Update plant status and baseline if needed
-      const updates: any = {
-        guardianScore: Math.max(0, Math.min(100, gScore)),
-        status: driftResult ? (driftResult.driftStatus === 'stable' ? 'Stable' : driftResult.driftStatus === 'watching' ? 'Watching' : 'Alert') : 'Stable',
-        updatedAt: new Date()
-      };
-
-      const plant = await db.plants.get(plantId);
-      if (plant && !plant.baselineSignature && driftResult?.signature) {
-        updates.baselineSignature = driftResult.signature;
-      }
-
-      await db.plants.update(plantId, updates);
-      
       // Game: Generate/Update PhytoCard
       const finalCheckIn = await db.checkins.get(checkInId);
       if (finalCheckIn) {
@@ -180,13 +271,15 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
         if (updatedCard && outcome && (outcome.leveledUp || outcome.stageChanged)) {
           setCompletion({ animate: 'levelup', cardId: updatedCard.id });
           await runGuardianDossier(plantId);
+          await celebrateRecoveryMilestones(plant, gScore, checkInId);
           return;
         }
       }
-      
+
       // Run forecasting dossier
       await runGuardianDossier(plantId);
-      
+      await celebrateRecoveryMilestones(plant, gScore, checkInId);
+
       onComplete();
     } catch (error) {
       console.error('Failed to save check-in', error);
@@ -250,6 +343,9 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
               <span className="text-[10px] font-black uppercase tracking-[0.3em] text-garden-sage">PhytoCard evolved</span>
               <PhytoCard
                 card={completionCard}
+                plant={completionPlant}
+                activeTheme={equippedCosmetics?.theme?.itemId ?? null}
+                activeFlair={equippedCosmetics?.flair?.itemId ?? null}
                 size="md"
                 interactive={false}
                 animate={completion.animate}
@@ -471,6 +567,10 @@ export default function CheckInFlow({ plantName, plantId, onComplete, onClose }:
         {/* Decorative corner */}
         <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-garden-sage/5 rounded-full blur-3xl pointer-events-none" />
       </motion.div>
+      <NotificationContainer
+        notifications={milestoneFanfare}
+        onDismiss={id => setMilestoneFanfare(prev => prev.filter(n => n.id !== id))}
+      />
     </div>
   );
 }

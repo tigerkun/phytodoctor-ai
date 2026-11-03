@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity,
   AlertTriangle,
-  Calendar,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -32,7 +31,6 @@ import {
 import {
   TreatmentService,
   slug,
-  type AdherenceMetrics,
 } from '../../services/treatmentService';
 import type { TreatmentActionRecord } from '../../db/database';
 import { triggerHaptic } from '../../utils/hapticAudio';
@@ -87,6 +85,17 @@ export default function PlantTelemetryCard({
     ?? (reportWeather?.condition ? inferLightFromWeather(reportWeather.condition) : null);
 
   const hasLiveWeather = typeof weatherHumidity === 'number' && Number.isFinite(weatherHumidity);
+
+  // Confidence breakdown factors. Everything shown already exists on the
+  // report — subject clarity is the triage read, separation is the gap
+  // between the top two differentials (the model's own decisiveness).
+  // A factor the model did not produce simply does not appear.
+  const topDiff = report?.differential?.[0] ?? null;
+  const runnerUpDiff = report?.differential?.[1] ?? null;
+  const separationPct = topDiff && runnerUpDiff
+    ? Math.max(0, topDiff.confidencePct - runnerUpDiff.confidencePct)
+    : null;
+  const subjectPct = report?.subject?.confidencePct ?? null;
 
   const initialTemp = typeof weatherTemp === 'number' && Number.isFinite(weatherTemp)
     ? Math.round(weatherTemp)
@@ -652,6 +661,20 @@ export default function PlantTelemetryCard({
             </span>
             <span className="text-[9px] font-mono text-text-stone">Probability distribution</span>
           </div>
+
+          {/* Why the headline number reads the way it does: the factors the
+              model actually produced. Photo provenance is attested by the
+              badge above the card, so it is not repeated here. */}
+          {(subjectPct !== null || separationPct !== null) && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[9px] font-mono text-text-stone">
+              {subjectPct !== null && (
+                <span>Subject clarity: <span className="font-bold text-moss">{subjectPct}%</span></span>
+              )}
+              {separationPct !== null && (
+                <span>Lead over runner-up: <span className="font-bold text-moss">{separationPct} pts</span></span>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2">
             {report.differential.map((diff, i) => (

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence, MotionConfig, motion, useReducedMotion } from 'framer-motion';
 import Layout from './components/Layout';
 import { ToastProvider } from './components/Toast';
+import ReminderRunner from './components/ReminderRunner';
 import Home from './pages/Home';
 import FloatingAssistant from './components/FloatingAssistant';
 import RequireAuth from './components/RequireAuth';
@@ -67,6 +68,7 @@ export default function App() {
       <ToastProvider>
         <ErrorBoundary>
         <SplashGate />
+        <ReminderRunner />
         <Layout>
           <FloatingAssistant />
           <OnboardingTour />

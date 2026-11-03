@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Droplets, Scissors, FlaskConical, Pencil, Sprout, Plus } from 'lucide-react';
 import { useTimeOfDay } from '@/hooks/useTimeOfDay';
 import { useEcoMode } from '@/hooks/useEcoMode';
-import { useParallax } from '@/hooks/useScrollBehavior';
 import { triggerHaptic, playAudio } from '@/utils/hapticAudio';
 import { PlantService } from '@/services/plantService';
 
@@ -21,6 +20,9 @@ interface HeroSectionProps {
   /** Days between waterings for this specimen; the Water tool uses it to
    *  schedule the next reminder. */
   wateringIntervalDays?: number | null;
+  /** Recovery milestones this specimen has earned, newest last — the badge
+   *  chip shows the latest one. */
+  milestones?: { kind: string; at: string }[];
   onAddPlant: () => void;
 }
 
@@ -36,6 +38,7 @@ export function HeroSection({
   plantIndex = 0,
   weather,
   wateringIntervalDays,
+  milestones,
   onAddPlant
 }: HeroSectionProps) {
   const { greeting } = useTimeOfDay();
@@ -62,14 +65,8 @@ export function HeroSection({
         // nothing else, so last_watered_at stayed NULL forever. The server's
         // reminder scheduler reads exactly that column, so watering appeared
         // to work while never changing what the scheduler saw.
-        const now = new Date();
-        const intervalDays = wateringIntervalDays || 7;
         try {
-          await PlantService.updatePlant(plantId, {
-            lastWateredAt: now,
-            nextWaterDue: new Date(now.getTime() + intervalDays * 86_400_000),
-            wateringIntervalDays: intervalDays,
-          });
+          await PlantService.waterPlant(plantId, new Date(), wateringIntervalDays || 7);
         } catch (err) {
           console.error('Failed to record watering:', err);
         }
@@ -117,6 +114,10 @@ export function HeroSection({
     : healthScore >= 70 ? 'var(--health-healthy)'
     : healthScore >= 50 ? 'var(--health-stressed)'
     : 'var(--health-critical)';
+
+  // The latest recovery milestone this specimen earned, if any — the most
+  // recent entry wins because the log is append-ordered.
+  const latestMilestone = milestones?.length ? milestones[milestones.length - 1] : null;
 
   return (
     <motion.section
@@ -236,6 +237,14 @@ export function HeroSection({
                 <div className="text-[8px] font-bold uppercase tracking-wider text-[#3d5a3d] dark:text-[#8fb58f]">
                   {healthLabel}
                 </div>
+                {latestMilestone && (
+                  <div
+                    className="text-[7px] font-mono font-bold tracking-wide text-[#3d5a3d] dark:text-[#8fb58f] mt-0.5 truncate max-w-[120px]"
+                    title={`Recovery milestone earned ${new Date(latestMilestone.at).toLocaleDateString()}`}
+                  >
+                    🏅 {latestMilestone.kind.replace(/_/g, ' ')}
+                  </div>
+                )}
                 <div className="text-[6px] font-mono tracking-widest text-[#7a602f]/70 dark:text-[#d4af37]/60 mt-0.5">
                   VITALITY GAUGE
                 </div>

@@ -14,7 +14,7 @@
  * (the client re-uses the types and the legacy coercion helper only).
  */
 
-import { clampPercent, clampTo, hasScore } from './scoreGuards';
+import { clampTo, hasScore } from './scoreGuards';
 
 export type ScanRoute = 'plant' | 'living_non_plant' | 'non_living';
 

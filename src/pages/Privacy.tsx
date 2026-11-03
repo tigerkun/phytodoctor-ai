@@ -1,4 +1,3 @@
-import React from 'react';
 import { ShieldCheck } from 'lucide-react';
 import PageWrapper from '../components/home/PageWrapper';
 

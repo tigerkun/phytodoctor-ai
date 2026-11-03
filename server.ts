@@ -5,19 +5,20 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import webpush from "web-push";
-import { randomUUID, createHmac, createHash, timingSafeEqual } from "node:crypto";
+import { randomUUID, createHmac, timingSafeEqual } from "node:crypto";
 import { createUserScopedClient } from "./src/lib/supabaseUserClient";
 import { clampTo, clampPercent, clampUnit, hasScore, orderRange } from "./src/lib/scoreGuards";
 import { vitalityAfterWatering } from "./src/lib/environmentalSimulation";
 import { cooldownFor, selectModels as chooseModels } from "./src/lib/modelCooldown";
 import { readImageSignals, assessProvenance } from "./src/lib/imageProvenance";
-import { assessImageWithImagga, imaggaStatus } from "./src/lib/imaggaClient";
+import { assessImageWithImagga, imaggaStatus, interpretImaggaTags } from "./src/lib/imaggaClient";
 import { shapeScanReport, type ScanReport } from "./src/lib/scanReport";
 import { createGuestQuotaStore, digestIp, MemoryQuotaStore, type GuestQuotaStore } from "./src/lib/guestQuotaStore";
 import { classifyStaticRequest } from "./src/lib/spaFallback";
 import { clientIpOf as resolveClientIp } from "./src/lib/clientIp";
 import { log, withRequestContext, setRequestUser, currentRequestId } from "./src/lib/logger";
 import { registerLibraryDailyRoute } from "./src/server/libraryDaily";
+import { registerCareGuideRoute } from "./src/server/careGuide";
 
 dotenv.config();
 
@@ -53,7 +54,7 @@ app.use((req, res, next) => {
 });
 
 // ── Security headers ───────────────────────────────────────────────────────
-app.use((req, res, next) => {
+app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -1185,7 +1186,6 @@ app.get('/healthz', async (_req, res) => {
         Promise.all(ALL_TABLES.map(probeTable)),
       ]);
       const missing = REQUIRED_RPCS.filter((_, i) => rpcResults[i] === 'missing').map(rpc => rpc.name);
-      const absent = ALL_TABLES.filter((_, i) => tableResults[i] === 'missing');
       // Only a core table degrades the status. See the note on the two lists.
       const missingTables = REQUIRED_TABLES.filter((_, i) => tableResults[i] === 'missing');
       const missingOptionalTables = OPTIONAL_TABLES.filter(
@@ -1270,7 +1270,6 @@ const aiFast = new GoogleGenAI({
   }
 });
 
-const MODEL_CHAIN = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash"];
 
 // Verified against the production key on 2026-09-28: Google retired
 // gemini-2.5-flash/2.0-flash/1.5-flash for new-format keys ("no longer
@@ -1311,7 +1310,11 @@ async function generateWithRetry(params: any, retries = 1, client: GoogleGenAI =
             modelParams.config.thinkingConfig = { thinkingBudget: 0 };
           }
         }
-        return await client.models.generateContent(modelParams);
+        const result = await client.models.generateContent(modelParams);
+        // The failure paths log which model fell over; this is the other half
+        // of the same picture — which model actually answered, for analytics.
+        log.info('Gemini model succeeded', { model: modelName, attempt: i + 1 });
+        return result;
       } catch (err: any) {
         const isFatal = err?.status === 400 || err?.status === 401 || err?.status === 403;
         if (isFatal) throw err; // Don't delay on authentication or bad request errors
@@ -1351,6 +1354,7 @@ async function generateWithRetry(params: any, retries = 1, client: GoogleGenAI =
 
 // ── Daily Library Feed (SerpApi Q&A + Top 10 Environmental News) ───────────
 registerLibraryDailyRoute(app, { aiFast, log, generateWithRetry }, [generalLimiter]);
+registerCareGuideRoute(app, [generalLimiter]);
 
 // ── Scan report persistence ────────────────────────────────────────────────
 // Every finished analysis is recorded in scan_reports: the account (or hashed
@@ -1473,8 +1477,21 @@ app.post("/api/identify", express.json({ limit: '11mb' }), aiLimiter, apiOrGuest
     } else if (imaggaStatusInfo.disabledReason) {
       log.warn('Imagga disabled — scan proceeds Gemini-only', { reason: imaggaStatusInfo.disabledReason });
     }
+    // The pre-diagnosis read: symptom hints, growth stage and propagation
+    // readiness interpreted from tags the pre-screen already fetched. This
+    // enriches the Gemini prompt (auxiliary evidence, weighed against what
+    // the model actually sees) and rides the response for the client's
+    // check-in records. Species hints from a configured custom categorizer
+    // join the same block.
+    const imaggaInsights = imagga ? interpretImaggaTags(imagga.tags) : null;
     const imaggaEvidenceBlock = imagga?.evidence
-      ? `\n\nIMAGE ANALYSIS SERVICE EVIDENCE (independent auto-tagging service — auxiliary evidence only, it can be wrong or incomplete; weigh it against what you actually see):\nTop tags: ${imagga.evidence}`
+      ? `\n\nIMAGE ANALYSIS SERVICE EVIDENCE (independent auto-tagging service — auxiliary evidence only, it can be wrong or incomplete; weigh it against what you actually see):\nTop tags: ${imagga.evidence}` +
+        (imagga.categories ? `\nClassifier species guess: ${imagga.categories.species} (${imagga.categories.confidence}%); alternatives: ${imagga.categories.alternatives.map(a => `${a.species} (${a.confidence}%)`).join(', ') || 'none'}.` : '') +
+        (imaggaInsights && imaggaInsights.diseases.diseases.length
+          ? `\nSymptom hints: ${imaggaInsights.diseases.diseases.map(d => `${d.disease} (${d.confidence}%)`).join('; ')} — overall severity reads ${imaggaInsights.diseases.severity}.`
+          : '') +
+        (imaggaInsights?.growthStage.stage ? `\nGrowth stage hint: ${imaggaInsights.growthStage.stage} (${imaggaInsights.growthStage.confidence}%).` : '') +
+        (imaggaInsights?.propagation.ready ? `\nPropagation hint: looks ready for ${imaggaInsights.propagation.method} (${imaggaInsights.propagation.confidence}%).` : '')
       : '';
 
     if (imagga?.isClearlyNonPlant) {
@@ -1849,7 +1866,7 @@ LOCATION-AWARE FIELDS (required if location provided):
     void persistScanReport(report, req);
     // report last: a stray `report` key in the raw model payload must never
     // overwrite the server-shaped one.
-    res.json({ ...result, weather: scanWeather, report });
+    res.json({ ...result, weather: scanWeather, report, imaggaInsights, imaggaCategories: imagga?.categories ?? null });
   } catch (error: any) {
     log.error('Gemini request failed', { status: error?.response?.status || error?.status, err: error });
     fail(res, 500, AI_GENERIC_ERROR);
@@ -2328,7 +2345,7 @@ app.post("/api/market/request", express.json({ limit: '4kb' }), apiGate, async (
 });
 
 // GET recent requests for the community board.
-app.get("/api/market/requests", apiGate, async (req, res) => {
+app.get("/api/market/requests", apiGate, async (_req, res) => {
   try {
     if (!supabaseAdmin) return fail(res, 503, "Market service is temporarily unavailable.");
     const { data, error } = await supabaseAdmin
@@ -2504,7 +2521,7 @@ app.post("/api/billing/webhook", express.raw({ type: 'application/json', limit: 
 // ── Centralized Error Handler (SEC-05) ─────────────────────────────────────
 // Intercept JSON parse errors and unexpected exceptions to prevent stack traces
 // and internal file paths from leaking to the client in error responses.
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (err instanceof SyntaxError && 'body' in err) {
     return res.status(400).json({ error: 'Malformed JSON payload.' });
   }

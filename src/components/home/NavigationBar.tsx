@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import { Leaf, Sun, Moon, ChevronLeft } from 'lucide-react';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';

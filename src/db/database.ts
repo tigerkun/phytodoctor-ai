@@ -23,7 +23,9 @@ import {
   StreakFreeze,
   SanctuaryStock,
   MarketLedgerRow,
-  TreatmentActionRecord
+  TreatmentActionRecord,
+  ScheduledReminder,
+  ReminderLogEntry
 } from '../types';
 
 export type { 
@@ -48,7 +50,9 @@ export type {
   StreakRecord,
   RewardHistory,
   DiscoveryRecord,
-  StreakFreeze
+  StreakFreeze,
+  ScheduledReminder,
+  ReminderLogEntry
 };
 
 export interface SensorReading {
@@ -103,6 +107,8 @@ class BotanicalDB extends Dexie {
   sanctuaryStock!: Table<SanctuaryStock>;
   marketLedger!: Table<MarketLedgerRow>;
   treatmentActions!: Table<TreatmentActionRecord>;
+  reminders!: Table<ScheduledReminder>;
+  reminderLog!: Table<ReminderLogEntry>;
   seedSyncOutbox!: Table<{
     id: string;
     userId: string;
@@ -256,6 +262,14 @@ class BotanicalDB extends Dexie {
     // v23: recovery roadmap treatment actions persisted per keeper/plant/phase
     this.version(23).stores({
       treatmentActions: 'id, plantId, targetKey, completedAt, [plantId+targetKey]'
+    });
+    // v24: the reminder engine. `reminders` holds only explicitly scheduled
+    // reminders (custom offsets); implicit due-ness is computed from plant
+    // data. `reminderLog` is the delivery history and the once-per-day
+    // dedupe key for (plantId, kind).
+    this.version(24).stores({
+      reminders: 'id, plantId, kind, dueAt, [plantId+kind]',
+      reminderLog: 'id, plantId, kind, firedAt, [plantId+kind]'
     });
   }
 }

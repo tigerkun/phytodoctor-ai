@@ -14,10 +14,54 @@ import {
   LEVEL_TIERS,
   REWARD_CAPS,
   SEED_MULTIPLIERS,
-  type RarityReward
 } from '../game/REWARD_CONFIG';
 import { getStreakMultiplier } from './profileUtils';
 import { applySeedDelta } from './seedLedger';
+
+// ============ RECOVERY MILESTONES ============
+// Detection is pure and lives here (next to the reward economy it pays
+// into); celebration and persistence stay in CheckInFlow, which owns the
+// check-in transaction. Once-ness rides the plant's milestoneLog, not a
+// table — see the pinned test in recoveryMilestones.test.ts.
+
+export type RecoveryMilestoneKind = 'first_improvement' | 'halfway' | 'recovered' | 'anniversary';
+
+export const RECOVERY_MILESTONES: Record<RecoveryMilestoneKind, { emoji: string; badge: string; seeds: number }> = {
+  first_improvement: { emoji: '🌱', badge: 'First Steps', seeds: 20 },
+  halfway: { emoji: '🌿', badge: 'Halfway There', seeds: 20 },
+  recovered: { emoji: '🎉', badge: 'Full Recovery', seeds: 20 },
+  anniversary: { emoji: '🎂', badge: '30-Day Keeper', seeds: 20 },
+};
+
+/**
+ * Which milestones this check-in just earned. Crossing semantics, not
+ * absolute: `prevScore > 0` keeps a first-ever reading (no baseline) from
+ * counting as improvement, and each band checks that the previous score was
+ * BELOW it, so a plant scanned at 95 does not celebrate halfway on a wobble.
+ */
+export function detectRecoveryMilestones(
+  prevScore: number,
+  newScore: number,
+  daysKept: number,
+  seen: ReadonlySet<string>,
+): RecoveryMilestoneKind[] {
+  const won: RecoveryMilestoneKind[] = [];
+  if (prevScore > 0 && newScore - prevScore >= 10 && !seen.has('first_improvement')) won.push('first_improvement');
+  if (prevScore < 70 && newScore >= 70 && !seen.has('halfway')) won.push('halfway');
+  if (prevScore < 90 && newScore >= 90 && !seen.has('recovered')) won.push('recovered');
+  if (daysKept >= 30 && !seen.has('anniversary')) won.push('anniversary');
+  return won;
+}
+
+export function milestoneMessage(kind: RecoveryMilestoneKind, plantName: string): string {
+  const { emoji } = RECOVERY_MILESTONES[kind];
+  switch (kind) {
+    case 'first_improvement': return `${plantName} is improving — first recovery steps taken! ${emoji}`;
+    case 'halfway': return `${plantName} is halfway to recovery! ${emoji}`;
+    case 'recovered': return `${plantName} has fully recovered! ${emoji}`;
+    case 'anniversary': return `30 days of care for ${plantName}! ${emoji}`;
+  }
+}
 
 export class RewardService {
   static getUserId(): string {
@@ -261,7 +305,6 @@ export class RewardService {
     if (!credited) {
       throw new Error('Discovery reward could not be recorded: the balance did not update.');
     }
-    const newSeeds = credited.seeds;
 
     // Record discovery
     const discovery = {

@@ -12,7 +12,6 @@ import {
   Wheat,
   RotateCw,
   CheckCircle2,
-  Globe2,
   ExternalLink,
   Crown,
   Lock,
@@ -24,9 +23,20 @@ import { getPlantPhoto } from '../utils/plantImage';
 import { GameService } from '../services/gameService';
 import PageWrapper from '../components/home/PageWrapper';
 import { triggerHaptic, playAudio } from '../utils/hapticAudio';
+import { useEcoMode } from '../hooks/useEcoMode';
 import BlogsSection from '../components/ui/blogs-3';
 import EnvironmentalNewsCarousel from '../components/library/EnvironmentalNewsCarousel';
 import { fetchLibraryDaily, type DailyQuizItem, type EnvironmentalNewsItem } from '../services/libraryService';
+import {
+  quizStreakMultiplier,
+  quizSeedsFor,
+  recordQuizOutcome,
+  quizAccuracy,
+  getStudiedPlates,
+  markPlateStudied,
+  libraryStats,
+  SPEED_BONUS_MS,
+} from '../services/libraryEngagement';
 
 const ROMAN_NUMERALS = ['I.', 'II.', 'III.', 'IV.', 'V.'];
 
@@ -497,6 +507,7 @@ function seededShuffle(indices: number[], seed: number): number[] {
 }
 
 export default function Library() {
+  const { shouldDisableAnimations } = useEcoMode();
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<'All' | 'Species Profile' | 'Pathology' | 'Pest'>('All');
   // Measured at 390px the 16 folio plates rendered fully open — about 550px each
@@ -505,6 +516,15 @@ export default function Library() {
   // turns the page into a scannable list, the same accordion the Help centre
   // already uses, so the two read alike.
   const [openPlate, setOpenPlate] = useState<string | null>(null);
+  // Opening a plate IS reading it — studied marks ride the open toggle.
+  const togglePlate = (key: string, scientific: string) => {
+    const opening = openPlate !== key;
+    setOpenPlate(opening ? key : null);
+    if (opening) {
+      const next = markPlateStudied(scientific, true);
+      setStudiedPlates(new Set(next));
+    }
+  };
   const dayNumber = getDayNumber();
   // Today's draws — stable all day, completely different tomorrow.
   const todaysQuizOrder = useMemo(() => seededShuffle(DAILY_QUIZZES.map((_, i) => i), dayNumber), [dayNumber]);
@@ -523,6 +543,11 @@ export default function Library() {
   const [isProUser, setIsProUser] = useState(false);
   const [justFell, setJustFell] = useState(false);
   const answeringRef = useRef(false);
+  // Speed bonus clock: reset whenever a fresh question is presented.
+  const quizShownAtRef = useRef<number>(Date.now());
+  // Folio plates the Keeper has marked as studied (device-local).
+  const [studiedPlates, setStudiedPlates] = useState<Set<string>>(() => getStudiedPlates());
+  const [surprisePlate, setSurprisePlate] = useState<string | null>(null);
   const userId = GameService.getUserId();
 
   // Active quiz selection: prefers dynamic SerpApi+Gemini shaped questions
@@ -609,8 +634,12 @@ export default function Library() {
     playAudio(isCorrect ? 'success' : 'chime');
 
     // One attempt consumed whether right or wrong — like chess.com's daily
-    // puzzles, accuracy is what preserves the streak.
-    consumeQuizAttempt();
+    // puzzles, accuracy is what preserves the streak. The sequence number
+    // doubles as the ledger idempotency key suffix: a retried click can never
+    // pay the same puzzle twice.
+    const attemptSeq = consumeQuizAttempt();
+    const elapsedMs = quizShownAtRef.current ? Date.now() - quizShownAtRef.current : 60_000;
+    recordQuizOutcome(isCorrect);
 
     if (isCorrect) {
       const newStreak = streak + 1;
@@ -620,6 +649,11 @@ export default function Library() {
         setBestStreak(newStreak);
         localStorage.setItem('botanical_quiz_best_streak', String(newStreak));
       }
+      // Reward scales with the streak (capped 2×) and a fast, correct answer
+      // earns a small bonus — retention maths from libraryEngagement.
+      const multiplier = quizStreakMultiplier(streak);
+      const seeds = quizSeedsFor(streak, true, elapsedMs);
+      const speedNote = elapsedMs < SPEED_BONUS_MS ? ' · ⚡ speed bonus' : '';
       // The ledger write sits between the correct-answer feedback and the result
       // message. If it throws -- a user-scoped client that is not ready, a
       // network failure on the outbox flush -- the rejection escaped a
@@ -628,14 +662,14 @@ export default function Library() {
       // report either way.
       let credited = true;
       try {
-        await GameService.earnSeeds(25, 'bonus', 'Library Puzzle Solved');
+        await GameService.earnSeeds(seeds, 'bonus', `Library Puzzle Solved (×${multiplier})`, undefined, `quiz:${quizDayKey()}:${attemptSeq}`);
       } catch (err) {
         credited = false;
         console.error('Quiz reward could not be credited', err);
       }
       setQuizMessage(credited
-        ? `✅ Correct! +25 seeds · the sprout climbed ${PACES_PER_SOLVE} paces. ${dailyQuiz.explanation}`
-        : `✅ Correct! — the sprout climbed ${PACES_PER_SOLVE} paces, but the +25 seeds could not be credited. They will not be lost; try again tomorrow. ${dailyQuiz.explanation}`);
+        ? `✅ Correct! +${seeds} seeds (×${multiplier} streak${speedNote}) · the sprout climbed ${PACES_PER_SOLVE} paces. ${dailyQuiz.explanation}`
+        : `✅ Correct! — the sprout climbed ${PACES_PER_SOLVE} paces, but the +${seeds} seeds could not be credited. They will not be lost; try again tomorrow. ${dailyQuiz.explanation}`);
     } else {
       // Streak snapped: sprout tumbles back to the compost.
       setStreak(0);
@@ -654,6 +688,7 @@ export default function Library() {
     setSelectedAnswer(null);
     setQuizMessage('');
     setAnswered(false);
+    quizShownAtRef.current = Date.now();
   };
 
   const handleFilterChange = (filter: 'All' | 'Species Profile' | 'Pathology' | 'Pest') => {
@@ -838,6 +873,10 @@ export default function Library() {
                   </span>
                   <span className="text-[#8c7355]/50">·</span>
                   <span>best {bestStreak}</span>
+                  <span className="text-[#8c7355]/50">·</span>
+                  <span>accuracy {quizAccuracy()}%</span>
+                  <span className="text-[#8c7355]/50">·</span>
+                  <span title="Folio plates marked as studied">{getStudiedPlates().size}/{PHYTO_NOTES.length} studied</span>
                 </div>
                 {streak >= 5 && !justFell && (
                   <motion.p
@@ -936,7 +975,7 @@ export default function Library() {
         </div>
 
         {/* ── CATEGORY FILTER TABS ─────────────────────────────────── */}
-        <div className="flex flex-wrap gap-2 pb-2 border-b border-[#8c7355]/20">
+        <div className="flex flex-wrap gap-2 pb-2 border-b border-[#8c7355]/20 items-center">
           {(['All', 'Species Profile', 'Pathology', 'Pest'] as const).map((filter) => (
             <button
               key={filter}
@@ -950,6 +989,34 @@ export default function Library() {
               {filter === 'All' ? 'All Folio Plates' : filter}
             </button>
           ))}
+
+          {/* Retention rail: boredom breaker + study progress. The breaker
+              jumps to a random plate from the full codex — filters reset so
+              the jump always has somewhere to land. */}
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-[9px] font-mono uppercase tracking-widest text-text-stone">
+              {studiedPlates.size}/{PHYTO_NOTES.length} studied
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('light');
+                playAudio('leaf-rustle');
+                const pick = PHYTO_NOTES[Math.floor(Math.random() * PHYTO_NOTES.length)];
+                setActiveFilter('All');
+                clearSearch();
+                setSurprisePlate(pick.scientific);
+                requestAnimationFrame(() => {
+                  document.getElementById(`plate-${pick.scientific.replace(/\s+/g, '-').toLowerCase()}`)
+                    ?.scrollIntoView({ behavior: shouldDisableAnimations ? 'auto' : 'smooth', block: 'center' });
+                });
+              }}
+              className="min-h-[44px] px-4 py-2.5 rounded-lg text-xs font-mono font-bold uppercase tracking-wider border border-[#c5a059]/50 text-[#7a602f] dark:text-[#d4af37] hover:bg-[#c5a059]/10 transition-colors"
+              title="Jump to a random folio plate"
+            >
+              🎲 Surprise Me
+            </button>
+          </div>
         </div>
 
         {/* ── CARD GRID / EMPTY STATE ───────────────────────────── */}
@@ -997,6 +1064,7 @@ export default function Library() {
               return (
                 <motion.div
                   key={key}
+                  id={`plate-${disease.scientific.replace(/\s+/g, '-').toLowerCase()}`}
                   variants={cardVariants}
                   className="
                     relative
@@ -1027,7 +1095,7 @@ export default function Library() {
                       still worth reading in a list; the photograph and the
                       clinical detail live behind it. */}
                   <button
-                    onClick={() => setOpenPlate(k => (k === key ? null : key))}
+                    onClick={() => togglePlate(key, disease.scientific)}
                     aria-expanded={isOpen}
                     className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] transition-colors"
                   >

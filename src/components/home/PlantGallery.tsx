@@ -1,9 +1,19 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { Microscope } from 'lucide-react';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
 import { useEcoMode } from '@/hooks/useEcoMode';
+import {
+  groupPlants,
+  statusIndicators,
+  GROUP_LABELS,
+  STATUS_META,
+  type GalleryGroup,
+  type GardenPlant,
+} from '../../services/gardenDashboardService';
 
-interface Plant {
+interface Plant extends GardenPlant {
   id: string;
   nickname: string;
   species: string;
@@ -18,9 +28,18 @@ interface PlantGalleryProps {
   onSelectPlant: (plant: Plant) => void;
 }
 
+type GroupTab = 'all' | GalleryGroup;
+
 export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
   const { theme } = useDayNightTheme();
   const { shouldDisableAnimations } = useEcoMode();
+  const navigate = useNavigate();
+  const [groupTab, setGroupTab] = useState<GroupTab>('all');
+
+  // Grouping and per-card statuses are computed, never stored — the gallery
+  // is a view over the same plant records the dashboard reads.
+  const groups = useMemo(() => groupPlants(plants), [plants]);
+  const visible = groupTab === 'all' ? plants : groups[groupTab];
 
   const getHealthColor = (score: number) => {
     if (score >= 90) return '#5a7a5a';
@@ -73,6 +92,30 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
           {plants.length === 0 ? 'No specimens currently cataloged in sanctuary' : `${plants.length} botanical specimen${plants.length === 1 ? '' : 's'} flourishing under your stewardship`}
         </motion.p>
 
+        {/* Health group tabs — counts computed from the same records the
+            dashboard reads. "All" keeps the flat collection view. */}
+        <div role="tablist" aria-label="Group plants by health" className="flex flex-wrap gap-2 mb-8">
+          {(['all', 'attention', 'recovering', 'thriving', 'new'] as GroupTab[]).map(tab => {
+            const count = tab === 'all' ? plants.length : groups[tab].length;
+            const active = groupTab === tab;
+            return (
+              <button
+                key={tab}
+                role="tab"
+                aria-selected={active}
+                onClick={() => setGroupTab(tab)}
+                className={`min-h-[36px] px-4 py-1.5 rounded-full text-[10px] font-mono font-black uppercase tracking-wider border transition-colors ${
+                  active
+                    ? 'border-moss bg-moss/15 text-moss'
+                    : 'border-border-light text-text-stone hover:border-moss/40'
+                }`}
+              >
+                {tab === 'all' ? 'All' : GROUP_LABELS[tab]} ({count})
+              </button>
+            );
+          })}
+        </div>
+
         <motion.div
           variants={containerVariants}
           initial="hidden"
@@ -80,9 +123,10 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
           viewport={{ once: true, margin: '-100px' }}
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
         >
-          {plants.map((plant, index) => {
+          {visible.map((plant, index) => {
             const healthColor = getHealthColor(plant.healthScore);
             const daysSince = getDaysSinceWater(plant.lastWatered);
+            const statuses = statusIndicators(plant);
             // Alternate subtle rotation angles for authentic handmade botanical stake feel
             const rotationClass = index % 2 === 0 ? '-rotate-2' : 'rotate-1';
 
@@ -91,6 +135,7 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
                 key={plant.id}
                 variants={cardVariants}
                 whileHover={!shouldDisableAnimations ? { y: -8 } : {}}
+                whileTap={!shouldDisableAnimations ? { scale: 0.98 } : {}}
                 onClick={() => onSelectPlant(plant)}
                 className="cursor-pointer group"
               >
@@ -115,6 +160,24 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
                       transition={{ duration: 0.4 }}
                     />
 
+                    {/* Hover quick action: into the lab with this specimen —
+                        the pathology bench takes a plantId preselect, so the
+                        comparison starts from this plant's own record. The
+                        card itself opens the record. Revealed on desktop
+                        hover, always visible on touch — an invisible button
+                        is still a target on a touchscreen. */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/lab?tab=pathology&plantId=${plant.id}`);
+                      }}
+                      aria-label={`Diagnose ${plant.nickname} in the lab`}
+                      className="absolute bottom-3 right-3 min-h-[44px] min-w-[44px] rounded-full bg-moss-deep/90 hover:bg-moss-deep text-white flex items-center justify-center shadow-md transition-opacity duration-200 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 active:scale-95"
+                    >
+                      <Microscope size={16} />
+                    </button>
+
                     {/* Rotated Zinc / Slate Seedling Stake Tag */}
                     <div
                       className={`absolute top-3 left-3 ${rotationClass} zinc-stake px-2.5 py-1 rounded-xs text-[10px] font-serif font-bold tracking-widest uppercase flex items-center gap-1.5 z-10`}
@@ -124,12 +187,24 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
                       <span className="truncate max-w-[110px]">{plant.nickname}</span>
                     </div>
 
-                    {/* Health Indicator Mini Barometer Pip */}
-                    <div
-                      className="absolute top-3 right-3 px-2 py-0.5 rounded-full brass-bezel text-[9px] font-serif font-black text-[#2c1d08] dark:text-[#f7edd6] shadow-xs"
-                      title={`${plant.healthScore}% health`}
-                    >
-                      {plant.healthScore}%
+                    {/* Health Indicator Mini Barometer Pip. Below the care
+                        threshold it also pulses — the "check on me" signal —
+                        muted entirely under eco mode. */}
+                    <div className="absolute top-3 right-3">
+                      {plant.healthScore < 60 && !shouldDisableAnimations && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute inset-0 rounded-full bg-rose-400/60 animate-ping"
+                        />
+                      )}
+                      <div
+                        className={`relative px-2 py-0.5 rounded-full brass-bezel text-[9px] font-serif font-black text-[#2c1d08] dark:text-[#f7edd6] shadow-xs ${
+                          plant.healthScore < 60 ? 'ring-2 ring-rose-400/70' : ''
+                        }`}
+                        title={plant.healthScore < 60 ? `${plant.healthScore}% health — check on me` : `${plant.healthScore}% health`}
+                      >
+                        {plant.healthScore}%
+                      </div>
                     </div>
 
                     {/* Stamped Slate Watering Indicator */}
@@ -138,6 +213,28 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
                     >
                       {daysSince}d ago
                     </div>
+
+                    {/* Live status indicators — computed, not stored: the same
+                        predicates the priority queue uses. */}
+                    {statuses.length > 0 && (
+                      <div
+                        className="absolute bottom-3 right-3 flex gap-1"
+                        role="list"
+                        aria-label="Plant status"
+                      >
+                        {statuses.map(s => (
+                          <span
+                            key={s}
+                            role="listitem"
+                            title={STATUS_META[s].label}
+                            className="w-6 h-6 rounded-full bg-black/50 backdrop-blur-md border border-white/20 flex items-center justify-center text-[11px]"
+                          >
+                            <span aria-hidden="true">{STATUS_META[s].emoji}</span>
+                            <span className="sr-only">{STATUS_META[s].label}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Content & Botanical Specimen Plate */}

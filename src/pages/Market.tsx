@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion, type TargetAndTransition, type Transition } from 'framer-motion';
 import {
@@ -30,7 +30,6 @@ import EnhancedWalletDisplay from '../components/market/EnhancedWalletDisplay';
 import ProductFilters from '../components/market/ProductFilters';
 import CheckoutSummary from '../components/market/CheckoutSummary';
 import { useToast } from '../components/market/ToastNotification';
-import { useDayNightTheme } from '../hooks/useDayNightTheme';
 import PageWrapper from '../components/home/PageWrapper';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/feedback/ErrorState';
@@ -934,7 +933,7 @@ function TierLadderStrip({ level, privileges }: { level: number; privileges: Mar
 // browsable-in-principle, but nothing here spends seeds, so hiding the empty
 // shelf behind a locked door with the exact XP remaining is more honest than
 // a shop of buttons that all bounce you off.
-function StallLock({ level, xpToNext, xpProgress, nextUnlock }: {
+function StallLock({ level, xpToNext, nextUnlock }: {
   level: number;
   xpToNext: number;
   xpProgress: number;
@@ -1438,7 +1437,7 @@ interface MarketRequest {
 
 const REQUEST_CATEGORIES = ['pots', 'care', 'tools', 'seeds', 'home', 'books', 'other'] as const;
 
-function RequestBoard({ userId, notify }: { userId: string; notify: (ok: boolean, msg: string) => void }) {
+function RequestBoard({ notify }: { userId: string; notify: (ok: boolean, msg: string) => void }) {
   const [requests, setRequests] = useState<MarketRequest[]>([]);
   const [name, setName] = useState('');
   const [category, setCategory] = useState<string>('care');
@@ -1626,8 +1625,7 @@ function RequestBoard({ userId, notify }: { userId: string; notify: (ok: boolean
 }
 
 export default function GardenMarket() {
-  const { toasts, success, error, warning, reward } = useToast();
-  const { theme } = useDayNightTheme();
+  const { toasts, success, error, reward } = useToast();
   // Six stalls, not eight: "Open stall", "Pots & hangers" and "Oils & soil"
   // rendered the same grid three times over, differing only by category —
   // which is what the shop's chip row does in one place.

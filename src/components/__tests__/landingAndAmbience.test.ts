@@ -57,7 +57,6 @@ describe('Landing Page Specification', () => {
 describe('Species-Aware Scan Reports & Non-Plant Safeguards', () => {
   const lab = stripJsComments(readSource('src/pages/BotanicalLab.tsx'));
   const clinic = stripJsComments(readSource('src/pages/Clinic.tsx'));
-  const server = stripJsComments(readSource('server.ts'));
   const report = stripJsComments(readSource('src/components/scan/NonPlantReport.tsx'));
 
   it('the report shaper carries the five kind profiles', () => {

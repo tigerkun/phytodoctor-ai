@@ -1,8 +1,7 @@
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { motion, useScroll, useTransform, type Variants } from 'framer-motion';
 import { Archive, MessageSquare, ArrowRight, ShieldCheck, Sparkles, Sprout } from 'lucide-react';
 import { usePageTransition } from './PageTransitionContext';
-import { useDayNightTheme } from '@/hooks/useDayNightTheme';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/database';
 import { GameService } from '@/services/gameService';
@@ -19,7 +18,6 @@ const cardVariants: Variants = {
 
 export default function SanctuaryHub() {
   const { transitionTo } = usePageTransition();
-  const { theme } = useDayNightTheme();
 
   // Only the total is displayed, so let the database count instead of
   // materialising every card row just to read .length off the array.

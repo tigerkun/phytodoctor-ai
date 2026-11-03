@@ -1,10 +1,9 @@
-import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Sun, Moon, ChevronLeft, Sparkles, PlusCircle,
-  Stethoscope, MessageSquare, User, HelpCircle, Shield,
-  Award, Coins, Sliders
+  Sun, Moon, ChevronLeft, PlusCircle,
+  Stethoscope, MessageSquare, User, 
+  Coins, Sliders
 } from 'lucide-react';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
 import { useLiveQuery } from 'dexie-react-hooks';

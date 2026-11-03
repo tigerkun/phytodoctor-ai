@@ -164,9 +164,7 @@ describe('DriftDetector Empirical Challenge Tests', () => {
 
       const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
 
-      const start = performance.now();
       const signature = await extractSignature(new Blob(['test']));
-      const elapsed = performance.now() - start;
 
       expect(signature).toBeDefined();
       expect(setTimeoutSpy).toHaveBeenCalled();

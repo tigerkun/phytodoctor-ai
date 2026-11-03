@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   Microscope,
@@ -8,18 +7,12 @@ import {
   AlertTriangle,
   AlertCircle,
   ArrowRight,
-  Maximize2,
   Columns,
   Layers,
-  Sparkles,
   Info,
-  Calendar,
-  CheckCircle2,
-  RefreshCw,
-  Sprout
 } from 'lucide-react';
 import { db } from '../../db/database';
-import type { Plant, CheckIn } from '../../types';
+import type { CheckIn } from '../../types';
 import type { PlantSignature } from '../../services/driftDetector';
 import {
   computeComparativePathology,

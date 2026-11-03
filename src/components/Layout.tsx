@@ -6,6 +6,7 @@ import MobileBottomNav from './home/MobileBottomNav';
 import { Sidebar } from './home/Sidebar';
 import { PageTransitionProvider } from './home/PageTransitionContext';
 import GardenAmbience from './GardenAmbience';
+import QuickActionsFab from './QuickActionsFab';
 import RouteAnnouncer from './RouteAnnouncer';
 
 import { supabase } from '../lib/supabase';
@@ -188,6 +189,7 @@ export default function Layout({ children }: LayoutProps) {
         </div>
 
         {showNav && <MobileBottomNav />}
+        {showNav && <QuickActionsFab />}
       </PageTransitionProvider>
     </div>
   );

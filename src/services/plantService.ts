@@ -175,6 +175,13 @@ function preserveLocalFields(mapped: Plant, local: Plant | undefined): Plant {
   if (local.recoveryRoadmap && !merged.recoveryRoadmap) {
     (merged as any).recoveryRoadmap = local.recoveryRoadmap;
   }
+  // Client-only field with no Postgres column — same treatment as
+  // recoveryRoadmap. Without this, every fetch round-trip wipes the
+  // milestone log and recovery milestones re-fire and re-pay on the next
+  // check-in.
+  if (local.milestoneLog && !merged.milestoneLog) {
+    (merged as any).milestoneLog = local.milestoneLog;
+  }
   return merged as unknown as Plant;
 }
 
@@ -235,6 +242,9 @@ export const PlantService = {
             const local = await db.plants.get(id);
             if (local?.recoveryRoadmap && !plant.recoveryRoadmap) {
               plant.recoveryRoadmap = local.recoveryRoadmap;
+            }
+            if (local?.milestoneLog && !plant.milestoneLog) {
+              plant.milestoneLog = local.milestoneLog;
             }
           } catch {}
           return plant;
@@ -340,6 +350,34 @@ export const PlantService = {
     const all = await this.fetchPlants();
     notifySubscribers(all);
     return newPlant;
+  },
+
+  /**
+   * Record a watering — the ONE place that writes the watering triple
+   * (lastWateredAt, nextWaterDue, wateringIntervalDays). The server's
+   * reminder scheduler reads exactly these columns, so every watering flow
+   * (hero tool, quick-actions, plant detail's logged watering) must go
+   * through here rather than re-deriving the fields inline.
+   *
+   * `intervalDays` defaults to the plant's own cadence (read from Dexie),
+   * falling back to 7 like every call site did. `extraUpdates` merges into
+   * the same write for flows that also move other fields (vitality, the
+   * check-in trail) so a watering stays one update, not two.
+   */
+  async waterPlant(
+    id: string,
+    now: Date = new Date(),
+    intervalDays?: number,
+    extraUpdates?: Partial<Plant>,
+  ): Promise<void> {
+    const plant = intervalDays === undefined ? await db.plants.get(id) : undefined;
+    const interval = intervalDays ?? plant?.wateringIntervalDays ?? 7;
+    await this.updatePlant(id, {
+      lastWateredAt: now,
+      nextWaterDue: new Date(now.getTime() + interval * 86_400_000),
+      wateringIntervalDays: interval,
+      ...extraUpdates,
+    });
   },
 
   /**

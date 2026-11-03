@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Camera, Activity, Sprout, MessageCircle, CheckCircle2, ChevronRight, BarChart3, MessageSquare, Gift } from 'lucide-react';
+import { Camera, Activity, Sprout, MessageCircle, ChevronRight, BarChart3, MessageSquare, Gift } from 'lucide-react';
 import { GameService } from '@/services/gameService';
 import { useToast } from '@/components/Toast';
 import { usePageTransition } from './PageTransitionContext';

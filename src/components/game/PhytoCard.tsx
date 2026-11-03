@@ -1,13 +1,13 @@
 import React from 'react';
-import { Shield, Sword, Heart, Zap, History, Star, Lock, Crown, ZapOff, Sun } from 'lucide-react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../../db/database';
-import { RARITY_CONFIGS, type RarityTier } from '../../game/RARITY_DATA';
-import type { PhytoCard as CardType, GrowthStage } from '../../db/database';
+import { Shield, Sword, Heart, Zap, Star, Lock, Crown, ZapOff, Sun } from 'lucide-react';
+import type { PhytoCard as CardType, GrowthStage, Plant } from '../../db/database';
 import { getPlantPhoto } from '../../utils/plantImage';
 
 interface Props {
   card: CardType;
+  plant?: Plant | null;
+  activeTheme?: string | null;
+  activeFlair?: string | null;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   interactive?: boolean;
   showStats?: boolean;
@@ -15,6 +15,18 @@ interface Props {
   onClick?: () => void;
 }
 
+/**
+ * Purely presentational: card, plant and equipped cosmetics all arrive as
+ * props. The owner of the page subscribes to each table once and shares the
+ * result across every card, instead of each card opening its own live
+ * queries — N cards used to mean 3N Dexie subscriptions.
+ *
+ * Cosmetics are passed as item-id strings (e.g. 'theme-misty-jungle').
+ *
+ * `equipped` is written as a boolean (gameService equip/unequip), and the
+ * old `equipped: 1` where-clause never matched it — IndexedDB does not
+ * equate true with 1 — so the card theme and flair were silently inert.
+ */
 const GROWTH_ICONS: Record<GrowthStage, string> = {
   sprout: '🌱',
   seedling: '🌿',
@@ -23,9 +35,7 @@ const GROWTH_ICONS: Record<GrowthStage, string> = {
   ancient: '✨'
 };
 
-const PhytoCard: React.FC<Props> = ({ card, size = 'md', interactive = true, showStats = true, animate = 'idle', onClick }) => {
-  const config = RARITY_CONFIGS[card.rarity];
-  const plant = useLiveQuery(() => db.plants.get(card.plantId), [card.plantId]);
+const PhytoCard: React.FC<Props> = ({ card, plant, activeTheme, activeFlair, size = 'md', interactive = true, showStats = true, animate = 'idle', onClick }) => {
 
   const sizeClasses = {
     sm: 'w-32 h-44 text-[10px]',
@@ -54,17 +64,9 @@ const PhytoCard: React.FC<Props> = ({ card, size = 'md', interactive = true, sho
     'theme-cyberpunk-neon': 'bg-[#120129] border-[#240b36]'
   };
 
-  // Get active theme from cosmetics
-  const activeTheme = useLiveQuery(() => 
-    db.cosmetics.where({ userId: card.userId, itemType: 'theme', equipped: 1 }).first()
-  );
-
-  const activeFlair = useLiveQuery(() => 
-    db.cosmetics.where({ userId: card.userId, itemType: 'flair', equipped: 1 }).first()
-  );
-
+  // Get active theme + flair from props (item-id strings)
   const appliedFrameStyle = (card.frameSkin && frameStyles[card.frameSkin]) || frameStyles[card.rarity];
-  const appliedThemeStyle = (activeTheme && themeStyles[activeTheme.itemId]) || '';
+  const appliedThemeStyle = (activeTheme && themeStyles[activeTheme]) || '';
 
   // Style mappings based on rarity or card state
   const artStyles = {
@@ -110,7 +112,7 @@ const PhytoCard: React.FC<Props> = ({ card, size = 'md', interactive = true, sho
           <div className="flex items-center gap-1">
             <span className="font-black uppercase tracking-tighter leading-none text-[8px] opacity-70">{card.rarity}</span>
             {activeFlair && (
-              <span className="text-[7px] font-black uppercase text-garden-sage whitespace-nowrap">| {activeFlair.itemId.replace('flair-', '').replace('-', ' ')}</span>
+              <span className="text-[7px] font-black uppercase text-garden-sage whitespace-nowrap">| {activeFlair.replace('flair-', '').replace('-', ' ')}</span>
             )}
           </div>
           <h3 className="font-bold tracking-tight truncate leading-tight mt-0.5 max-w-[120px]">{card.commonName}</h3>
@@ -259,7 +261,9 @@ const PhytoCard: React.FC<Props> = ({ card, size = 'md', interactive = true, sho
   );
 };
 
-export default PhytoCard;
+// Memoized: a card only re-renders when its own record, its plant, or the
+// shared equipped cosmetics change — not on every unrelated DB write.
+export default React.memo(PhytoCard);
 
 function StatMini({ icon, value, color }: { icon: React.ReactNode, value: number, color: string }) {
   return (

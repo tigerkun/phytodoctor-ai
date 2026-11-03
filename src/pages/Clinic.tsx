@@ -15,8 +15,10 @@ import {
   ExternalLink, 
   RefreshCw 
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { identifyPlant, type PlantScanReport, type DiagnosticPossibility } from '../services/geminiService';
+import { Link, useNavigate } from 'react-router-dom';
+import { identifyPlant, type PlantScanReport, } from '../services/geminiService';
+import { classifyScanError, supportQuery, type ScanRecovery } from '../lib/scanRecovery';
+import { clamp } from '../lib/scoreGuards';
 import { NotificationContainer, type RewardToast } from '../components/game/RewardNotification';
 import { COMMON_REWARDS } from '../game/rewardUtils';
 import PageWrapper from '../components/home/PageWrapper';
@@ -27,15 +29,13 @@ import { prepareScanImage } from '../utils/imagePipeline';
 import NonPlantReport from '../components/scan/NonPlantReport';
 import { CaseStudy } from '../components/CaseStudy';
 
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
-}
-
 /**
  * Antique Brass Balance Scale Gauge
  * Stylizes diagnostic certainty as an authentic mechanical balance scale.
+ * Children render inside the brass housing — the confidence breakdown
+ * collapses into the instrument it explains.
  */
-function AntiqueBrassScale({ confidencePct }: { confidencePct: number | null }) {
+function AntiqueBrassScale({ confidencePct, children }: { confidencePct: number | null; children?: React.ReactNode }) {
   // Null is honest: the model offered no confidence and no differential did
   // either. The needle rests rather than borrowing the old invented 88.
   const pct = confidencePct === null ? 10 : clamp(confidencePct, 10, 100);
@@ -124,17 +124,191 @@ function AntiqueBrassScale({ confidencePct }: { confidencePct: number | null }) 
       <span className="text-[8px] font-black uppercase tracking-wider text-[#5f7161] dark:text-[#9caf88]">
         {pct >= 85 ? 'Empirical Equilibrium' : pct >= 65 ? 'Probable Alignment' : 'Inconclusive Balance'}
       </span>
+      {children}
     </div>
+  );
+}
+
+/**
+ * On-device photo metrics for the confidence breakdown. These are honest
+ * measurements off the prepared scan image, not a second AI opinion: the
+ * model reports one species-match confidence, and the scanReport contract
+ * deliberately refuses invented certainty (see scanReport.ts's note on the
+ * removed fake 88%). Sharpness is neighbour-difference variance on a small
+ * grayscale pass (a cheap Laplacian proxy); exposure is mean luma scored by
+ * distance from the band where leaf detail survives.
+ */
+interface PhotoQuality {
+  sharpness: number;
+  exposure: number;
+}
+
+async function measurePhotoQuality(dataUrl: string): Promise<PhotoQuality> {
+  const img = new Image();
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error('image decode failed'));
+    img.src = dataUrl;
+  });
+  const edge = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = edge;
+  canvas.height = edge;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) throw new Error('canvas unavailable');
+  const scale = Math.min(edge / img.width, edge / img.height, 1);
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  ctx.drawImage(img, 0, 0, w, h);
+  const { data } = ctx.getImageData(0, 0, w, h);
+
+  const luma = new Float32Array(w * h);
+  let sum = 0;
+  for (let i = 0; i < w * h; i++) {
+    const v = 0.2126 * data[i * 4] + 0.7152 * data[i * 4 + 1] + 0.0722 * data[i * 4 + 2];
+    luma[i] = v;
+    sum += v;
+  }
+  const mean = sum / (w * h);
+
+  // Neighbour-difference variance: blur flattens it, leaf texture raises it.
+  let diffSum = 0;
+  let diffSqSum = 0;
+  let n = 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 1; x < w; x++) {
+      const d = Math.abs(luma[y * w + x] - luma[y * w + x - 1]);
+      diffSum += d;
+      diffSqSum += d * d;
+      n++;
+    }
+  }
+  const diffMean = diffSum / n;
+  const sharpnessRaw = diffSqSum / n - diffMean * diffMean;
+  // Calibrated against the 2048px prepareScanImage output: JPEG-soft leaves
+  // land ~20-80, crisp foliage ~200-900. Held away from 0 and 100.
+  const sharpness = clamp(Math.round(Math.log2(1 + sharpnessRaw / 12) * 21), 4, 98);
+
+  // Exposure: detail survives roughly 90-190 mean luma; score decays with
+  // distance outside that band.
+  const exposure = clamp(Math.round(100 - Math.max(0, Math.abs(mean - 140) - 50) * 0.9), 5, 98);
+  return { sharpness, exposure };
+}
+
+const QUALITY_BANDS = [
+  { min: 80, label: 'strong', bar: 'bg-[#5A9E5A]', text: 'text-[#3D7651] dark:text-[#8FB58F]' },
+  { min: 50, label: 'fair', bar: 'bg-[#D4A843]', text: 'text-[#7a602f] dark:text-[#E8C97A]' },
+  { min: 0, label: 'low', bar: 'bg-[#C45B4A]', text: 'text-[#8f2f26] dark:text-[#E07A5F]' },
+] as const;
+
+function bandOf(score: number) {
+  return QUALITY_BANDS.find(b => score >= b.min)!;
+}
+
+/**
+ * Confidence Breakdown — what the single needle on the brass scale actually
+ * stands on. Species match and symptom clarity are the model's own
+ * confidences; sharpness and exposure are measured off the photo on this
+ * device. No factor is invented. Each low factor ships the one fix that
+ * would raise it; every factor carries a tooltip saying what it measures.
+ */
+function ConfidenceBreakdown({ speciesMatchPct, subjectClarityPct, photoQuality }: {
+  speciesMatchPct: number | null;
+  subjectClarityPct: number | null;
+  photoQuality: PhotoQuality | null;
+}) {
+  const factors = [
+    photoQuality && {
+      key: 'sharpness',
+      label: 'Photo Sharpness',
+      score: photoQuality.sharpness,
+      tooltip: 'Measured on this device from the prepared photo: how much fine leaf detail survives. Blur flattens it.',
+      tip: 'Hold steadier or move closer — soft focus hides the symptoms.',
+    },
+    photoQuality && {
+      key: 'exposure',
+      label: 'Exposure',
+      score: photoQuality.exposure,
+      tooltip: 'Measured on this device from the prepared photo: whether lighting sits in the band where leaf detail survives.',
+      tip: 'Scan in indirect daylight — harsh glare and deep shade both wash out detail.',
+    },
+    speciesMatchPct !== null && {
+      key: 'species',
+      label: 'Species Match',
+      score: speciesMatchPct,
+      tooltip: "The model's own confidence in its top identification — never an invented number.",
+      tip: 'A leaf flat to the lens with its edge visible reads more clearly to the model.',
+    },
+    subjectClarityPct !== null && {
+      key: 'clarity',
+      label: 'Symptom Clarity',
+      score: subjectClarityPct,
+      tooltip: "How clearly the model could read the specimen's visible condition — a low score means the photo doesn't show what's wrong.",
+      tip: 'Move closer so the affected area fills the frame — distant shots hide what matters.',
+    },
+  ].filter(Boolean) as { key: string; label: string; score: number; tooltip: string; tip: string }[];
+
+  if (factors.length === 0) return null;
+
+  return (
+    <details className="w-full sm:w-auto mt-2 group">
+      <summary className="min-h-[44px] inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-[#785a1a] dark:text-[#caa651] cursor-pointer list-none select-none hover:underline underline-offset-2">
+        <span aria-hidden="true" className="transition-transform group-open:rotate-90">▸</span>
+        What the needle reads
+      </summary>
+      <ul className="mt-2 space-y-2 w-full sm:w-[240px]" aria-label="Confidence factors">
+        {factors.map(f => {
+          const band = bandOf(f.score);
+          return (
+            <li key={f.key}>
+              <div className="flex items-center justify-between text-[9px] font-mono font-bold uppercase tracking-wider">
+                <span className="text-[var(--text-stone)]" title={f.tooltip}>{f.label}</span>
+                <span className={band.text} title={f.tooltip}>{f.score}% · {band.label}</span>
+              </div>
+              <div
+                className="h-1.5 mt-1 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden"
+                role="meter"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={f.score}
+                aria-label={`${f.label}: ${f.score}%`}
+              >
+                <div className={`h-full rounded-full ${band.bar}`} style={{ width: `${f.score}%` }} />
+              </div>
+              {band.label === 'low' && (
+                <p className="text-[9px] text-[var(--text-muted)] mt-0.5 leading-snug">{f.tip}</p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </details>
   );
 }
 
 export default function Clinic() {
   const { info, success, error: toastError } = useToast();
+  const navigate = useNavigate();
   // Opt-in place context: a typed city or device fix feeds the scan's
   // location-aware fields (local pests, seasonal care). Nothing requests
   // permission on mount.
   const { location, city } = useGeolocation();
   const [images, setImages] = useState<string[]>([]);
+  // On-device photo metrics for the confidence breakdown — measured per scan.
+  const [photoQuality, setPhotoQuality] = useState<PhotoQuality | null>(null);
+  const latestScanImage = images[images.length - 1];
+  useEffect(() => {
+    if (!latestScanImage) {
+      setPhotoQuality(null);
+      return;
+    }
+    let live = true;
+    measurePhotoQuality(latestScanImage).then(
+      (q) => { if (live) setPhotoQuality(q); },
+      () => { if (live) setPhotoQuality(null); },
+    );
+    return () => { live = false; };
+  }, [latestScanImage]);
   const [identification, setIdentification] = useState<PlantScanReport | null>(null);
   const [subjectNotice, setSubjectNotice] = useState<any | null>(null);
   // The provenance gate's hold on this session's reward, with the one-tap
@@ -145,6 +319,16 @@ export default function Clinic() {
   const [loading, setLoading] = useState(false);
   const [loadingPhase, setLoadingPhase] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // Recovery framing for the current error, classified once per change.
+  // The raw message stays the source of truth; this only adds the headline
+  // and the next step.
+  const scanRecovery = error ? classifyScanError(error) : null;
+
+  /** Hands the failed scan to the support chat with the details attached. */
+  const contactSupport = (recovery: ScanRecovery) => {
+    info('Support chat opened with the error details.');
+    navigate(`?query=${encodeURIComponent(supportQuery(recovery.kind, error ?? ''))}`);
+  };
   const [activeTab, setActiveTab] = useState<'diagnosis' | 'timeline' | 'differential'>('diagnosis');
   const [showDisclaimer, setShowDisclaimer] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -289,7 +473,11 @@ export default function Clinic() {
         setNotifications(prev => prev.filter(n => n.id !== rewardId));
       }, 4000);
     } catch (err: any) {
-      setError(err?.message || 'Please try again with a clearer leaf photo.');
+      // Context for debugging: which bucket the failure fell into and the
+      // server's own words — no secrets, no payloads.
+      const recovery = classifyScanError(err);
+      console.error('[clinic] diagnosis failed', { kind: recovery.kind, message: err?.message });
+      setError(err?.message || 'The diagnosis could not be completed.');
     } finally {
       setLoading(false);
     }
@@ -828,7 +1016,13 @@ export default function Clinic() {
 
                           {/* Antique Brass Balance Scale */}
                           <div className="shrink-0">
-                            <AntiqueBrassScale confidencePct={ConfidencePct} />
+                            <AntiqueBrassScale confidencePct={ConfidencePct}>
+                              <ConfidenceBreakdown
+                                speciesMatchPct={ConfidencePct}
+                                subjectClarityPct={identification?.subject?.confidencePct ?? null}
+                                photoQuality={photoQuality}
+                              />
+                            </AntiqueBrassScale>
                           </div>
                         </div>
 
@@ -919,9 +1113,32 @@ export default function Clinic() {
                                 </div>
                               )}
 
-                              {error && (
-                                <div className="p-4 rounded-xl border border-red-300 bg-red-500/10 text-red-600 text-xs font-sans">
-                                  {error}
+                              {error && scanRecovery && (
+                                <div className="p-4 rounded-xl border border-red-300 bg-red-500/10 text-red-600 text-xs font-sans space-y-1.5">
+                                  <p className="font-semibold">{scanRecovery.title}</p>
+                                  <p className="text-red-500/90">{scanRecovery.advice}</p>
+                                  {/* The real failure stays visible — the framing
+                                      above never replaces what actually happened. */}
+                                  {scanRecovery.kind === 'unknown' && (
+                                    <p className="text-red-500/70 break-words">{error}</p>
+                                  )}
+                                  <div className="flex gap-2 pt-1 flex-wrap">
+                                    <button
+                                      type="button"
+                                      onClick={() => identify(latestScanImage)}
+                                      disabled={loading || !latestScanImage}
+                                      className="min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-widest text-[10px] transition-colors disabled:opacity-50"
+                                    >
+                                      <RefreshCw size={12} /> Retry
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => contactSupport(scanRecovery)}
+                                      className="min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-red-300 hover:bg-red-500/10 text-red-600 font-black uppercase tracking-widest text-[10px] transition-colors"
+                                    >
+                                      Contact Support
+                                    </button>
+                                  </div>
                                 </div>
                               )}
                             </div>

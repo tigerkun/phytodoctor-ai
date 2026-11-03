@@ -24,6 +24,13 @@ function toFiniteNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** The plain clamp for values already known to be numbers. For anything
+ *  that arrived from a model or a form, prefer clampTo above — it handles
+ *  non-finite input instead of propagating NaN into styles. */
+export function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
+}
+
 /** Clamps a value into [min, max], substituting `fallback` if it is not finite. */
 export function clampTo(value: unknown, min: number, max: number, fallback = min): number {
   const n = toFiniteNumber(value);

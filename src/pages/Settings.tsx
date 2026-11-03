@@ -1,28 +1,28 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState } from 'react';
 import {
   Volume2,
   VolumeX,
   Vibrate,
   Bell,
+  Sprout,
   Type,
   Accessibility,
   CloudUpload as CloudUp,
   LogOut,
-  Sliders,
   ChevronLeft,
   Download,
   Share2,
   X,
   Sparkles,
-  ShieldCheck,
   Smartphone,
-  User
 } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { getTextSize, setTextSize, TEXT_SIZES, type TextSize } from '../utils/textSize';
 import { getMotionPreference, setMotionPreference, MOTION_PREFERENCES, type MotionPreference } from '../utils/motionPreference';
 import NotificationOptIn from '../components/NotificationOptIn';
+import { NotificationService, type ReminderPrefs } from '../services/notificationService';
+import { gardenerProfile, saveGardenerProfile, type GardenerProfile } from '../services/gardenDashboardService';
+import { db } from '../db/database';
 import { useToast } from '../components/Toast';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import { triggerHaptic, playAudio } from '../utils/hapticAudio';
@@ -70,6 +70,70 @@ export default function Settings() {
     setNotificationsEnabled(next);
     localStorage.setItem('botanical_notifications_enabled', String(next));
     if (hapticEnabled) triggerHaptic('light');
+  };
+
+  // Reminder rhythm (time-of-day + check-in cadence) lives in the
+  // notification service's own prefs store; the master switch above still
+  // silences everything.
+  const [reminderPrefs, setReminderPrefs] = useState(() => NotificationService.prefs());
+  const [reminderBannerPermission, setReminderBannerPermission] = useState<'granted' | 'default' | 'denied'>(
+    () => (typeof Notification !== 'undefined' ? Notification.permission : 'default'),
+  );
+
+  const handleReminderPref = (patch: Partial<ReminderPrefs>) => {
+    const next = { ...reminderPrefs, ...patch };
+    setReminderPrefs(next);
+    NotificationService.savePrefs(next);
+  };
+
+  const handleReminderPermission = async () => {
+    if (typeof Notification === 'undefined') return;
+    const permission = await Notification.requestPermission();
+    setReminderBannerPermission(permission);
+    if (permission === 'granted' && !reminderPrefs.localNotifications) {
+      handleReminderPref({ localNotifications: true });
+    }
+    if (hapticEnabled) triggerHaptic('light');
+  };
+
+  // Gardener profile + data export (Section 2.5).
+  const [gardenerProfileData, setGardenerProfileData] = useState<GardenerProfile>(() => gardenerProfile());
+  const [exporting, setExporting] = useState(false);
+
+  const handleProfileChange = (patch: Partial<GardenerProfile>) => {
+    const next = { ...gardenerProfileData, ...patch };
+    setGardenerProfileData(next);
+    saveGardenerProfile(next);
+    if (hapticEnabled) triggerHaptic('light');
+  };
+
+  const handleExportData = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      // Every object store, one JSON file — the Keeper's data is theirs to
+      // take. The photos store is excluded: raw Blobs do not serialize and
+      // would bloat the file past usefulness; everything structured ships.
+      const dump: Record<string, unknown[]> = {};
+      for (const table of db.tables) {
+        if (table.name === 'photos') continue;
+        dump[table.name] = await table.toArray();
+      }
+      const blob = new Blob(
+        [JSON.stringify({ exportedAt: new Date().toISOString(), ...dump }, null, 2)],
+        { type: 'application/json' },
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `phytodoctor-garden-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('[settings] data export failed:', err);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleTextSize = (size: TextSize) => {
@@ -267,6 +331,139 @@ export default function Settings() {
                   </div>
                 </div>
                 <NotificationOptIn />
+              </div>
+
+              {/* Reminder rhythm — when and how often the reminder engine
+                  nudges while the app is open. Toasts need no permission;
+                  browser banners additionally ask once, on demand. */}
+              <div className="p-4 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528]">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#3c6b44]/15 flex items-center justify-center text-[#3c6b44] dark:text-[#79cb91] shrink-0">
+                    <Bell size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
+                      Reminder Rhythm
+                    </h3>
+                    <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
+                      Watering, treatment &amp; check-in nudges while the garden is open
+                    </p>
+                  </div>
+                </div>
+                <div role="group" aria-label="Reminder timing" className="grid grid-cols-2 gap-2">
+                  {(['morning', 'afternoon', 'evening'] as const).map((slot) => (
+                    <button
+                      key={slot}
+                      onClick={() => handleReminderPref({ timeOfDay: slot })}
+                      aria-pressed={reminderPrefs.timeOfDay === slot}
+                      className={`min-h-11 rounded-xl border text-xs font-mono font-bold uppercase tracking-wider transition-colors ${
+                        reminderPrefs.timeOfDay === slot
+                          ? 'border-[#3d2a1c] bg-[#3d2a1c] text-[#f4e4c1] dark:border-[#c5a059] dark:bg-[#c5a059]/20 dark:text-[#f4e4c1]'
+                          : 'border-[#d8ccb8] dark:border-[#423528] text-[#5f7161] dark:text-[#b6a087] hover:border-[#c5a059]/60'
+                      }`}
+                    >
+                      {slot}
+                    </button>
+                  ))}
+                  <button
+                    onClick={handleReminderPermission}
+                    aria-pressed={reminderBannerPermission === 'granted'}
+                    className={`min-h-11 rounded-xl border text-xs font-mono font-bold uppercase tracking-wider transition-colors ${
+                      reminderBannerPermission === 'granted'
+                        ? 'border-[#3c6b44] bg-[#3c6b44]/15 text-[#3c6b44] dark:text-[#79cb91]'
+                        : 'border-[#d8ccb8] dark:border-[#423528] text-[#5f7161] dark:text-[#b6a087] hover:border-[#c5a059]/60'
+                    }`}
+                  >
+                    {reminderBannerPermission === 'granted' ? 'Banners On' : 'Allow Banners'}
+                  </button>
+                </div>
+                <div role="group" aria-label="Check-in frequency" className="grid grid-cols-3 gap-2 mt-2">
+                  {(['daily', 'every-2-days', 'weekly'] as const).map((freq) => (
+                    <button
+                      key={freq}
+                      onClick={() => handleReminderPref({ frequency: freq })}
+                      aria-pressed={reminderPrefs.frequency === freq}
+                      className={`min-h-11 rounded-xl border text-xs font-mono font-bold uppercase tracking-wider transition-colors ${
+                        reminderPrefs.frequency === freq
+                          ? 'border-[#3d2a1c] bg-[#3d2a1c] text-[#f4e4c1] dark:border-[#c5a059] dark:bg-[#c5a059]/20 dark:text-[#f4e4c1]'
+                          : 'border-[#d8ccb8] dark:border-[#423528] text-[#5f7161] dark:text-[#b6a087] hover:border-[#c5a059]/60'
+                      }`}
+                    >
+                      {freq.replace('-', ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION 2.5: GARDENER PROFILE & DATA */}
+          <section className="passport-visa-folio rounded-3xl p-6 sm:p-8 relative">
+            <div className="flex items-center gap-2 mb-6 pb-3 border-b border-[#c5a059]/30">
+              <Sprout size={18} className="text-[#c5a059]" />
+              <h2 className="font-serif text-xl font-bold text-[#2e2117] dark:text-[#fbf7ee]">
+                Gardener Profile &amp; Data
+              </h2>
+            </div>
+
+            <div className="space-y-4">
+              {/* Plant preference profile — the lens care advice is tuned
+                  through. Tailoring reads this via gardenDashboardService. */}
+              <div className="p-4 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528]">
+                <h3 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7] mb-1">
+                  Your Plant Profile
+                </h3>
+                <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087] mb-3">
+                  Shapes the advice the garden gives you
+                </p>
+                <div className="space-y-2">
+                  {([
+                    { key: 'light', label: 'Light', options: ['bright', 'moderate', 'low'] as const },
+                    { key: 'humidity', label: 'Humidity I can provide', options: ['high', 'moderate', 'dry'] as const },
+                    { key: 'space', label: 'Space', options: ['apartment', 'house', 'balcony'] as const },
+                    { key: 'skill', label: 'Experience', options: ['beginner', 'intermediate', 'expert'] as const },
+                  ] as const).map(row => (
+                    <div key={row.key} className="flex items-center gap-3 flex-wrap">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#725e4c] dark:text-[#b8a695] w-40 shrink-0">
+                        {row.label}
+                      </span>
+                      <div role="group" aria-label={row.label} className="flex flex-wrap gap-1.5 flex-1">
+                        {row.options.map(opt => (
+                          <button
+                            key={opt}
+                            onClick={() => handleProfileChange({ [row.key]: opt })}
+                            aria-pressed={gardenerProfileData[row.key] === opt}
+                            className={`min-h-9 px-3 py-1.5 rounded-lg border text-[10px] font-mono font-bold uppercase tracking-wider transition-colors ${
+                              gardenerProfileData[row.key] === opt
+                                ? 'border-[#3d2a1c] bg-[#3d2a1c] text-[#f4e4c1] dark:border-[#c5a059] dark:bg-[#c5a059]/20 dark:text-[#f4e4c1]'
+                                : 'border-[#d8ccb8] dark:border-[#423528] text-[#5f7161] dark:text-[#b6a087] hover:border-[#c5a059]/60'
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Data & privacy — see it, take it, delete it. */}
+              <div className="p-4 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528] flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
+                    Your Data
+                  </h3>
+                  <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
+                    Export every record the garden holds, as JSON
+                  </p>
+                </div>
+                <button
+                  onClick={handleExportData}
+                  className="min-h-[44px] px-4 py-2 rounded-xl border border-[#3c6b44] text-[#3c6b44] dark:text-[#79cb91] text-[10px] font-mono font-black uppercase tracking-wider hover:bg-[#3c6b44]/10 transition-colors shrink-0"
+                >
+                  {exporting ? 'Preparing…' : 'Export JSON'}
+                </button>
               </div>
             </div>
           </section>

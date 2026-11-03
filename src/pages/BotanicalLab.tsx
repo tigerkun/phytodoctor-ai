@@ -1,20 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
+import { classifyScanError, supportQuery, type ScanRecovery } from '../lib/scanRecovery';
 import { 
   Camera, 
-  Sparkles, 
-  BookOpen, 
   Heart, 
-  Sprout,
-  HelpCircle, 
   AlertTriangle, 
-  Info, 
-  UploadCloud, 
   Flame, 
   Coins, 
-  CheckCircle,
   Plus,
   RefreshCw,
   X,
@@ -26,8 +20,6 @@ import {
   History,
   Microscope,
   ArrowRight,
-  TrendingUp,
-  FileText,
   Check
 } from 'lucide-react';
 import StreakPopup from '../components/game/StreakPopup';
@@ -49,7 +41,6 @@ import { getPlantPhoto } from '../utils/plantImage';
 import PageWrapper from '../components/home/PageWrapper';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { prepareScanImage } from '../utils/imagePipeline';
-import { fetchWeather } from '../utils/weatherIntegration';
 import { updateUploadStreak } from '../game/rewardUtils';
 import { useToast } from '../components/Toast';
 import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
@@ -146,7 +137,8 @@ function ProvenanceBadge({ provenance }: { provenance: any }) {
 
 
 export default function BotanicalLab() {
-  const { success, error } = useToast();
+  const { success, error, info } = useToast();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab: 'dex' | 'sanctuary' | 'pathology' | 'history' =
     searchParams.get('tab') === 'sanctuary' ? 'sanctuary'
@@ -171,6 +163,21 @@ export default function BotanicalLab() {
   const [dexImage, setDexImage] = useState<string | null>(null);
   const [dexResult, setDexResult] = useState<any | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  // The dex scan gets its own error lane. scanError is shared with the
+  // sanctuary photo-update flow; without this split an update failure would
+  // render on the dex tab as "Scan Failed" with a Try Again that re-runs the
+  // wrong flow.
+  const [dexScanError, setDexScanError] = useState<string | null>(null);
+  // Recovery framing for the current dex failure — headline + next step from
+  // the shared classifier. The raw message stays the source of truth.
+  const dexScanRecovery = dexScanError ? classifyScanError(dexScanError) : null;
+  const scanRecovery = scanError ? classifyScanError(scanError) : null;
+
+  /** Hands the failed scan to the support chat with the details attached. */
+  const contactSupport = (recovery: ScanRecovery, rawMessage: string) => {
+    info('Support chat opened with the error details.');
+    navigate(`?query=${encodeURIComponent(supportQuery(recovery.kind, rawMessage))}`);
+  };
   const [isNewSpecies, setIsNewSpecies] = useState(false);
   const [discoveryBonus, setDiscoveryBonus] = useState(0);
   const [scannedRewards, setScannedRewards] = useState<{ seeds: number; xp: number } | null>(null);
@@ -296,6 +303,7 @@ export default function BotanicalLab() {
     setGuestHoldout(false);
     clearPendingScan();
     setScanError(null);
+    setDexScanError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -452,6 +460,40 @@ export default function BotanicalLab() {
     }
   };
 
+  // Identify + mode-dispatch over an already-prepared image. Kept at component
+  // scope so a failed scan can be retried on the same photo instead of making
+  // the Keeper pick the file again.
+  const runIdentifyOnPrepared = async (base64: string) => {
+    try {
+      let locationCtx: any;
+      if (location?.latitude && location?.longitude) {
+          locationCtx = { city, latitude: location.latitude, longitude: location.longitude };
+      } else if (city) {
+          locationCtx = { city };
+      }
+
+      setScanStage('identifying');
+      const result = await identifyPlant(base64, locationCtx);
+      setDexResult(result);
+
+      if (scanMode === 'index') {
+        await handleIndexSpecimen(result, base64);
+      }
+    } catch (err: any) {
+      // Context for debugging: which recovery bucket the failure fell into
+      // and the server's own words — no secrets, no payloads.
+      const recovery = classifyScanError(err);
+      console.error('[lab] identify failed', { kind: recovery.kind, message: err?.message });
+      // The prepared photo stays mounted: a transient failure (network,
+      // rate limit, slow model) should not cost the Keeper their shot. The
+      // retry button re-runs this exact flow on the same image.
+      setDexScanError(err.message || 'Failed to identify plant.');
+    } finally {
+      setUploading(false);
+      setScanStage('idle');
+    }
+  };
+
   const handleDexUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -475,38 +517,28 @@ export default function BotanicalLab() {
         const prepared = await prepareScanImage(file);
         base64 = prepared.dataUrl;
       } catch {
-        setScanError("Failed to read the selected photo file.");
+        setDexScanError("Failed to read the selected photo file.");
         setUploading(false);
         setScanStage('idle');
         return;
       }
       setDexImage(base64);
-
-      try {
-        let locationCtx: any;
-        if (location?.latitude && location?.longitude) {
-            locationCtx = { city, latitude: location.latitude, longitude: location.longitude };
-        } else if (city) {
-            locationCtx = { city };
-        }
-
-        setScanStage('identifying');
-        const result = await identifyPlant(base64, locationCtx);
-        setDexResult(result);
-
-        if (scanMode === 'index') {
-          await handleIndexSpecimen(result, base64);
-        }
-      } catch (err: any) {
-        console.error('Scan Error:', err);
-        setScanError(err.message || 'Failed to identify plant.');
-        setDexImage(null);
-      } finally {
-        setUploading(false);
-        setScanStage('idle');
-      }
+      await runIdentifyOnPrepared(base64);
     };
     void runScan();
+  };
+
+  // Retry the scan on the photo that already failed — no re-pick, no re-read.
+  const retryDexScan = () => {
+    if (!dexImage) {
+      resetDexScan(true);
+      return;
+    }
+    setDexScanError(null);
+    setUploading(true);
+    setScanStage('reading');
+    scanStartRef.current = Date.now();
+    void runIdentifyOnPrepared(dexImage);
   };
 
   const handleUpdateFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -638,6 +670,9 @@ export default function BotanicalLab() {
           driftScore,
           driftStatus,
           weatherTemp: result?.report?.weather?.temp ?? null,
+          // Imagga's auxiliary read rides with the check-in: symptom hints
+          // and growth stage become comparable history over time.
+          imaggaInsights: result?.imaggaInsights ?? null,
           weatherHumidity: result?.report?.weather?.humidity ?? null,
           weatherDescription: result?.report?.weather?.condition ?? null,
           synced: 0
@@ -823,7 +858,7 @@ export default function BotanicalLab() {
               </div>
 
               <AnimatePresence mode="wait">
-                {!dexImage && !scanError && (
+                {!dexImage && !dexScanError && (
                   <motion.div
                     key="camera-dropzone"
                     initial={{ opacity: 0, scale: 0.98 }}
@@ -890,7 +925,7 @@ export default function BotanicalLab() {
                       <motion.div
                         whileHover={{ scale: 1.04 }}
                         whileTap={{ scale: 0.97 }}
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={() => { if (!uploading) fileInputRef.current?.click(); }}
                         className="w-40 h-40 sm:w-48 sm:h-48 rounded-full brass-eyepiece cursor-pointer relative flex items-center justify-center p-2 group transition-shadow duration-300"
                         role="button"
                         tabIndex={0}
@@ -1003,7 +1038,8 @@ export default function BotanicalLab() {
 
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-6 sm:px-8 py-3 sm:py-3.5 min-h-[44px] bg-moss-deep hover:bg-moss text-white font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 duration-200 font-mono flex items-center justify-center gap-2"
+                      disabled={uploading}
+                      className="px-6 sm:px-8 py-3 sm:py-3.5 min-h-[44px] bg-moss-deep hover:bg-moss text-white font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 duration-200 font-mono flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {scanMode === 'consult' ? '🔬 Open Optical Aperture' : '📚 Load Specimen Slide'}
                     </button>
@@ -1011,7 +1047,7 @@ export default function BotanicalLab() {
                 )}
 
               {/* ── SCAN ERROR ── */}
-              {scanError && !dexImage && (
+              {dexScanError && (
                 <motion.div
                   key="scan-error"
                   initial={{ opacity: 0, scale: 0.97 }}
@@ -1019,23 +1055,60 @@ export default function BotanicalLab() {
                   exit={{ opacity: 0, scale: 0.97 }}
                   className="flex flex-col items-center gap-4 text-center w-full max-w-sm relative z-10"
                 >
-                  <div className="flex items-center gap-3 w-full px-4 py-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-left">
-                    <span className="text-lg shrink-0">🌿</span>
+                  <div className="flex items-start gap-3 w-full px-4 py-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-left">
+                    <span className="text-lg shrink-0" aria-hidden="true">🌿</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-rose-400">Scan Failed</p>
-                      <p className="text-[11px] text-text-stone truncate">Could not analyse plant — please try again</p>
+                      <p className="text-xs font-bold text-rose-400">{dexScanRecovery?.title ?? 'Scan Failed'}</p>
+                      {/* The real failure, not a stand-in: "connection timed out"
+                          and "too many scans" want different responses, so the
+                          Keeper hears the actual reason. The classified advice
+                          line sits under it, never over it. */}
+                      <p className="text-[11px] text-text-stone mt-0.5 break-words">{dexScanError}</p>
+                      {dexScanRecovery && dexScanRecovery.kind !== 'unknown' && (
+                        <p className="text-[11px] text-rose-400/90 mt-1">{dexScanRecovery.advice}</p>
+                      )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => resetDexScan(true)}
-                    className="min-h-[44px] inline-flex items-center justify-center px-6 py-2.5 bg-moss-deep hover:bg-moss text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition-all active:scale-95"
+                  <div className="flex items-center gap-2.5 flex-wrap justify-center">
+                    {/* Retry keeps the mounted photo when there is one; with no
+                        photo left it falls through to opening the picker. */}
+                    <button
+                      onClick={retryDexScan}
+                      className="min-h-[44px] inline-flex items-center justify-center px-6 py-2.5 bg-moss-deep hover:bg-moss text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition-all active:scale-95"
+                    >
+                      🔄 Try Again
+                    </button>
+                    {dexScanRecovery && (
+                      <button
+                        onClick={() => contactSupport(dexScanRecovery, dexScanError ?? '')}
+                        className="min-h-[44px] inline-flex items-center justify-center px-4 py-2.5 border border-rose-500/30 hover:bg-rose-500/10 text-rose-500 font-black uppercase tracking-widest text-[10px] rounded-xl transition-colors"
+                      >
+                        Contact Support
+                      </button>
+                    )}
+                    {dexImage && (
+                      <button
+                        onClick={() => resetDexScan(true)}
+                        className="min-h-[44px] inline-flex items-center justify-center px-5 py-2.5 border border-[#3d6b4a]/40 text-moss-deep dark:text-[#8fb58f] font-bold uppercase tracking-widest text-xs rounded-xl transition-all active:scale-95 hover:bg-moss/10"
+                      >
+                        📷 New Photo
+                      </button>
+                    )}
+                  </div>
+                  <Link
+                    to="/help"
+                    className="min-h-[44px] inline-flex items-center text-[11px] font-semibold text-text-muted hover:text-text-bark dark:text-[#7e8d76] dark:hover:text-[#faf7f2] underline underline-offset-2 transition-colors"
                   >
-                    🔄 Try Again
-                  </button>
+                    Stuck? Read the scanning guide
+                  </Link>
                 </motion.div>
               )}
 
-              {dexImage && (
+              {/* The photo stays in state across a failure (the retry reuses
+                  it), but the analysis board must not render alongside the
+                  error — its stand-in copy ("Healthy", "Identifying...") read
+                  as a real diagnosis next to "Scan Failed". */}
+              {dexImage && !dexScanError && (
                   <motion.div
                     key="analysis-preview"
                     initial={{ opacity: 0, y: 15 }}
@@ -1058,8 +1131,26 @@ export default function BotanicalLab() {
                           {scanElapsed}s elapsed · this can take a minute on a first scan
                         </p>
 
-                        {/* The stages that belong to this mode, ticked as they complete. */}
-                        <ol className="mt-6 w-full max-w-xs space-y-2">
+                        {/* The stages that belong to this mode, ticked as they complete.
+                            Exposed as a real progressbar so a screen reader hears
+                            how far the scan has walked, and a polite live region
+                            names each stage as it becomes active. */}
+                        <div
+                          role="progressbar"
+                          aria-label="Scan progress"
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={(() => {
+                            const visible = SCAN_STAGES.filter(s => scanMode === 'index' || (s.id !== 'uploading' && s.id !== 'saving' && s.id !== 'rewarding'));
+                            const done = visible.filter(s => SCAN_STAGE_ORDER.indexOf(s.id) < SCAN_STAGE_ORDER.indexOf(scanStage)).length;
+                            return Math.round((done / Math.max(visible.length, 1)) * 100);
+                          })()}
+                          className="mt-6 w-full max-w-xs"
+                        >
+                          <p aria-live="polite" className="sr-only">
+                            {SCAN_STAGES.find(s => s.id === scanStage)?.label}
+                          </p>
+                          <ol className="space-y-2">
                           {SCAN_STAGES
                             .filter(s => scanMode === 'index' || (s.id !== 'uploading' && s.id !== 'saving' && s.id !== 'rewarding'))
                             .map(s => {
@@ -1087,7 +1178,8 @@ export default function BotanicalLab() {
                                 </li>
                               );
                             })}
-                        </ol>
+                          </ol>
+                        </div>
                       </div>
                     )}
 
@@ -1407,7 +1499,12 @@ export default function BotanicalLab() {
               <div className="flex items-center justify-between p-4 rounded-2xl bg-rose-500/10 border border-rose-500/25 text-rose-700 dark:text-rose-300">
                 <div className="flex items-center gap-2.5">
                   <AlertTriangle size={18} className="text-rose-500 shrink-0" />
-                  <p className="text-xs font-semibold font-sans">{scanError}</p>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold font-sans">{scanError}</p>
+                    {scanRecovery && scanRecovery.kind !== 'unknown' && (
+                      <p className="text-[11px] text-rose-500/80 mt-0.5">{scanRecovery.advice}</p>
+                    )}
+                  </div>
                 </div>
                 <button
                   onClick={() => setScanError(null)}
@@ -1429,18 +1526,7 @@ export default function BotanicalLab() {
                 const moistureLabel = latest?.soilMoisture || (isActive ? 'Moist' : 'Dry');
                 const moisturePct = moistureLabel === 'Wet' ? '88%' : moistureLabel === 'Dry' ? '18%' : '58%';
 
-                // Color mapping for health scores
-                let healthColor = 'text-moss';
-                let healthBg = 'bg-moss/10';
-                if (healthScore < 50) {
-                  healthColor = 'text-terracotta';
-                  healthBg = 'bg-terracotta/10';
-                } else if (healthScore < 70) {
-                  healthColor = 'text-gold';
-                  healthBg = 'bg-gold/10';
-                }
-
-                return (
+                                return (
                   <motion.div
                     key={plant.id}
                     layoutId={`plant-card-${plant.id}`}
@@ -1754,13 +1840,17 @@ export default function BotanicalLab() {
         />
       )}
 
-      {/* Hidden file inputs for camera snapshots, uploads, and photo updates */}
+      {/* Hidden file inputs for camera snapshots, uploads, and photo updates.
+          Disabled while a scan is in flight: the brief prepare window before
+          the image mounts is where a second pick used to start a concurrent
+          scan (identifyPlant now also single-flights as a backstop). */}
       <input
         type="file"
         ref={fileInputRef}
         onChange={handleDexUpload}
         accept="image/*"
         className="hidden"
+        disabled={uploading}
       />
       <input
         type="file"

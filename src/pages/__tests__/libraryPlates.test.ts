@@ -25,7 +25,10 @@ describe('Library folio plates', () => {
   it('toggles the tapped plate closed again', () => {
     // Without the `k === key ? null` arm, opening a second plate leaves the
     // first one open too and the page silently grows back.
-    expect(library).toContain('setOpenPlate(k => (k === key ? null : key))');
+    // The toggle moved into togglePlate(); the null-arm invariant holds:
+    // opening one plate closes whichever was open.
+    expect(library).toContain('const opening = openPlate !== key;');
+    expect(library).toContain('setOpenPlate(opening ? key : null);');
   });
 
   it('gives each plate a single identified toggle', () => {

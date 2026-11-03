@@ -273,7 +273,7 @@ describe('imaggaClient', () => {
       const serverCode = fs.readFileSync(path.resolve(process.cwd(), 'server.ts'), 'utf8');
 
       // Import contract
-      expect(serverCode).toContain('import { assessImageWithImagga, imaggaStatus } from "./src/lib/imaggaClient";');
+      expect(serverCode).toContain('import { assessImageWithImagga, imaggaStatus, interpretImaggaTags } from "./src/lib/imaggaClient";');
 
       // Execution contract before Gemini call
       expect(serverCode).toMatch(/const imagga = await assessImageWithImagga\(base64Data, mimeType\);/);

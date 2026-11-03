@@ -1,5 +1,4 @@
-import { motion } from 'framer-motion';
-import { Sparkles, Pencil, Droplets, Thermometer, Sprout, Flame, Plus, AlertCircle, ShoppingBag, CloudSun, Lightbulb } from 'lucide-react';
+import { Sparkles, Pencil, Droplets, Thermometer, Sprout, Flame, Plus } from 'lucide-react';
 
 interface HeroSectionProps {
   today: {

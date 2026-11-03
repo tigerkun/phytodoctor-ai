@@ -89,10 +89,6 @@ export function _resetLibraryDailyCacheForTests(): void {
   inflight = null;
 }
 
-function serveCached(stale: boolean): LibraryDailyPayload {
-  if (!cache) return emptyPayload(stale);
-  return stale ? { ...cache.payload, newsStale: true, quiz: null } : cache.payload;
-}
 
 function emptyPayload(stale: boolean): LibraryDailyPayload {
   return {

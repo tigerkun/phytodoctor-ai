@@ -11,25 +11,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GameService } from '../gameService';
 import { db } from '../../db/database';
 
-// Dexie WhereClause chain: .where('field').equals(val).first()
-function whereEquals(result: unknown) {
-  return { where: () => ({ equals: () => ({ first: async () => result }) }) };
-}
-
-// Dexie collection chain: .where('field').toArray() and .where('field').equals(val).count()
-function whereToArray(rows: unknown[]) {
-  return {
-    where: () => ({
-      equals: () => ({
-        first: async () => rows[0] ?? null,
-        toArray: async () => rows,
-        count: async () => rows.length,
-        modify: async (fn: (x: unknown) => void) => { rows.forEach(fn); return rows.length; }
-      })
-    })
-  };
-}
-
 // Minimal factory helpers — only the fields updateCardFromCheckIn reads
 function makeCard(overrides: Record<string, unknown> = {}) {
   return {

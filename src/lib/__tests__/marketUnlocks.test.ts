@@ -145,9 +145,7 @@ describe('the vouchers are a single source of truth', () => {
     expect(market).not.toMatch(/seedCost:\s*(300|900)\b/);
   });
 
-  it('the rulebook and the shop render the same array', () => {
-    const rulebook = readSource('src/components/game/RuleBook.tsx');
-    expect(rulebook).toMatch(/VOUCHERS\.map/);
+  it('the shop renders the shared voucher array, not a private copy', () => {
     expect(market).toMatch(/TICKETS_FOR_SALE/);
   });
 

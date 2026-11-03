@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Calendar, ShieldCheck, Activity, AlertCircle, Droplets, Sun, TrendingUp, Box, Camera, Clock, Star, Sprout, Crown, Zap, Plus, Loader2, Book, Bookmark, Send, Share2, Microscope } from 'lucide-react';
+import { ChevronLeft, Calendar, ShieldCheck, Activity, AlertCircle, Droplets, Sun, TrendingUp, TrendingDown, Minus, Box, Camera, Clock, Sprout, Crown, Zap, Plus, Loader2, Book, Send, Share2, Microscope } from 'lucide-react';
 import { db, type PlantNote } from '../db/database';
 import { useAppBack } from '../hooks/useAppBack';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -9,6 +9,8 @@ import GuardianScoreRing from '../components/GuardianScoreRing';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { GameService } from '../services/gameService';
 import { PlantService, onPlantsChange } from '../services/plantService';
+import { RECOVERY_MILESTONES, type RecoveryMilestoneKind } from '../services/rewardService';
+import { ExternalLink, BookOpen } from 'lucide-react';
 import type { Plant } from '../types';
 import { getPlantPhoto } from '../utils/plantImage';
 import PageWrapper from '../components/home/PageWrapper';
@@ -70,6 +72,41 @@ export default function PlantDetail() {
   const [forecastLoading, setForecastLoading] = useState(false);
 
   const [plant, setPlant] = useState<Plant | undefined>();
+  // Field guides (SerpApi, fetched on demand — never on mount). The server
+  // shares one fetch per species per week; the client caches its copy for
+  // the same window so repeat visits cost nothing at all.
+  const [careGuides, setCareGuides] = useState<{ title: string; source: string; url: string; summary: string }[] | null>(null);
+  const [careGuideNote, setCareGuideNote] = useState<string | null>(null);
+  const [careGuideLoading, setCareGuideLoading] = useState(false);
+
+  const loadCareGuide = async () => {
+    if (!plant?.species || careGuideLoading) return;
+    const key = `phyto_care_guide_${plant.species.toLowerCase().trim()}`;
+    try {
+      const cachedRaw = sessionStorage.getItem(key);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw) as { at: number; guides: typeof careGuides; note: string | null };
+        if (Date.now() - cached.at < 7 * 86_400_000 && cached.guides) {
+          setCareGuides(cached.guides);
+          setCareGuideNote(cached.note);
+          return;
+        }
+      }
+    } catch { /* private mode — fetch live */ }
+    setCareGuideLoading(true);
+    try {
+      const res = await fetch(`/api/library/care-guide?species=${encodeURIComponent(plant.species)}`);
+      const data = await res.json();
+      setCareGuides(data.guides ?? []);
+      setCareGuideNote(data.note ?? null);
+      try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), guides: data.guides ?? [], note: data.note ?? null })); } catch { /* noop */ }
+    } catch (err) {
+      console.error('[PlantDetail] care guide fetch failed:', err);
+      setCareGuideNote('Care-guide lookup failed.');
+    } finally {
+      setCareGuideLoading(false);
+    }
+  };
   const [plantLoading, setPlantLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
   // The daily check-in. This flow was fully built (real HSV drift analysis
@@ -370,14 +407,10 @@ const children = lineage?.filter(candidate => candidate.parentPlantId === plant?
     setWateringLogging(true);
     try {
       const now = new Date();
-      const nextDue = new Date(now.getTime() + wateringInterval * 86_400_000);
       const newScore = vitalityAfterWatering(plant.guardianScore);
-      await PlantService.updatePlant(id, {
-        lastWateredAt: now,
-        nextWaterDue: nextDue,
+      await PlantService.waterPlant(id, now, wateringInterval, {
         guardianScore: newScore,
         checkInTime: 'just now',
-        updatedAt: now,
       });
       await db.checkins.add({
         id: crypto.randomUUID(),
@@ -784,6 +817,131 @@ const children = lineage?.filter(candidate => candidate.parentPlantId === plant?
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
+
+                    {/* Recovery milestones — the once-per-plant celebrations
+                        the check-in flow recorded, shown against the curve
+                        they were earned on. */}
+                    {plant?.milestoneLog && plant.milestoneLog.length > 0 && (
+                      <div className="mt-4 p-4 rounded-2xl bg-[#f4f9f2] dark:bg-[#22301f] border border-[#d7e4d2] dark:border-[#3a4d36]">
+                        <div className="flex items-center justify-between border-b border-[#e4d7c3] dark:border-[#3a4d36] pb-2 mb-3">
+                          <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">Recovery Milestones</h4>
+                          <span className="text-[9px] font-mono uppercase tracking-widest text-[#8c765c] dark:text-[#b6a087]">
+                            Earned once · kept forever
+                          </span>
+                        </div>
+                        <ul className="flex flex-wrap gap-2">
+                          {plant.milestoneLog.map((m, i) => {
+                            const meta = RECOVERY_MILESTONES[m.kind as RecoveryMilestoneKind];
+                            return (
+                              <li
+                                key={`${m.kind}-${m.at}-${i}`}
+                                title={meta ? `Badge: ${meta.badge}` : m.kind}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/80 dark:bg-[#2b3a28] border border-[#dcd0bd] dark:border-[#4a5d46] text-[10px] font-mono font-bold text-[#2e2117] dark:text-[#e8dcc8]"
+                              >
+                                <span aria-hidden="true">{meta?.emoji ?? '🏅'}</span>
+                                <span>{meta?.badge ?? m.kind}</span>
+                                <span className="text-[#8c765c] dark:text-[#b6a087]">
+                                  {new Date(m.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Field guides — real horticulture sources for this
+                        species, fetched on demand (one shared SerpApi call
+                        per species per week, served from the server cache). */}
+                    {plant?.species && (
+                      <div className="p-4 rounded-2xl bg-white/60 dark:bg-[#251d16] border border-[#dcd0bd]">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <BookOpen size={14} className="text-[#c5a059]" aria-hidden="true" />
+                            <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
+                              Field Guides — {plant.species}
+                            </h4>
+                          </div>
+                          {!careGuides && (
+                            <button
+                              type="button"
+                              onClick={() => { void loadCareGuide(); }}
+                              disabled={careGuideLoading}
+                              className="min-h-[36px] px-4 py-1.5 rounded-lg border border-[#c5a059]/50 text-[10px] font-mono font-black uppercase tracking-wider text-[#7a602f] dark:text-[#d4af37] hover:bg-[#c5a059]/10 transition-colors disabled:opacity-50"
+                            >
+                              {careGuideLoading ? 'Consulting the archive…' : 'Load field guides'}
+                            </button>
+                          )}
+                        </div>
+                        {careGuideNote && (
+                          <p className="text-[10px] font-mono text-[#8c765c] mt-2">{careGuideNote}</p>
+                        )}
+                        {careGuides && careGuides.length > 0 && (
+                          <ul className="mt-3 space-y-2">
+                            {careGuides.map((g, i) => (
+                              <li key={`${g.url}-${i}`} className="text-xs">
+                                <a
+                                  href={g.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-semibold text-[#2d6a4f] dark:text-[#95d5b2] hover:underline inline-flex items-center gap-1"
+                                >
+                                  {g.title} <ExternalLink size={10} aria-hidden="true" />
+                                </a>
+                                <span className="text-[10px] font-mono text-[#8c765c] ml-2">{g.source}</span>
+                                {g.summary && <p className="text-[11px] text-text-stone leading-snug mt-0.5">{g.summary}</p>}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Session deltas — the same telemetry as the chart, one
+                        row per check-in, with the change against the previous
+                        reading. Four vitality bands, the same thresholds the
+                        care engine uses (80 / 60 / 40). */}
+                    {history && history.length > 1 && (
+                      <div className="mt-4 p-4 rounded-2xl bg-white/60 border border-[#dcd0bd]">
+                        <div className="flex items-center justify-between border-b border-[#e4d7c3] pb-2 mb-3">
+                          <h4 className="font-serif font-bold text-sm text-[#2e2117]">Session Deltas</h4>
+                          <span className="text-[9px] font-mono uppercase tracking-widest text-[#8c765c]">
+                            Newest first · Δ vs previous reading
+                          </span>
+                        </div>
+                        <ol className="space-y-1.5">
+                          {history.slice().reverse().slice(0, 8).map((h, idx, arr) => {
+                            const prevScore = arr[idx + 1]?.guardianScore;
+                            const delta = typeof prevScore === 'number' ? h.guardianScore - prevScore : null;
+                            const band = h.guardianScore >= 80
+                              ? { label: 'Thriving', cls: 'text-[#3D7651] bg-[#5A9E5A]/10 border-[#5A9E5A]/30' }
+                              : h.guardianScore >= 60
+                              ? { label: 'Fair', cls: 'text-[#7a602f] bg-[#D4A843]/10 border-[#D4A843]/30' }
+                              : h.guardianScore >= 40
+                              ? { label: 'Needs Care', cls: 'text-[#8a4520] bg-[#C4704B]/10 border-[#C4704B]/30' }
+                              : { label: 'Critical', cls: 'text-[#8f2f26] bg-[#B4473C]/10 border-[#B4473C]/30' };
+                            return (
+                              <li key={h.id ?? idx} className="flex items-center gap-2.5 text-[11px] font-sans">
+                                <span className="w-16 shrink-0 font-mono text-[#7a6855]">
+                                  {new Date(h.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                </span>
+                                <span className={`px-1.5 py-0.5 rounded border text-[9px] font-mono font-bold uppercase tracking-wider ${band.cls}`}>
+                                  {h.guardianScore} · {band.label}
+                                </span>
+                                {delta !== null && (
+                                  <span className={`ml-auto inline-flex items-center gap-1 font-mono font-bold ${
+                                    delta > 0 ? 'text-[#3D7651]' : delta < 0 ? 'text-[#B4473C]' : 'text-[#7a6855]'
+                                  }`}>
+                                    {delta > 0 ? <TrendingUp size={11} /> : delta < 0 ? <TrendingDown size={11} /> : <Minus size={11} />}
+                                    {delta > 0 ? `+${delta}` : delta}
+                                  </span>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      </div>
+                    )}
 
                     {/* Scheduled Hydration Cadence & Care Task */}
                     <div className="p-4 sm:p-5 rounded-2xl bg-black/5 border border-[#c5a059]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6">

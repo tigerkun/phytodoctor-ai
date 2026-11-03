@@ -1,6 +1,6 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { Leaf, Shield, Swords, Bell, Camera, Upload, ArrowRight, CheckCircle2, AlertTriangle, Sparkles, Lock, ShieldCheck, HeartHandshake, RefreshCw } from 'lucide-react';
+import { Leaf, Shield, Swords, Bell, Camera, Upload, ArrowRight, CheckCircle2, AlertTriangle, Sparkles, Lock, ShieldCheck, HeartHandshake } from 'lucide-react';
 import { prepareScanImage } from '../../utils/imagePipeline';
 import { identifyPlant, type IdentifyResult } from '../../services/geminiService';
 import { rememberAuthReturn, stashPendingScan } from '../../lib/guestHandoff';

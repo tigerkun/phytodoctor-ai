@@ -228,7 +228,7 @@ export default function VaultPage() {
           </p>
 
           <ol className="mt-8 grid grid-cols-3 gap-3" role="tablist" aria-label="Herbarium workflow drawers">
-            {STEPS.map((s, i) => {
+            {STEPS.map((s) => {
               const active = step === s.id;
               const done = (s.id === 'species' && !!dossier) || (s.id === 'site' && !!site && step === 'report');
               const isNavigable = s.id === 'species' || (s.id === 'site' && !!dossier) || (s.id === 'report' && !!report);

@@ -1,18 +1,15 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Calendar,
   CheckCircle2,
   Clock,
   Sparkles,
   HeartPulse,
-  ChevronRight,
   ListOrdered,
   Layers,
   Edit3,
   Save,
   Check,
-  AlertCircle
 } from 'lucide-react';
 import { useEcoMode } from '../../hooks/useEcoMode';
 import {
@@ -49,7 +46,6 @@ export default function RecoveryRoadmapWidget({
   species = 'Botanical Specimen',
   diagnosis = 'General Recovery Regimen',
   initialGuardianScore = 75,
-  compact = false,
   className = '',
   onActionToggled,
 }: RecoveryRoadmapWidgetProps) {

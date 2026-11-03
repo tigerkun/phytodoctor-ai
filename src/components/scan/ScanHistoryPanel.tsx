@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { History, ChevronDown, RefreshCw, Info, BookOpen } from 'lucide-react';
 import { fetchScanHistory, type ScanHistoryItem } from '../../services/scanHistoryService';
 import { type PlantScanReport } from '../../services/geminiService';
@@ -39,7 +39,6 @@ function formatDate(iso: string): string {
 export function ScanHistoryPanel({ isAuthed, onSignIn, onIndexPlant }: ScanHistoryPanelProps) {
   const [items, setItems] = useState<ScanHistoryItem[]>([]);
   const [total, setTotal] = useState(0);
-  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
@@ -55,7 +54,6 @@ export function ScanHistoryPanel({ isAuthed, onSignIn, onIndexPlant }: ScanHisto
       const page = await fetchScanHistory(PAGE_SIZE, nextOffset);
       setUnavailable(Boolean(page.unavailable));
       setTotal(page.total);
-      setOffset(nextOffset);
       setItems(prev => (append ? [...prev, ...page.items] : page.items));
     } catch (err: any) {
       if (err?.message === 'SIGN_IN_REQUIRED') {

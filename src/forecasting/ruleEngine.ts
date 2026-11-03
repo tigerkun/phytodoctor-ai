@@ -1,6 +1,6 @@
 import type { Plant, CheckIn, SensorReading } from '../db/database';
 import type { WeatherData } from '../services/weatherService';
-import { SPECIES_PROFILES, type SpeciesProfile } from './speciesProfiles';
+import { SPECIES_PROFILES, } from './speciesProfiles';
 import { TelemetryService } from '../services/telemetryService';
 
 export interface ForecastInput {
@@ -37,7 +37,6 @@ export function calculateRiskScore(input: ForecastInput): ForecastResult {
     const recentCheckIns = checkIns.slice(-7);
     const lowLightCount = recentCheckIns.filter(c => c.lightLevel === 'Low').length;
     const directLightCount = recentCheckIns.filter(c => c.lightLevel === 'Direct').length;
-    const indirectLightCount = recentCheckIns.filter(c => c.lightLevel === 'Indirect').length;
     
     // Profile values are lowercase, check-in values are Capitalized
     const optimalLight = profile.optimalLight.charAt(0).toUpperCase() + profile.optimalLight.slice(1);

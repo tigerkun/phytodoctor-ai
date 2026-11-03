@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import { Droplets } from 'lucide-react';
 import { getPlantPhoto } from '../utils/plantImage';

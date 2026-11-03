@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
-import { Stethoscope, ShoppingBasket, Thermometer, CloudRain, Lightbulb, Sprout, Droplets, ArrowRight } from 'lucide-react';
-import { useDayNightTheme } from '@/hooks/useDayNightTheme';
+import { Stethoscope, ShoppingBasket, Thermometer, Lightbulb, Sprout, ArrowRight } from 'lucide-react';
 import { useEcoMode } from '@/hooks/useEcoMode';
 import { triggerHaptic, playAudio } from '@/utils/hapticAudio';
 import { GameService } from '@/services/gameService';
@@ -31,14 +30,12 @@ interface DynamicPlan {
   steps: { text: string; done: boolean }[];
 }
 
-// ── Care-plan progress + coach shelf persistence ────────────────────────────
-// Both live in localStorage rather than component state, because state dies
+// ── Care-plan progress persistence ────────────────────────────
+// Lives in localStorage rather than component state, because state dies
 // with the component: the plan used to re-arm every step (and its seed reward)
-// whenever the Keeper left the dashboard and came back, and a purchased supply
-// vanished from existence the moment the toast faded.
+// whenever the Keeper left the dashboard and came back.
 
 const PLAN_CLAIMS_KEY = 'phyto_plan_claims';
-const COACH_SHELF_KEY = 'phyto_coach_shelf';
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -69,14 +66,6 @@ function persistClaimedTexts(plantId: unknown, texts: string[]): void {
   } catch {
     // Storage blocked: the reward still pays, it just stays re-claimable
     // until the session shapes up — the same degradation as guest quotas.
-  }
-}
-
-function readShelf(): Record<string, number> {
-  try {
-    return JSON.parse(localStorage.getItem(COACH_SHELF_KEY) || '{}');
-  } catch {
-    return {};
   }
 }
 
@@ -159,8 +148,7 @@ const getDynamicPlan = (plant: any): DynamicPlan => {
   return { statusText, confidence, seedsReward, steps };
 };
 
-export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile }: GardenCoachProps) {
-  const { theme } = useDayNightTheme();
+export function GardenCoach({ selectedPlant, weather, onRefreshProfile }: GardenCoachProps) {
   const { shouldDisableAnimations } = useEcoMode();
   const { transitionTo } = usePageTransition();
   const toast = useToast();
@@ -188,10 +176,6 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
     { id: 'moss_pole', name: 'Sphagnum Moss Pole', cost: 150 },
     { id: 'pot_self', name: 'Self-Watering Ceramic Pot', cost: 300 }
   ];
-
-  // The coach's own supply shelf, persisted so a purchase is a thing the
-  // Keeper owns rather than a toast that fades.
-  const [shelf, setShelf] = useState<Record<string, number>>(readShelf);
 
   // Card 4: Trivia state
   const [triviaIdx, setTriviaIdx] = useState(0);
@@ -244,37 +228,6 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
     const baseReward = Math.ceil(activePlan.seedsReward / activePlan.steps.length);
     await GameService.earnSeeds(claimable.length * baseReward, 'bonus', `Completed all tasks for ${selectedPlant?.nickname || 'plant'}`);
     onRefreshProfile();
-  };
-
-  const handlePurchase = async (itemId: string, cost: number, itemName: string) => {
-    if (!profile) return;
-
-    if (profile.seeds < cost) {
-      triggerHaptic('heavy');
-      toast.error(`Not enough seeds`, `You need ${cost - profile.seeds} more seeds for this.`);
-      return;
-    }
-
-    try {
-      // Grant first, deduct second: a failed seed spend rolls the shelf back,
-      // whereas the other order could eat seeds and leave nothing behind.
-      const owned = { ...readShelf(), [itemId]: (readShelf()[itemId] || 0) + 1 };
-      localStorage.setItem(COACH_SHELF_KEY, JSON.stringify(owned));
-      try {
-        await GameService.spendSeeds(cost, 'spend', `Purchased ${itemName} from coach`);
-      } catch (spendErr) {
-        localStorage.setItem(COACH_SHELF_KEY, JSON.stringify(readShelf()));
-        throw spendErr;
-      }
-      setShelf(owned);
-      triggerHaptic('medium');
-      playAudio('success');
-      onRefreshProfile();
-      toast.reward(`${itemName} purchased!`, `Added to your shelf — you now own ${owned[itemId]}.`);
-    } catch (err) {
-      console.error(err);
-      toast.error('Purchase failed', (err as Error)?.message || 'Your seeds were not spent. Please try again.');
-    }
   };
 
   const rotateTrivia = () => {
@@ -444,13 +397,6 @@ export function GardenCoach({ profile, selectedPlant, weather, onRefreshProfile 
                     <div>
                       <p className="text-xs font-semibold text-text-bark">
                         {item.name}
-                        {/* The purchase is real inventory: what was bought is
-                            shown owned, persisted across visits. */}
-                        {(shelf[item.id] || 0) > 0 && (
-                          <span className="ml-2 text-[9px] font-mono font-bold uppercase tracking-wider text-moss">
-                            on shelf ×{shelf[item.id]}
-                          </span>
-                        )}
                       </p>
                       <p className="text-[10px] text-text-stone font-mono flex items-center gap-1">
                         <Sprout size={10} className="text-moss" strokeWidth={2.5} /> {item.cost} Seeds

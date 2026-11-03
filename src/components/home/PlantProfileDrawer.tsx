@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Droplets, Sprout, RefreshCw } from 'lucide-react';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
-import { useEcoMode } from '@/hooks/useEcoMode';
 import { usePageTransition } from './PageTransitionContext';
 
 interface PlantPhoto {
@@ -34,7 +33,6 @@ interface PlantProfileDrawerProps {
 
 export function PlantProfileDrawer({ isOpen, onClose, plant }: PlantProfileDrawerProps) {
   const { theme } = useDayNightTheme();
-  const { shouldDisableAnimations } = useEcoMode();
   const { transitionTo } = usePageTransition();
   const [photoIndex, setPhotoIndex] = useState(0);
 

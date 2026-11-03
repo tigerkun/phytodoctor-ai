@@ -16,7 +16,6 @@
 
 import { db } from '../db/database';
 import { GameService } from './gameService';
-import { RewardService } from './rewardService';
 import { SANCTUARY_BY_ID, SANCTUARY_ITEMS, type SanctuaryItem, type SanctuaryItemId } from '../game/SANCTUARY_DATA';
 
 /** How many payments a Long Season doubles. */

@@ -4,11 +4,6 @@ import {
   Search,
   Filter,
   Star,
-  TrendingUp,
-  Clock,
-  DollarSign,
-  Leaf,
-  ChevronDown,
 } from 'lucide-react';
 
 interface ProductFiltersProps {

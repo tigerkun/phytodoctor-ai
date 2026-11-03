@@ -52,24 +52,6 @@ describe('Challenger Empirical Verifications', () => {
     });
   });
 
-  describe('Finding 2: a coach purchase grants a persisted supply', () => {
-    it('handlePurchase writes the item to the persisted shelf, keyed by itemId', () => {
-      const content = read('src/components/home/GardenCoach.tsx');
-      const handlePurchaseMatch = content.match(/const handlePurchase = async \(([^)]+)\) => \{([\s\S]*?)\n\s*\};/);
-      expect(handlePurchaseMatch).not.toBeNull();
-
-      const body = handlePurchaseMatch![2];
-      // The itemId the caller paid for must appear in the grant, and the
-      // grant must be persisted before it is shown.
-      expect(body).toContain('itemId');
-      expect(body).toContain('COACH_SHELF_KEY');
-      expect(body).toContain('localStorage.setItem(COACH_SHELF_KEY');
-      // The seed spend still happens, and a failed spend rolls the grant back.
-      expect(body).toContain('GameService.spendSeeds');
-      expect(body).toMatch(/localStorage\.setItem\(COACH_SHELF_KEY, JSON\.stringify\(readShelf\(\)\)\)/);
-    });
-  });
-
   describe('Finding 3: care-plan claims survive leaving the dashboard', () => {
     it('the plan effect rehydrates today\'s claimed steps from the claim store', () => {
       const content = read('src/components/home/GardenCoach.tsx');

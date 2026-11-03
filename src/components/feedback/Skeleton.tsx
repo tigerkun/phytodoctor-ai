@@ -1,4 +1,3 @@
-import React from 'react';
 
 /**
  * A neutral shimmer placeholder.

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { Send, User, Bot, Loader2, Mic, ArrowLeft, ShieldCheck, RefreshCw, BookmarkPlus, Check, Sparkles } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useAppBack } from '../hooks/useAppBack';
@@ -7,6 +7,8 @@ import { chatWithBotanist, type Message } from '../services/chatService';
 import { useToast } from '../components/Toast';
 import { triggerHaptic, playAudio } from '../utils/hapticAudio';
 import { db } from '../db/database';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { buildPriorityQueue, summarizeGardenHealth } from '../services/gardenDashboardService';
 import { GameService } from '../services/gameService';
 import PageWrapper from '../components/home/PageWrapper';
 
@@ -45,6 +47,18 @@ export default function Assistant() {
   // shared plant link is the common cold-start case, and navigate(-1) had
   // nothing to walk back to there.
   const { target: backTarget, goBack } = useAppBack();
+
+  // The ledger the Chief Botanist reads before answering: live plant records
+  // feed the "For Your Garden" collective read below.
+  const dbPlants = useLiveQuery(() => db.plants.toArray(), []);
+  const gardenSummary = useMemo(
+    () => (dbPlants?.length ? summarizeGardenHealth(dbPlants as any) : null),
+    [dbPlants],
+  );
+  const gardenTasks = useMemo(
+    () => (dbPlants?.length ? buildPriorityQueue(dbPlants as any) : []),
+    [dbPlants],
+  );
 
   const plantName = searchParams.get('plantName');
   const species = searchParams.get('species');
@@ -359,6 +373,28 @@ export default function Assistant() {
             </div>
           </div>
         </div>
+
+        {/* For Your Garden — the Chief Botanist has read the ledger: the
+            collective health read plus today's most urgent care items, from
+            the same evaluators the Home dashboard uses. */}
+        {gardenSummary && (
+          <div className="mb-6 px-5 py-4 rounded-2xl border border-[#3d5a3d]/25 bg-[#f4f8f1] dark:bg-[#1d2a1e]">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-xs font-bold text-[#2e2117] dark:text-[#faebd7]">
+                For Your Garden: {gardenSummary.headline}
+              </p>
+              {gardenTasks.length > 0 && (
+                <ul className="w-full space-y-1 mt-1">
+                  {gardenTasks.slice(0, 3).map(t => (
+                    <li key={`${t.kind}-${t.plantId}`} className="text-[11px] text-text-stone">
+                      · {t.plantName}: {t.reason}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Hunter-Green Leather Desk Blotter */}
         <div className="desk-blotter relative flex flex-col h-[670px] max-h-[78vh] overflow-hidden">

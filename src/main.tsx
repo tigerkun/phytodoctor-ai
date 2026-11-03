@@ -2,7 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { seedIfEmpty, runDbMigration } from './db/seed';
+import { runDbMigration } from './db/seed';
 import { DayNightProvider } from './components/home/DayNightProvider';
 import { GameService } from './services/gameService';
 import { initTextSize } from './utils/textSize';

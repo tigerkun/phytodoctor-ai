@@ -48,7 +48,6 @@ describe('plantImage utils', () => {
     });
 
     it('returns the global fallback when no URL and no species are provided', () => {
-      const globalFallback = 'https://images.unsplash.com/photo-1592150621744-aca64f48394a?w=600&auto=format&fit=crop&q=80';
       // Note: Because of how the implementation works, when `species` is empty (`""`), it does `"".includes(key)` which is false,
       // BUT `key.includes("")` is TRUE for all keys. So it picks the very first entry in the map, which is Monstera.
       // So let's test what the implementation actually returns right now.

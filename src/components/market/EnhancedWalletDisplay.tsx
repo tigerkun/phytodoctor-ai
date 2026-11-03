@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Leaf, TrendingUp, Award, Zap, Gift } from 'lucide-react';
+import { Leaf, Award, Zap, Gift } from 'lucide-react';
 
 interface WalletStats {
   seeds: number;

@@ -84,7 +84,7 @@ describe('BUG-03: seed split', () => {
     // applySeedDelta re-reads the balance inside its transaction.
     vi.spyOn(db.userProfile, 'get').mockImplementation((async () => ({ seeds: updatedSeeds, tier: 'pro' })) as any);
     
-    vi.spyOn(db.userProfile, 'update').mockImplementation((async (userId: any, data: any) => {
+    vi.spyOn(db.userProfile, 'update').mockImplementation((async (_userId: any, data: any) => {
       updatedSeeds = data.seeds;
       return 1;
     }) as any);
