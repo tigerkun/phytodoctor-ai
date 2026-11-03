@@ -25,11 +25,14 @@ describe('quick actions fab', () => {
   });
 
   it('water all goes through the shared watering core', () => {
-    // The one write of the watering triple lives in PlantService.waterPlant;
-    // the FAB must not re-derive the fields inline, and "thirsty" must be
-    // the same pure predicate the reminder engine uses.
-    expect(fab).toMatch(/PlantService\.waterPlant\(plant\.id/);
-    expect(fab).toMatch(/wateringDue\(p, now\)/);
+    // The one write of the watering triple lives in PlantService.waterPlant,
+    // reached through the shared gardenActions loop (per-plant failure
+    // capture) — the FAB must not re-derive the fields inline, and "thirsty"
+    // must be the same pure predicate the reminder engine uses.
+    expect(fab).toMatch(/await waterAllDue\(\)/);
+    const gardenActions = stripJsComments(readSource('src/services/gardenActions.ts'));
+    expect(gardenActions).toMatch(/PlantService\.waterPlant\(plant\.id, now\)/);
+    expect(gardenActions).toMatch(/wateringDue\(p, now\)/);
     const plantService = stripJsComments(readSource('src/services/plantService.ts'));
     expect(plantService).toMatch(/async waterPlant\(/);
     expect(plantService).toMatch(/wateringIntervalDays \?\? 7/);

@@ -5,7 +5,11 @@ import { useSearchParams, useLocation } from 'react-router-dom';
 import { chatWithGardener, type Message } from '../services/chatService';
 import { useToast } from '../components/Toast';
 import { db } from '../db/database';
-import { buildGardenContext, type GardenContext } from '../lib/assistantContext';
+import {
+  buildGardenContext,
+  assistantContextEnabled,
+  type GardenContext,
+} from '../lib/assistantContext';
 import { buildPriorityQueue } from '../services/gardenDashboardService';
 import { gardenerProfile } from '../services/gardenDashboardService';
 import GardenActionChips from './assistant/GardenActionChips';
@@ -16,21 +20,29 @@ export default function FloatingAssistant() {
   const location = useLocation();
   const plantName = searchParams.get('plantName');
   const species = searchParams.get('species');
+  // Live read, not mount-time: a toggle in Settings applies without a reload.
+  const contextOn = assistantContextEnabled();
+  const [briefNote, setBriefNote] = useState<string | null>(null);
 
   /** Fresh garden briefing per send — one cheap Dexie read, so the model
    *  always answers from the garden as it is right now, not as it was when
    *  the drawer opened. Weather alerts are deliberately absent: there is no
-   *  consented location here to read a forecast for. */
+   *  consented location here to read a forecast for. Gated by the Settings
+   *  privacy toggle: off means nothing about the garden leaves the device. */
   const gardenNow = async (): Promise<GardenContext | undefined> => {
+    if (!assistantContextEnabled()) return undefined;
     try {
       const plants = await db.plants.toArray();
       if (!plants.length) return undefined;
-      return buildGardenContext({
+      const garden = buildGardenContext({
         plants: plants as any,
         tasks: buildPriorityQueue(plants as any),
         skill: gardenerProfile().skill,
       }) ?? undefined;
+      setBriefNote(garden?.truncated ? 'Garden brief truncated — only the most urgent plants are shared.' : null);
+      return garden;
     } catch {
+      setBriefNote(null);
       return undefined; // private-mode Dexie — answer without the briefing
     }
   };
@@ -235,6 +247,17 @@ export default function FloatingAssistant() {
 
             {/* Footer Input */}
             <div className="p-4 bg-bg-secondary/50 border-t border-border-light shrink-0">
+              {contextOn && (
+                <p
+                  className="text-[9px] font-mono text-text-muted mb-1.5"
+                  title="Plant names, health scores and care schedules are shared with the AI to personalize advice. Turn this off in Settings → Assistant Garden Context."
+                >
+                  🌿 Personalized with your garden · off in Settings
+                </p>
+              )}
+              {briefNote && (
+                <p className="text-[9px] font-mono text-text-muted mb-1.5">{briefNote}</p>
+              )}
               <div className="mb-2">
                 <GardenActionChips variant="glass" />
               </div>

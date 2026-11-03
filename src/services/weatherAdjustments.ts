@@ -24,6 +24,10 @@ import type { WeatherAdjustment } from '../types';
 export const ADJUSTMENT_DAYS = 7;
 /** Heat watering factor: 2/3 interval ≈ 50% more frequent watering. */
 export const HEAT_WATER_FACTOR = 2 / 3;
+/** How long expired rows linger as history before pruning — long enough to
+ *  show "applied N times in the last 30 days", short enough to never grow
+ *  unbounded. Pruning runs whenever a new protection is applied. */
+export const HISTORY_RETENTION_DAYS = 30;
 
 export type AdjustmentKind = WeatherAdjustment['kind'];
 
@@ -97,7 +101,9 @@ export function withEffectiveWatering<
 // ── Dexie CRUD — thin, the logic lives above ────────────────────────────────
 
 export const WeatherAdjustmentService = {
-  /** One row per plant, all sharing an expiry exactly ADJUSTMENT_DAYS out. */
+  /** One row per plant, all sharing an expiry exactly ADJUSTMENT_DAYS out.
+   *  Also prunes history older than HISTORY_RETENTION_DAYS — the write path
+   *  is the only clock this table needs. */
   async applyProtection(kind: AdjustmentKind, plantIds: string[], now: Date = new Date()): Promise<number> {
     if (!plantIds.length) return 0;
     const expiresAt = new Date(now.getTime() + ADJUSTMENT_DAYS * 86_400_000);
@@ -109,7 +115,37 @@ export const WeatherAdjustmentService = {
       expiresAt,
     }));
     await db.weatherAdjustments.bulkPut(rows);
+    try {
+      await this.pruneExpired(now);
+    } catch {
+      // History pruning is housekeeping, not the write — never fail the
+      // protection because old rows refused to leave.
+    }
     return rows.length;
+  },
+
+  /** Undo: delete every ACTIVE row of a kind. Because due-ness is computed
+   *  at read time, the original watering schedule resumes immediately —
+   *  no 7-day lock-in on a misclick. */
+  async revertProtection(kind: AdjustmentKind, now: Date = new Date()): Promise<number> {
+    const ids = (await this.allActive(now)).filter(r => r.kind === kind).map(r => r.id);
+    if (!ids.length) return 0;
+    await db.weatherAdjustments.bulkDelete(ids);
+    return ids.length;
+  },
+
+  /** Drop rows that expired more than HISTORY_RETENTION_DAYS ago. */
+  async pruneExpired(now: Date = new Date()): Promise<number> {
+    const cutoff = new Date(now.getTime() - HISTORY_RETENTION_DAYS * 86_400_000);
+    return db.weatherAdjustments.where('expiresAt').below(cutoff).delete();
+  },
+
+  /** How many protections of a kind were applied in the last
+   *  HISTORY_RETENTION_DAYS — the pattern context the dashboard shows. */
+  async recentApplicationCount(kind: AdjustmentKind, now: Date = new Date()): Promise<number> {
+    const cutoff = new Date(now.getTime() - HISTORY_RETENTION_DAYS * 86_400_000);
+    const rows = await db.weatherAdjustments.where('kind').equals(kind).toArray();
+    return rows.filter(r => new Date(r.createdAt).getTime() >= cutoff.getTime()).length;
   },
 
   async activeForPlant(plantId: string, now: Date = new Date()): Promise<WeatherAdjustment[]> {

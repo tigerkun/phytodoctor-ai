@@ -184,6 +184,11 @@ function preserveLocalFields(mapped: Plant, local: Plant | undefined): Plant {
   if (local.milestoneLog && !merged.milestoneLog) {
     (merged as any).milestoneLog = local.milestoneLog;
   }
+  // Same treatment: "a human picked this cadence" is a device-side fact the
+  // card indicator reads; Postgres only needs the interval itself.
+  if ((local as any).wateringIntervalCustom && !(merged as any).wateringIntervalCustom) {
+    (merged as any).wateringIntervalCustom = true;
+  }
   return merged as unknown as Plant;
 }
 
@@ -396,6 +401,9 @@ export const PlantService = {
     const last = plant?.lastWateredAt ? new Date(plant.lastWateredAt) : null;
     await this.updatePlant(id, {
       wateringIntervalDays: interval,
+      // Marks "a human chose this" for the custom-cadence indicators — the
+      // flag is client-only (see the local-field merge above).
+      wateringIntervalCustom: true,
       ...(last ? { nextWaterDue: new Date(last.getTime() + interval * 86_400_000) } : {}),
     });
   },

@@ -21,6 +21,9 @@ interface Plant extends GardenPlant {
   lastWatered: Date;
   image: string;
   lastPhoto: string;
+  /** Custom-cadence tag (see Plant.wateringIntervalCustom). */
+  wateringIntervalCustom?: boolean;
+  wateringIntervalDays?: number | null;
 }
 
 interface PlantGalleryProps {
@@ -213,6 +216,18 @@ export function PlantGallery({ plants, onSelectPlant }: PlantGalleryProps) {
                     >
                       {daysSince}d ago
                     </div>
+
+                    {/* Custom-cadence tag — "a human chose this rhythm", so a
+                        forgotten per-plant override is findable from the
+                        gallery, not only from the drawer. */}
+                    {plant.wateringIntervalCustom && (
+                      <div
+                        className="absolute top-3 left-3 px-2 py-0.5 rounded-xs text-[9px] font-mono font-bold uppercase tracking-wider backdrop-blur-md bg-[#2c4a63]/70 text-[#a9cce3] border border-[#7aa5c4]/40"
+                        title={`Custom watering cadence: every ${plant.wateringIntervalDays ?? 7} day(s) — adjust it in the plant profile.`}
+                      >
+                        💧 every {plant.wateringIntervalDays ?? 7}d
+                      </div>
+                    )}
 
                     {/* Live status indicators — computed, not stored: the same
                         predicates the priority queue uses. */}

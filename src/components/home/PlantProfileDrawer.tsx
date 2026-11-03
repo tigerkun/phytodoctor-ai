@@ -332,6 +332,12 @@ export function PlantProfileDrawer({ isOpen, onClose, plant }: PlantProfileDrawe
                       ))}
                     </select>
                   </div>
+
+                  {livePlant?.wateringIntervalCustom && (
+                    <p className="text-[11px] italic" style={{ color: theme === 'day' ? '#5F7161' : '#A8B5A0' }}>
+                      Custom cadence — this plant waters on its own rhythm, not the garden default.
+                    </p>
+                  )}
                 </div>
               </motion.div>
 

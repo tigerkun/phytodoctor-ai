@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db/database';
-import { PlantService } from '../../services/plantService';
+import { waterAllDue } from '../../services/gardenActions';
 import { wateringDue } from '../../services/notificationService';
 import { buildPriorityQueue, type GardenPlant } from '../../services/gardenDashboardService';
 import { useToast } from '../Toast';
@@ -45,20 +45,26 @@ export default function GardenActionChips({ variant = 'glass' }: { variant?: 'gl
     if (watering) return;
     setWatering(true);
     try {
-      const stamp = new Date();
-      const targets = (await db.plants.toArray()).filter(p => !p.isDemo && wateringDue(p, stamp));
-      if (!targets.length) {
+      const result = await waterAllDue();
+      if (!result.total) {
         info('Nothing is thirsty right now. 🌿');
         return;
       }
-      for (const plant of targets) {
-        await PlantService.waterPlant(plant.id, stamp);
+      if (result.failed) {
+        // Partial success is the honest outcome: name it, and the chip's
+        // due-count stays live so tapping again retries only what failed.
+        triggerHaptic('medium');
+        info(
+          `💧 Watered ${result.watered} of ${result.total} — ${result.failed} failed` +
+            ` (${result.failedNames[0]}${result.failedNames.length > 1 ? ' +more' : ''}). Tap again to retry.`,
+        );
+      } else {
+        triggerHaptic('light');
+        success(`Watered ${result.watered} plant${result.watered === 1 ? '' : 's'}. 💧`);
       }
-      triggerHaptic('light');
-      success(`Watered ${targets.length} plant${targets.length === 1 ? '' : 's'}. 💧`);
     } catch (err) {
       console.error('[assistant-chips] water all failed:', err);
-      info('Could not water every plant — try again from its page.');
+      info('Could not reach the garden data — try again.');
     } finally {
       setWatering(false);
     }

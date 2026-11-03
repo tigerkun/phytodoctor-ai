@@ -16,6 +16,7 @@ import { useToast } from '../Toast';
 import {
   WeatherAdjustmentService,
   withEffectiveWatering,
+  HISTORY_RETENTION_DAYS,
 } from '../../services/weatherAdjustments';
 
 /**
@@ -87,6 +88,13 @@ export default function GardenDashboard({ plants, weather }: {
     );
   };
 
+  /** How often this kind was applied in the last 30 days — the pattern
+   *  context that survives expiry, so a repeated heat pattern is visible. */
+  const recentCount = (kind: WeatherAlert['kind']): number => {
+    const cutoff = Date.now() - HISTORY_RETENTION_DAYS * 86_400_000;
+    return adjustments.filter(r => r.kind === kind && new Date(r.createdAt).getTime() >= cutoff).length;
+  };
+
   const applyProtection = async (alert: WeatherAlert) => {
     if (applying) return;
     const affected = plantsAffectedByAlert(alert, plants);
@@ -97,6 +105,23 @@ export default function GardenDashboard({ plants, weather }: {
       success(PROTECTION_TOAST[alert.kind]);
     } catch {
       info('Could not save the protection — try again from the dashboard.');
+    } finally {
+      setApplying(null);
+    }
+  };
+
+  const undoing = (kind: string | null) => applying === `undo-${kind}`;
+  const revertProtection = async (alert: WeatherAlert) => {
+    const kindKey = `undo-${alert.kind}`;
+    if (applying) return;
+    setApplying(kindKey);
+    try {
+      const removed = await WeatherAdjustmentService.revertProtection(alert.kind);
+      success(removed
+        ? 'Protection removed — your usual watering schedule is back.'
+        : 'Nothing to remove — that protection had already ended.');
+    } catch {
+      info('Could not remove the protection — try again.');
     } finally {
       setApplying(null);
     }
@@ -142,10 +167,27 @@ export default function GardenDashboard({ plants, weather }: {
               <p className="text-xs font-bold text-[#2c4a63] dark:text-[#a9cce3]">{alert.title}</p>
               <p className="text-[11px] text-[#4a6a85] dark:text-[#8fb8d4] leading-snug">{alert.body}</p>
               {until ? (
-                <p className="text-[10px] font-mono mt-1 text-[#3d6b8f] dark:text-[#a9cce3] flex items-center gap-1">
-                  <ShieldCheck size={12} aria-hidden="true" />
-                  Protected until {until.toLocaleDateString()} — {affected.length} plant{affected.length === 1 ? '' : 's'} covered
-                </p>
+                <>
+                  <p className="text-[10px] font-mono mt-1 text-[#3d6b8f] dark:text-[#a9cce3] flex items-center gap-1">
+                    <ShieldCheck size={12} aria-hidden="true" />
+                    Protected until {until.toLocaleDateString()} — {affected.length} plant{affected.length === 1 ? '' : 's'} covered
+                  </p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => revertProtection(alert)}
+                      disabled={!!applying}
+                      className="min-h-8 px-2.5 py-1 rounded-md border border-[#3d6b8f]/40 text-[10px] font-mono font-bold uppercase tracking-wider text-[#2c4a63] dark:text-[#a9cce3] hover:bg-[#7aa5c4]/20 transition-colors disabled:opacity-50"
+                    >
+                      {undoing(alert.kind) ? 'Removing…' : 'Undo'}
+                    </button>
+                    {recentCount(alert.kind) > 0 && (
+                      <span className="text-[9px] font-mono text-[#4a6a85] dark:text-[#8fb8d4]">
+                        applied {recentCount(alert.kind)}× in the last 30 days
+                      </span>
+                    )}
+                  </div>
+                </>
               ) : affected.length > 0 ? (
                 <>
                   <p className="text-[10px] font-mono mt-1 text-[#3d6b8f] dark:text-[#a9cce3]">
@@ -159,6 +201,11 @@ export default function GardenDashboard({ plants, weather }: {
                   >
                     {applying === alert.kind ? 'Applying…' : `Apply protection to ${affected.length}`}
                   </button>
+                  {recentCount(alert.kind) > 0 && (
+                    <p className="text-[9px] font-mono mt-1.5 text-[#4a6a85] dark:text-[#8fb8d4]">
+                      applied {recentCount(alert.kind)}× in the last 30 days
+                    </p>
+                  )}
                 </>
               ) : null}
             </div>

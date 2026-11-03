@@ -1,11 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   buildGardenContext,
   buildGardenPromptBlock,
+  assistantContextEnabled,
+  setAssistantContextEnabled,
   MAX_CONTEXT_PLANTS,
   MAX_CONTEXT_TASKS,
   GARDEN_CONTEXT_LIMIT,
 } from '../assistantContext';
+import { safeStore } from '../safeStore';
 import { readSource, stripJsComments } from '../../test/helpers';
 
 /**
@@ -73,6 +76,57 @@ describe('buildGardenContext', () => {
   it('scores are clamped to 0-100', () => {
     const ctx = buildGardenContext({ plants: [plant({ guardianScore: 444 })], tasks: [] }, NOW)!;
     expect(ctx.plants[0].score).toBe(100);
+  });
+
+  it('an oversize garden is pruned, flagged, and never shipped over the cap', () => {
+    // Long species strings blow the 6.4KB soft limit well before the plant cap.
+    const longSpecies = 'X'.repeat(600);
+    const many = Array.from({ length: 30 }, (_, i) =>
+      plant({ name: `P${i}`, species: longSpecies, guardianScore: 50 + i }),
+    );
+    const ctx = buildGardenContext(
+      { plants: many, tasks: [{ kind: 'water-due', plantName: 'P0', reason: 'r' }], alerts: [{ kind: 'heat', title: 'Hot', affectedNames: ['P0'] }] },
+      NOW,
+    )!;
+    expect(ctx.truncated).toBe(true);
+    // Prune order sheds alerts first, then tasks — the worst plants survive.
+    expect(ctx.alerts).toEqual([]);
+    expect(ctx.tasks).toEqual([]);
+    expect(JSON.stringify(ctx).length).toBeLessThanOrEqual(GARDEN_CONTEXT_LIMIT);
+    // And the prompt tells the model the briefing was partial.
+    const block = buildGardenPromptBlock(ctx)!;
+    expect(block).toContain('summary was truncated');
+  });
+
+  it('a garden too big even after pruning ships nothing rather than a 400 magnet', () => {
+    const huge = 'Y'.repeat(9000);
+    const ctx = buildGardenContext({ plants: [plant({ name: huge })], tasks: [] }, NOW);
+    expect(ctx).toBeNull();
+  });
+});
+
+describe('assistant context privacy toggle', () => {
+  afterEach(() => {
+    safeStore.removeItem('botanical_assistant_context');
+    vi.restoreAllMocks();
+  });
+
+  it('defaults ON — the briefing is the feature, the toggle is the choice', () => {
+    expect(assistantContextEnabled()).toBe(true);
+  });
+
+  it('round-trips off and back on', () => {
+    setAssistantContextEnabled(false);
+    expect(assistantContextEnabled()).toBe(false);
+    setAssistantContextEnabled(true);
+    expect(assistantContextEnabled()).toBe(true);
+  });
+
+  it('a storage failure reads as the default rather than throwing', () => {
+    vi.spyOn(safeStore, 'getItem').mockImplementation(() => {
+      throw new Error('private mode');
+    });
+    expect(assistantContextEnabled()).toBe(true);
   });
 });
 

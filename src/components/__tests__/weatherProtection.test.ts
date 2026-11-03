@@ -29,10 +29,10 @@ describe('GardenDashboard weather protection', () => {
   it('a covered alert shows its expiry instead of nagging again', () => {
     expect(dashboard).toContain('Protected until');
     expect(dashboard).toContain('toLocaleDateString()');
-    // And the apply button is gone while covered: the covered branch and the
-    // button branch are exclusive arms of the same conditional.
-    expect(dashboard.indexOf('Protected until')).toBeGreaterThan(-1);
-    expect(dashboard).toMatch(/\? \(\s*<p[^>]*>[\s\S]*Protected until[\s\S]*?\) : affected\.length > 0 \? \(/);
+    // And the apply button is gone while covered: the covered branch (a
+    // fragment with the chip + undo row) and the button branch are exclusive
+    // arms of the same conditional.
+    expect(dashboard).toMatch(/\? \(\s*<>[\s\S]*Protected until[\s\S]*?\) : affected\.length > 0 \? \(/);
   });
 
   it('the task queue honours effective dates so the dashboard and engine agree', () => {

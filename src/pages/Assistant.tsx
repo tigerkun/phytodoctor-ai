@@ -10,7 +10,11 @@ import { db } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { buildPriorityQueue, summarizeGardenHealth } from '../services/gardenDashboardService';
 import { gardenerProfile } from '../services/gardenDashboardService';
-import { buildGardenContext, type GardenContext } from '../lib/assistantContext';
+import {
+  buildGardenContext,
+  assistantContextEnabled,
+  type GardenContext,
+} from '../lib/assistantContext';
 import GardenActionChips from '../components/assistant/GardenActionChips';
 import { GameService } from '../services/gameService';
 import PageWrapper from '../components/home/PageWrapper';
@@ -69,17 +73,21 @@ export default function Assistant() {
 
   /** Fresh garden briefing per send (see assistantContext.ts). Read at send
    *  time, not at mount, so a long-lived conversation answers from the
-   *  garden as it is now. */
+   *  garden as it is now. Gated by the Settings privacy toggle. */
   const gardenNow = async (): Promise<GardenContext | undefined> => {
+    if (!assistantContextEnabled()) return undefined;
     try {
       const plants = await db.plants.toArray();
       if (!plants.length) return undefined;
-      return buildGardenContext({
+      const garden = buildGardenContext({
         plants: plants as any,
         tasks: buildPriorityQueue(plants as any),
         skill: gardenerProfile().skill,
       }) ?? undefined;
+      setBriefNote(garden?.truncated ? 'Garden brief truncated — only the most urgent plants are shared.' : null);
+      return garden;
     } catch {
+      setBriefNote(null);
       return undefined;
     }
   };
@@ -119,6 +127,9 @@ export default function Assistant() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const initialSentRef = useRef(false);
+  // Live read: the Settings toggle applies without a reload.
+  const contextOn = assistantContextEnabled();
+  const [briefNote, setBriefNote] = useState<string | null>(null);
 
   // Sync messages to localStorage
   useEffect(() => {
@@ -586,6 +597,17 @@ export default function Assistant() {
 
           {/* One-click garden acts — same queue the dashboard shows. */}
           <div className="relative z-10 px-4 sm:px-6 py-2 bg-[#142419] border-t border-[#26402d] shrink-0">
+            {contextOn && (
+              <p
+                className="text-[9px] font-mono text-[#8fb8d4] mb-1.5"
+                title="Plant names, health scores and care schedules are shared with the AI to personalize advice. Turn this off in Settings → Assistant Garden Context."
+              >
+                🌿 Personalized with your garden · off in Settings
+              </p>
+            )}
+            {briefNote && (
+              <p className="text-[9px] font-mono text-[#8fb8d4] mb-1.5">{briefNote}</p>
+            )}
             <GardenActionChips variant="telegraph" />
           </div>
 

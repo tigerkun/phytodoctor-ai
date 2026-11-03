@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   frequencyDays,
   inPreferredWindow,
+  reminderWindowStart,
   wateringDue,
   checkInDue,
   nextTreatmentStep,
@@ -141,6 +142,56 @@ describe('custom reminder window', () => {
     const custom = { ...DEFAULT_PREFS, customWindow: { enabled: true, fromHour: 99, toHour: -3 } };
     expect(inPreferredWindow(custom, NIGHT)).toBe(true);
     expect(inPreferredWindow(custom, NOON)).toBe(false);
+  });
+});
+
+describe('reminder window start (defer, never skip)', () => {
+  it('names the moment the current window opened', () => {
+    const start = reminderWindowStart(DEFAULT_PREFS, MORNING);
+    expect(start).not.toBeNull();
+    expect(start!.getHours()).toBe(5); // morning window opens at 05:00
+    expect(reminderWindowStart(DEFAULT_PREFS, NIGHT)).toBeNull();
+  });
+
+  it('a custom window wrapping midnight opened yesterday evening', () => {
+    const prefs = { ...DEFAULT_PREFS, customWindow: { enabled: true, fromHour: 22, toHour: 6 } };
+    const at2am = new Date('2026-03-15T02:00:00');
+    const start = reminderWindowStart(prefs, at2am)!;
+    expect(start.getDate()).toBe(14); // March 14, 22:00
+    expect(start.getHours()).toBe(22);
+    expect(reminderWindowStart(prefs, NOON)).toBeNull();
+  });
+
+  it('inPreferredWindow agrees with the window start', () => {
+    expect(inPreferredWindow(DEFAULT_PREFS, MORNING)).toBe(reminderWindowStart(DEFAULT_PREFS, MORNING) !== null);
+    expect(inPreferredWindow(DEFAULT_PREFS, NIGHT)).toBe(reminderWindowStart(DEFAULT_PREFS, NIGHT) !== null);
+  });
+
+  it('a reminder due before the window opens is HELD, not skipped — and labelled', async () => {
+    // Due yesterday evening; the morning window opens at 05:00; now 08:00.
+    vi.spyOn(db.plants, 'toArray').mockResolvedValue([
+      { id: 'p1', name: 'Fern', nextWaterDue: new Date('2026-03-14T19:00:00') },
+    ] as any);
+    vi.spyOn(db.weatherAdjustments, 'toArray').mockResolvedValue([] as any);
+    vi.spyOn(db.reminderLog, 'where').mockReturnValue(emptyCollection() as any);
+    vi.spyOn(db.reminders, 'where').mockReturnValue(emptyCollection() as any);
+
+    const due = await NotificationService.evaluate(MORNING);
+    const watering = due.find(d => d.plantId === 'p1' && d.kind === 'watering');
+    expect(watering).toBeDefined();
+    expect(watering!.body).toBe('Your Fern needs water today (held for your reminder window)');
+  });
+
+  it('a reminder that became due inside the window carries no held note', async () => {
+    vi.spyOn(db.plants, 'toArray').mockResolvedValue([
+      { id: 'p1', name: 'Fern', nextWaterDue: new Date('2026-03-15T06:30:00') },
+    ] as any);
+    vi.spyOn(db.weatherAdjustments, 'toArray').mockResolvedValue([] as any);
+    vi.spyOn(db.reminderLog, 'where').mockReturnValue(emptyCollection() as any);
+    vi.spyOn(db.reminders, 'where').mockReturnValue(emptyCollection() as any);
+
+    const due = await NotificationService.evaluate(MORNING);
+    expect(due.find(d => d.plantId === 'p1')!.body).toBe('Your Fern needs water today');
   });
 });
 

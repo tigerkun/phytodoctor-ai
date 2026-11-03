@@ -63,22 +63,40 @@ export function frequencyDays(frequency: ReminderPrefs['frequency']): number {
 const clampHour = (h: unknown): number =>
   Math.min(23, Math.max(0, Math.floor(Number(h) || 0)));
 
-export function inPreferredWindow(prefs: ReminderPrefs, now: Date = new Date()): boolean {
+const todayAt = (hour: number, now: Date): Date => {
+  const d = new Date(now);
+  d.setHours(hour, 0, 0, 0);
+  return d;
+};
+
+/**
+ * When the current delivery window OPENED, or null when "now" is outside
+ * any window. The defer rule builds on this: a reminder that came due
+ * before the window opened fires at the first tick inside it (the runner
+ * re-evaluates every 15 minutes) — held, never skipped. A window wrapping
+ * midnight (22→6) that is open at 02:00 opened yesterday at 22:00.
+ */
+export function reminderWindowStart(prefs: ReminderPrefs, now: Date = new Date()): Date | null {
   const hour = now.getHours();
   const custom = prefs.customWindow;
   if (custom?.enabled) {
     const from = clampHour(custom.fromHour);
     const to = clampHour(custom.toHour);
     if (from === to) {
-      // A zero-length window would silently mute everything forever — never
-      // what a misconfigured toggle means. Fall back to the named slot.
       const [f, t] = WINDOWS[prefs.timeOfDay];
-      return hour >= f && hour < t;
+      return hour >= f && hour < t ? todayAt(f, now) : null;
     }
-    return from < to ? hour >= from && hour < to : hour >= from || hour < to;
+    if (from < to) return hour >= from && hour < to ? todayAt(from, now) : null;
+    if (hour >= from) return todayAt(from, now);
+    if (hour < to) return todayAt(from, new Date(now.getTime() - 86_400_000));
+    return null;
   }
   const [from, to] = WINDOWS[prefs.timeOfDay];
-  return hour >= from && hour < to;
+  return hour >= from && hour < to ? todayAt(from, now) : null;
+}
+
+export function inPreferredWindow(prefs: ReminderPrefs, now: Date = new Date()): boolean {
+  return reminderWindowStart(prefs, now) !== null;
 }
 
 // ── Pure evaluators — primitives in, verdict out, no Dexie, no DOM ─────────
@@ -234,11 +252,22 @@ export const NotificationService = {
       const key = `${plant.id}:watering`;
       const custom = await db.reminders.where('[plantId+kind]').equals([plant.id, 'watering']).first();
       const effectiveDue = effectiveNextWaterDue(plant, adjustments, now);
+      // Defer, never skip: a reminder that came due before the window opened
+      // rides the first tick inside it — labelled so the delay reads as the
+      // Keeper's own rhythm, not a missed watering.
+      const windowStart = reminderWindowStart(prefs, now);
+      const held =
+        !!windowStart &&
+        !!effectiveDue &&
+        new Date(effectiveDue).getTime() < windowStart.getTime();
+      const body = held
+        ? `${wateringMessage(plant.name)} (held for your reminder window)`
+        : wateringMessage(plant.name);
       if (
         !deliveredToday.has(key) &&
         (wateringDue({ nextWaterDue: effectiveDue }, now) || (custom && new Date(custom.dueAt).getTime() <= now.getTime()))
       ) {
-        due.push({ kind: 'watering', plantId: plant.id, plantName: plant.name, title: 'Watering due', body: wateringMessage(plant.name) });
+        due.push({ kind: 'watering', plantId: plant.id, plantName: plant.name, title: 'Watering due', body });
       }
 
       // Check-in nudges are recovery-flavoured by design — the recovering

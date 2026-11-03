@@ -10,13 +10,16 @@
  * Privacy boundary: plant names, species, health scores and care dates are
  * the same class of data /api/guardian/predict already carries (full check-in
  * histories), so this stays inside the established Gemini boundary. What is
- * deliberately NOT here: photos, check-in payloads, notes content.
+ * deliberately NOT here: photos, check-in payloads, notes content. The whole
+ * briefing is gated by the Settings toggle (assistantContextEnabled).
  *
  * Weather alerts are part of the shape but optional: there is no persisted
  * global location in this app (no default place — see Home.tsx), and a chat
  * bubble must not silently prompt for GPS. Callers that already hold a
  * consented forecast may fill `alerts`; the two shipped surfaces don't.
  */
+
+import { safeStore } from './safeStore';
 
 export const MAX_CONTEXT_PLANTS = 12;
 export const MAX_CONTEXT_TASKS = 8;
@@ -25,6 +28,32 @@ export const MAX_CONTEXT_ALERTS = 4;
  *  far under this; the cap keeps a hand-rolled payload from inflating the
  *  prompt budget. */
 export const GARDEN_CONTEXT_LIMIT = 8_000;
+/** The client prunes below this before sending — 80% of the server cap,
+ *  so the envelope and base64 noise never tip the request over. */
+const CONTEXT_SOFT_LIMIT = 6_400;
+
+const CONTEXT_ENABLED_KEY = 'botanical_assistant_context';
+
+/** The Settings privacy toggle: whether the assistant is briefed with the
+ *  garden at all. Default ON — the briefing is the feature; the toggle
+ *  exists so the data sharing is a visible, revocable choice. When off,
+ *  the assistant runs in generic mode and nothing about the garden leaves
+ *  the device. */
+export function assistantContextEnabled(): boolean {
+  try {
+    return safeStore.getItem(CONTEXT_ENABLED_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+export function setAssistantContextEnabled(enabled: boolean): void {
+  try {
+    safeStore.setItem(CONTEXT_ENABLED_KEY, enabled ? 'true' : 'false');
+  } catch {
+    // private mode — the next read falls back to the default (on)
+  }
+}
 
 export interface ContextPlant {
   name: string;
@@ -58,6 +87,9 @@ export interface GardenContext {
   alerts: ContextAlert[];
   /** Gardener profile's skill lens, when the caller has one. */
   skill?: 'beginner' | 'intermediate' | 'expert';
+  /** True when the payload was pruned to fit the size budget — surfaces
+   *  surface this so the Keeper knows the briefing is partial. */
+  truncated?: boolean;
 }
 
 const DAY = 86_400_000;
@@ -138,13 +170,31 @@ export function buildGardenContext(input: {
     .slice(0, MAX_CONTEXT_ALERTS)
     .map(a => ({ kind: String(a.kind), title: String(a.title), affected: (a.affectedNames ?? []).map(String) }));
 
-  return {
+  let ctx: GardenContext = {
     totalPlants: live.length,
     plants,
     tasks,
     alerts,
     ...(input.skill ? { skill: input.skill } : {}),
   };
+
+  // Size discipline: prune before the server ever sees an oversize payload.
+  // Order sheds the least load-bearing first — weather alerts, then the task
+  // queue, then narrow the plant list to the worst few. If even the skeleton
+  // is oversize, ship nothing rather than risk a 400 on every message.
+  if (JSON.stringify(ctx).length > CONTEXT_SOFT_LIMIT) {
+    ctx = { ...ctx, alerts: [] };
+    if (JSON.stringify(ctx).length > CONTEXT_SOFT_LIMIT) {
+      ctx = { ...ctx, tasks: [] };
+    }
+    if (JSON.stringify(ctx).length > CONTEXT_SOFT_LIMIT) {
+      ctx = { ...ctx, plants: plants.slice(0, 6) };
+    }
+    ctx.truncated = true;
+    if (JSON.stringify(ctx).length > GARDEN_CONTEXT_LIMIT) return null;
+  }
+
+  return ctx;
 }
 
 /**
@@ -201,6 +251,11 @@ export function buildGardenPromptBlock(raw: unknown): string | null {
         : garden.skill === 'expert'
           ? 'KEEPER EXPERIENCE: expert — technical depth welcome, skip basic care explanations.'
           : 'KEEPER EXPERIENCE: intermediate — standard depth, define specialised terms.',
+    );
+  }
+  if (garden.truncated === true) {
+    lines.push(
+      'NOTE: this garden summary was truncated to fit — more plants exist than are listed. If the Keeper asks about completeness, say the briefing was partial.',
     );
   }
   lines.push(

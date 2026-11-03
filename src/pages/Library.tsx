@@ -34,12 +34,15 @@ import {
   quizSeedsFor,
   recordQuizOutcome,
   quizAccuracy,
+  quizRecord,
   getStudiedPlates,
   markPlateStudied,
   libraryStats,
   folioMatchesForSpecies,
   SPEED_BONUS_MS,
 } from '../services/libraryEngagement';
+import { newlyEarnedBadges } from '../services/badgeNotifications';
+import { useToast } from '../components/Toast';
 
 const ROMAN_NUMERALS = ['I.', 'II.', 'III.', 'IV.', 'V.'];
 
@@ -356,6 +359,7 @@ export default function Library() {
   // turns the page into a scannable list, the same accordion the Help centre
   // already uses, so the two read alike.
   const [openPlate, setOpenPlate] = useState<string | null>(null);
+  const { success } = useToast();
   // Opening a plate IS reading it — studied marks ride the open toggle.
   const togglePlate = (key: string, scientific: string) => {
     const opening = openPlate !== key;
@@ -363,6 +367,29 @@ export default function Library() {
     if (opening) {
       const next = markPlateStudied(scientific, true);
       setStudiedPlates(new Set(next));
+      announceBadges();
+    }
+  };
+
+  /** Badge-earned celebrations (badgeNotifications.ts) — recomputed right
+   *  after the stat that feeds them changes, with the FRESH values passed
+   *  in, because state updates land on the next render. */
+  const announceBadges = (opts?: { bestStreak?: number }) => {
+    const quiz = quizRecord();
+    const fresh = newlyEarnedBadges({
+      currentStreak: 0,
+      cardCount: 0,
+      tier: 'free',
+      totalXP: 0,
+      mythicCount: 0,
+      quizBestStreak: opts?.bestStreak ?? bestStreak,
+      quizCorrect: quiz.correct,
+      quizTotal: quiz.total,
+      platesStudied: getStudiedPlates().size,
+      totalPlates: PHYTO_NOTES.length,
+    });
+    for (const b of fresh) {
+      success(`🏆 Badge earned: ${b.label} — view it on your Passport.`);
     }
   };
   const dayNumber = getDayNumber();
@@ -484,6 +511,30 @@ export default function Library() {
   // Random featured specimen per visit
   const dailyFeaturedSpecimen = PHYTO_NOTES[dayNumber % PHYTO_NOTES.length];
 
+  // Badge progress — thresholds visible so the goals are chaseable. Every
+  // number here is device-local and real; no invented steps.
+  const quizRecordData = quizRecord();
+  const badgeProgress = [
+    {
+      label: 'Moss Pole Climber',
+      have: Math.min(bestStreak, 7),
+      need: 7,
+      note: `${bestStreak}/7 best streak`,
+    },
+    {
+      label: 'Puzzle Master',
+      have: Math.min(quizRecordData.total, 25),
+      need: 25,
+      note: `${quizRecordData.total}/25 answered · ${quizAccuracy()}% accuracy (90% needed)`,
+    },
+    {
+      label: 'Folio Botanist',
+      have: Math.min(studiedPlates.size, PHYTO_NOTES.length),
+      need: PHYTO_NOTES.length,
+      note: `${studiedPlates.size}/${PHYTO_NOTES.length} plates studied`,
+    },
+  ];
+
   const answerQuiz = async (index: number) => {
     // answered/selectedAnswer are state, so two clicks landing in the same tick
     // both saw the old values and both reached the reward — one answer, two
@@ -541,6 +592,10 @@ export default function Library() {
       setTimeout(() => setJustFell(false), 900);
       setQuizMessage(`❌ Streak snapped at ${streak}. ${dailyQuiz.explanation}`);
     }
+    // A wrong answer still moves the accuracy record, and a right one moves
+    // the streak — either can cross a badge threshold, so check with the
+    // freshest possible best-streak value.
+    announceBadges({ bestStreak: Math.max(bestStreak, streak + (isCorrect ? 1 : 0)) });
   };
 
   const nextQuiz = () => {
@@ -879,6 +934,38 @@ export default function Library() {
             >
               🎲 Surprise Me
             </button>
+          </div>
+        </div>
+
+        {/* Badge progress — chaseable goals, real numbers only. */}
+        <div role="region" aria-label="Badge progress" className="mb-6 px-4 py-3 rounded-xl border border-[#8c7355]/30 bg-black/[0.02] dark:bg-white/[0.03]">
+          <p className="text-[9px] font-mono uppercase tracking-widest text-[#8c7355] dark:text-[#caa651] mb-2">
+            Badge progress
+          </p>
+          <div className="space-y-2">
+            {badgeProgress.map(b => (
+              <div key={b.label} className="flex items-center gap-3">
+                <span className="text-[11px] font-serif font-bold text-text-bark w-36 shrink-0 truncate" title={b.label}>
+                  {b.label}
+                </span>
+                <div
+                  className="flex-1 h-2 rounded-full bg-[#8c7355]/15 overflow-hidden"
+                  role="progressbar"
+                  aria-valuenow={b.have}
+                  aria-valuemin={0}
+                  aria-valuemax={b.need}
+                  aria-label={`${b.label}: ${b.note}`}
+                >
+                  <div
+                    className="h-full rounded-full bg-moss transition-all"
+                    style={{ width: `${Math.min(100, Math.round((b.have / Math.max(1, b.need)) * 100))}%` }}
+                  />
+                </div>
+                <span className="text-[9px] font-mono text-text-stone w-44 shrink-0 text-right truncate" title={b.note}>
+                  {b.note}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BarChart3, Camera, Droplets, Sprout, X } from 'lucide-react';
 import { db } from '../db/database';
-import { PlantService } from '../services/plantService';
+import { waterAllDue } from '../services/gardenActions';
 import { wateringDue } from '../services/notificationService';
 import AddPlantModal from './home/AddPlantModal';
 import { useToast } from './Toast';
@@ -101,22 +101,26 @@ export default function QuickActionsFab() {
     if (watering) return;
     setWatering(true);
     try {
-      const now = new Date();
-      // The same pure predicate the reminder engine uses — one definition of
-      // "thirsty" across the app.
-      const due = (await db.plants.toArray()).filter(p => !p.isDemo && wateringDue(p, now));
-      if (!due.length) {
+      // The shared loop with per-plant failure capture — one cloud-less
+      // plant must not eat the rest of the garden's watering.
+      const result = await waterAllDue();
+      if (!result.total) {
         info('Nothing is thirsty right now. 🌿');
         return;
       }
-      for (const plant of due) {
-        await PlantService.waterPlant(plant.id, now);
+      if (result.failed) {
+        triggerHaptic('medium');
+        info(
+          `💧 Watered ${result.watered} of ${result.total} — ${result.failed} failed` +
+            ` (${result.failedNames[0]}${result.failedNames.length > 1 ? ' +more' : ''}). Try again from its page.`,
+        );
+      } else {
+        triggerHaptic('light');
+        success(`Watered ${result.watered} plant${result.watered === 1 ? '' : 's'}. 💧`);
       }
-      triggerHaptic('light');
-      success(`Watered ${due.length} plant${due.length === 1 ? '' : 's'}. 💧`);
     } catch (err) {
       console.error('[fab] water all failed:', err);
-      info('Could not water every plant — try again from its page.');
+      info('Could not reach the garden data — try again.');
     } finally {
       setWatering(false);
     }

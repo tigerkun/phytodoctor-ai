@@ -48,6 +48,11 @@ export interface Plant {
    *  applied — by the server's watering push daemon. Null/undefined reads as
    *  unmuted; care facts (due counts, task queue) are unaffected. */
   remindersMuted?: boolean | null;
+  /** True when a human chose this cadence via the drawer (as opposed to the
+   *  species-typical default it was created with). Client-only — no Postgres
+   *  column, preserved across round-trips by plantService's local-field
+   *  merge. Powers the "custom cadence" indicators. */
+  wateringIntervalCustom?: boolean;
   coldToleranceC?: number | null;
   heatToleranceC?: number | null;
   isDemo?: boolean;

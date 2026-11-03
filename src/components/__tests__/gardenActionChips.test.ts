@@ -15,11 +15,13 @@ describe('GardenActionChips', () => {
     expect(chips).toContain('buildPriorityQueue');
   });
 
-  it('performs the act through the one service write path', () => {
-    // Water-all goes through PlantService.waterPlant, the ONE place that
-    // writes the watering triple — never an inline Dexie patch.
-    expect(chips).toContain('PlantService.waterPlant(plant.id, stamp)');
-    expect(chips).toContain('wateringDue(p, stamp)');
+  it('performs the act through the shared gardenActions loop', () => {
+    // The chips own feedback; the loop (and its one write path) lives in
+    // gardenActions.ts so the FAB and the chips cannot drift.
+    expect(chips).toContain('await waterAllDue()');
+    const service = stripJsComments(readSource('src/services/gardenActions.ts'));
+    expect(service).toContain('PlantService.waterPlant(plant.id, now)');
+    expect(service).toContain('wateringDue(p, now)');
   });
 
   it('renders nothing when the garden needs nothing', () => {

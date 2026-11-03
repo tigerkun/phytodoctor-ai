@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useRef } from 'react';
 import {
   Volume2,
   VolumeX,
@@ -16,6 +17,8 @@ import {
   Sparkles,
   Smartphone,
   Trash2,
+  Upload,
+  MessageCircle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getTextSize, setTextSize, TEXT_SIZES, type TextSize } from '../utils/textSize';
@@ -23,6 +26,8 @@ import { getMotionPreference, setMotionPreference, MOTION_PREFERENCES, type Moti
 import NotificationOptIn from '../components/NotificationOptIn';
 import { NotificationService, type ReminderPrefs } from '../services/notificationService';
 import { resetGardenProgress } from '../services/progressReset';
+import { restoreBackup } from '../services/backupRestore';
+import { assistantContextEnabled, setAssistantContextEnabled } from '../lib/assistantContext';
 import { gardenerProfile, saveGardenerProfile, type GardenerProfile } from '../services/gardenDashboardService';
 import { db } from '../db/database';
 import { useToast } from '../components/Toast';
@@ -108,6 +113,33 @@ export default function Settings() {
   // local-only — the modal copy says exactly what survives and what returns.
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
+
+  // Restore-from-backup — the safety net under the reset above.
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [restoring, setRestoring] = useState(false);
+
+  const handleRestoreFile = async (file: File) => {
+    if (restoring) return;
+    setRestoring(true);
+    try {
+      const count = await restoreBackup(await file.text());
+      success(`Restored ${count} table${count === 1 ? '' : 's'} from backup.`);
+      setTimeout(() => { window.location.href = '/'; }, 900);
+    } catch (err) {
+      console.error('[settings] restore failed:', err);
+      error(err instanceof Error ? err.message : 'Restore failed — the file may not be a backup.');
+      setRestoring(false);
+    }
+  };
+
+  // Assistant garden-context privacy toggle (see assistantContext.ts).
+  const [assistantContext, setAssistantContextState] = useState(() => assistantContextEnabled());
+  const handleToggleAssistantContext = () => {
+    const next = !assistantContext;
+    setAssistantContextState(next);
+    setAssistantContextEnabled(next);
+    if (hapticEnabled) triggerHaptic('light');
+  };
 
   const handleResetGarden = async () => {
     if (resetting) return;
@@ -425,6 +457,9 @@ export default function Settings() {
                     </button>
                   ))}
                 </div>
+                <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087] mt-2">
+                  Reminders that come due while it&apos;s quiet wait for your window — nothing is skipped.
+                </p>
 
                 {/* Custom window — replaces the named slot when enabled.
                     Hours are 0–23; 22 → 6 wraps midnight. */}
@@ -536,21 +571,69 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Data & privacy — see it, take it, delete it. */}
+              {/* Data & privacy — see it, take it, put it back. */}
               <div className="p-4 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528] flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
                     Your Data
                   </h3>
                   <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
-                    Export every record the garden holds, as JSON
+                    Export every record the garden holds, or restore a backup (best-effort — photos excluded)
                   </p>
                 </div>
+                <div className="flex gap-2 shrink-0">
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="application/json,.json"
+                    className="hidden"
+                    aria-hidden="true"
+                    tabIndex={-1}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleRestoreFile(file);
+                      e.target.value = '';
+                    }}
+                  />
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    disabled={restoring}
+                    className="min-h-[44px] px-4 py-2 rounded-xl border border-[#3c6b44] text-[#3c6b44] dark:text-[#79cb91] text-[10px] font-mono font-black uppercase tracking-wider hover:bg-[#3c6b44]/10 transition-colors disabled:opacity-50"
+                  >
+                    {restoring ? 'Restoring…' : 'Restore'}
+                  </button>
+                  <button
+                    onClick={handleExportData}
+                    className="min-h-[44px] px-4 py-2 rounded-xl border border-[#3c6b44] text-[#3c6b44] dark:text-[#79cb91] text-[10px] font-mono font-black uppercase tracking-wider hover:bg-[#3c6b44]/10 transition-colors"
+                  >
+                    {exporting ? 'Preparing…' : 'Export JSON'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Assistant privacy — the garden briefing is a feature AND a
+                  data flow; make both visible and revocable. */}
+              <div className="p-4 bg-[#faf4e6]/90 dark:bg-[#251e18]/90 rounded-2xl border border-[#d8ccb8] dark:border-[#423528] flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-[#c5a059]/15 flex items-center justify-center text-[#c5a059] shrink-0">
+                    <MessageCircle size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
+                      Assistant Garden Context
+                    </h3>
+                    <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
+                      Shares plant names, health scores &amp; care schedule with the AI for personalized advice. Off = generic advice, nothing shared.
+                    </p>
+                  </div>
+                </div>
                 <button
-                  onClick={handleExportData}
-                  className="min-h-[44px] px-4 py-2 rounded-xl border border-[#3c6b44] text-[#3c6b44] dark:text-[#79cb91] text-[10px] font-mono font-black uppercase tracking-wider hover:bg-[#3c6b44]/10 transition-colors shrink-0"
+                  type="button"
+                  onClick={handleToggleAssistantContext}
+                  className={`passport-toggle-switch ${assistantContext ? 'is-on' : ''}`}
+                  aria-label="Toggle assistant garden context"
                 >
-                  {exporting ? 'Preparing…' : 'Export JSON'}
+                  <span className="passport-toggle-nub" />
                 </button>
               </div>
             </div>
@@ -782,6 +865,19 @@ export default function Settings() {
               plants return on the next sync — delete them from the cloud first
               if you want them gone for good.
             </p>
+            <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087] mb-3">
+              ⚠️ This cannot be undone from this device. Download a backup first if you might want your data back.
+            </p>
+            <div className="flex gap-3 justify-end mb-3">
+              <button
+                type="button"
+                onClick={handleExportData}
+                disabled={resetting}
+                className="min-h-[44px] px-4 py-2.5 rounded-xl border border-[#3c6b44] text-[#3c6b44] dark:text-[#79cb91] text-xs font-mono font-bold uppercase tracking-wider hover:bg-[#3c6b44]/10 transition-colors disabled:opacity-50"
+              >
+                {exporting ? 'Preparing…' : 'Download backup first'}
+              </button>
+            </div>
             <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087] mb-5">
               Full account deletion remains a support contact — see Help.
             </p>

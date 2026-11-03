@@ -7,6 +7,7 @@ import {
   WeatherAdjustmentService,
   ADJUSTMENT_DAYS,
   HEAT_WATER_FACTOR,
+  HISTORY_RETENTION_DAYS,
 } from '../weatherAdjustments';
 import { db } from '../../db/database';
 import type { WeatherAdjustment } from '../../types';
@@ -157,5 +158,71 @@ describe('WeatherAdjustmentService', () => {
     expect(hasActive(rows, 'p1', 'heat', NOW)).toBe(true);
     expect(hasActive(rows, 'p1', 'frost', NOW)).toBe(false);
     expect(hasActive(rows, 'p2', 'heat', NOW)).toBe(false);
+  });
+
+  it('revertProtection deletes only the ACTIVE rows of a kind — no 7-day lock-in', async () => {
+    const deleted: string[] = [];
+    vi.spyOn(WeatherAdjustmentService, 'allActive').mockResolvedValue([
+      row({ id: 'live-1', kind: 'heat', expiresAt: new Date(NOW.getTime() + DAY) }),
+      row({ id: 'live-2', kind: 'heat', plantId: 'p2', expiresAt: new Date(NOW.getTime() + DAY) }),
+      row({ id: 'old-frost', kind: 'frost', expiresAt: new Date(NOW.getTime() + DAY) }),
+    ]);
+    vi.spyOn(db.weatherAdjustments, 'bulkDelete').mockImplementation((async (ids: string[]) => {
+      deleted.push(...ids);
+    }) as any);
+
+    const n = await WeatherAdjustmentService.revertProtection('heat', NOW);
+    expect(n).toBe(2);
+    expect(deleted.sort()).toEqual(['live-1', 'live-2']);
+    await expect(WeatherAdjustmentService.revertProtection('dry-air', NOW)).resolves.toBe(0);
+  });
+
+  it('pruneExpired drops only rows that expired beyond the 30-day history window', async () => {
+    const cutoffArg = vi.fn();
+    vi.spyOn(db.weatherAdjustments, 'where').mockImplementation(((field: string) => {
+      expect(field).toBe('expiresAt');
+      return {
+        below: (cutoff: Date) => {
+          cutoffArg(cutoff);
+          return { delete: async () => 3 };
+        },
+      };
+    }) as any);
+
+    await WeatherAdjustmentService.pruneExpired(NOW);
+    expect(cutoffArg.mock.calls[0][0].getTime()).toBe(
+      NOW.getTime() - HISTORY_RETENTION_DAYS * DAY,
+    );
+  });
+
+  it('recentApplicationCount counts creations inside the window, expiry aside', async () => {
+    vi.spyOn(db.weatherAdjustments, 'where').mockImplementation(((field: string) => {
+      expect(field).toBe('kind');
+      return {
+        equals: (k: string) => ({
+          // The index query owns kind-matching — the heat bucket holds only
+          // heat rows; the service just counts creations inside the window.
+          toArray: async () =>
+            k === 'heat'
+              ? [
+                  row({ createdAt: new Date(NOW.getTime() - 2 * DAY) }),
+                  row({ createdAt: new Date(NOW.getTime() - 29 * DAY) }),
+                  row({ createdAt: new Date(NOW.getTime() - 40 * DAY) }), // outside window
+                ]
+              : [],
+        }),
+      };
+    }) as any);
+
+    expect(await WeatherAdjustmentService.recentApplicationCount('heat', NOW)).toBe(2);
+    expect(await WeatherAdjustmentService.recentApplicationCount('frost', NOW)).toBe(0);
+  });
+
+  it('applyProtection still succeeds when history pruning fails', async () => {
+    vi.spyOn(db.weatherAdjustments, 'bulkPut').mockResolvedValue(undefined as any);
+    vi.spyOn(WeatherAdjustmentService, 'pruneExpired').mockRejectedValue(new Error('housekeeping down'));
+    await expect(
+      WeatherAdjustmentService.applyProtection('heat', ['p1'], NOW),
+    ).resolves.toBe(1);
   });
 });
