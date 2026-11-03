@@ -43,7 +43,12 @@ export const HeroSection = ({ today }: HeroSectionProps) => {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="font-serif text-3xl text-[var(--text-bark)]">{today.nickname}</h2>
-              <button className="text-[var(--text-muted)] hover:text-[var(--moss)]"><Pencil className="w-4 h-4" /></button>
+              <button
+                aria-label="Edit plant nickname"
+                className="text-[var(--text-muted)] hover:text-[var(--moss)] hover:bg-[var(--moss)]/10 p-1 -m-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] transition-colors"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
             </div>
             <p className="text-sm text-[var(--text-stone)] mt-0.5">{today.speciesName}</p>
           </div>
