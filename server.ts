@@ -14,6 +14,7 @@ import { readImageSignals, assessProvenance } from "./src/lib/imageProvenance";
 import { assessImageWithImagga, imaggaStatus, interpretImaggaTags } from "./src/lib/imaggaClient";
 import { shapeScanReport, type ScanReport } from "./src/lib/scanReport";
 import { createGuestQuotaStore, digestIp, MemoryQuotaStore, type GuestQuotaStore } from "./src/lib/guestQuotaStore";
+import { buildGardenPromptBlock, GARDEN_CONTEXT_LIMIT } from "./src/lib/assistantContext";
 import { classifyStaticRequest } from "./src/lib/spaFallback";
 import { clientIpOf as resolveClientIp } from "./src/lib/clientIp";
 import { log, withRequestContext, setRequestUser, currentRequestId } from "./src/lib/logger";
@@ -542,17 +543,31 @@ async function runWateringReminders() {
 
   const [subsResult, plantsResult] = await Promise.all([
     supabaseAdmin.from('push_subscriptions').select('id,user_id,endpoint,p256dh,auth_key,last_sent_at'),
-    supabaseAdmin.from('plants').select('id,user_id,name,next_water_due,last_watered_at,watering_interval_days'),
+    supabaseAdmin.from('plants').select('id,user_id,name,next_water_due,last_watered_at,watering_interval_days,reminders_muted'),
   ]);
   if (subsResult.error) throw new Error(subsResult.error.message);
-  if (plantsResult.error) throw new Error(plantsResult.error.message);
+  let plants = (plantsResult.data || []) as any[];
+  if (plantsResult.error) {
+    // reminders_muted is a hand-applied migration (sql/plants_reminders_muted.sql).
+    // Until it lands, re-run the pre-migration query and treat every plant as
+    // unmuted — the same column-drift pattern the treatment daemon uses for
+    // push_alert_log. Losing the mute beats losing every watering push.
+    if (!/reminders_muted|PGRST204/i.test(plantsResult.error.message)) {
+      throw new Error(plantsResult.error.message);
+    }
+    log.warn('Watering reminders running without reminders_muted (migration not applied)');
+    const retry = await supabaseAdmin.from('plants')
+      .select('id,user_id,name,next_water_due,last_watered_at,watering_interval_days');
+    if (retry.error) throw new Error(retry.error.message);
+    plants = (retry.data || []) as any[];
+  }
   const subs = (subsResult.data || []) as PushRow[];
-  const plants = (plantsResult.data || []) as any[];
   if (!subs.length) return { sent: 0, usersDue: 0 };
 
   const byUser = new Map<string, any[]>();
   for (const plant of plants) {
-    if (!plant.user_id || !isDue(plant, now)) continue;
+    if (!plant.user_id || plant.reminders_muted === true) continue;
+    if (!isDue(plant, now)) continue;
     if (!byUser.has(plant.user_id)) byUser.set(plant.user_id, []);
     byUser.get(plant.user_id)!.push(plant);
   }
@@ -2040,7 +2055,7 @@ Score climate, water, light, soil, pest exposure and seasonal timing independent
 app.post("/api/chat", express.json({ limit: '64kb' }), aiLimiter, apiGate, async (req, res) => {
   let requestedMessages: Array<{ role?: string; content?: string }> = [];
   try {
-    const { messages } = req.body;
+    const { messages, garden } = req.body;
     if (!Array.isArray(messages) || messages.length === 0) {
       return fail(res, 400, "Messages are required");
     }
@@ -2053,8 +2068,20 @@ app.post("/api/chat", express.json({ limit: '64kb' }), aiLimiter, apiGate, async
         return fail(res, 400, "Invalid message content.");
       }
     }
+    // Optional garden context (assistantContext.ts): the client's summary of
+    // its live garden. An oversize payload is a contract violation — reject
+    // loudly rather than silently answering without the context the client
+    // believed it sent.
+    if (garden !== undefined) {
+      if (garden === null || typeof garden !== 'object' || Array.isArray(garden)) {
+        return fail(res, 400, "Invalid garden context.");
+      }
+      if (JSON.stringify(garden).length > GARDEN_CONTEXT_LIMIT) {
+        return fail(res, 400, "Garden context is too large.");
+      }
+    }
 
-    const systemPrompt = `You are PhytoDoctor AI's Chief Master Botanist and world-renowned Plant Pathologist.
+    let systemPrompt = `You are PhytoDoctor AI's Chief Master Botanist and world-renowned Plant Pathologist.
 
 CORE BOTANICAL PERSONA:
 You possess encyclopedic, evidence-based mastery over botany, plant physiology, horticulture, soil microbiology, organic pest management, and phytopathology. Your tone is warm, authoritative, deeply knowledgeable, and reassuring.
@@ -2068,6 +2095,12 @@ RESPONSE FORMAT & PACING (SHORT STANZAS):
 - Deliver your guidance in prompt, concise, structured short stanzas (short paragraphs of 2-3 sentences each).
 - Use clear bullet points and bold key parameters (e.g., **Lighting**, **Watering Schedule**, **Treatment**).
 - Avoid long rambling essays; keep it crisp, insightful, and immediately actionable so the user can easily digest and apply the advice.`;
+
+    // The garden briefing rides after the persona: the model reads who it is,
+    // then whose garden it is. buildGardenPromptBlock returns null when the
+    // payload carries nothing usable and the prompt is left untouched.
+    const gardenBlock = buildGardenPromptBlock(garden);
+    if (gardenBlock) systemPrompt += `\n\n${gardenBlock}`;
 
     // Older turns are clamped rather than rejected. A single oversized message
     // used to fail the whole batch, which meant one long paste (or one runaway

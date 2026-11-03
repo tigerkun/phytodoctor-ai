@@ -32,6 +32,7 @@ export function postgresToPlant(row: any): Plant {
     wateringIntervalDays: typeof row.watering_interval_days === 'number' ? row.watering_interval_days : 7,
     lastWateredAt: row.last_watered_at ? new Date(row.last_watered_at) : null,
     nextWaterDue: row.next_water_due ? new Date(row.next_water_due) : null,
+    remindersMuted: typeof row.reminders_muted === 'boolean' ? row.reminders_muted : null,
     coldToleranceC: typeof row.cold_tolerance_c === 'number' ? row.cold_tolerance_c : null,
     heatToleranceC: typeof row.heat_tolerance_c === 'number' ? row.heat_tolerance_c : null,
     isDemo: Boolean(row.is_demo),
@@ -105,6 +106,7 @@ export function plantToPostgres(plant: Partial<Plant>, userId?: string): Record<
         ? new Date(plant.nextWaterDue as any).toISOString()
         : null;
   }
+  if (plant.remindersMuted !== undefined) payload.reminders_muted = plant.remindersMuted;
   if (plant.coldToleranceC !== undefined) payload.cold_tolerance_c = plant.coldToleranceC;
   if (plant.heatToleranceC !== undefined) payload.heat_tolerance_c = plant.heatToleranceC;
 
@@ -377,6 +379,24 @@ export const PlantService = {
       nextWaterDue: new Date(now.getTime() + interval * 86_400_000),
       wateringIntervalDays: interval,
       ...extraUpdates,
+    });
+  },
+
+  /**
+   * Change a plant's watering cadence — the per-plant override the profile
+   * drawer exposes. This is not a parallel "override" field: it IS the
+   * plant's cadence (`wateringIntervalDays`), so the reminder engine, the
+   * Quick Actions due count and the server's push daemon all read one source
+   * of truth. `nextWaterDue` is recomputed from the last watering so a
+   * tightened cadence takes effect immediately, not after the next watering.
+   */
+  async setWateringInterval(id: string, days: number): Promise<void> {
+    const plant = await db.plants.get(id);
+    const interval = Math.max(1, Math.min(365, Math.floor(days) || 7));
+    const last = plant?.lastWateredAt ? new Date(plant.lastWateredAt) : null;
+    await this.updatePlant(id, {
+      wateringIntervalDays: interval,
+      ...(last ? { nextWaterDue: new Date(last.getTime() + interval * 86_400_000) } : {}),
     });
   },
 

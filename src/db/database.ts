@@ -25,7 +25,8 @@ import {
   MarketLedgerRow,
   TreatmentActionRecord,
   ScheduledReminder,
-  ReminderLogEntry
+  ReminderLogEntry,
+  WeatherAdjustment
 } from '../types';
 
 export type { 
@@ -52,7 +53,8 @@ export type {
   DiscoveryRecord,
   StreakFreeze,
   ScheduledReminder,
-  ReminderLogEntry
+  ReminderLogEntry,
+  WeatherAdjustment
 };
 
 export interface SensorReading {
@@ -109,6 +111,7 @@ class BotanicalDB extends Dexie {
   treatmentActions!: Table<TreatmentActionRecord>;
   reminders!: Table<ScheduledReminder>;
   reminderLog!: Table<ReminderLogEntry>;
+  weatherAdjustments!: Table<WeatherAdjustment>;
   seedSyncOutbox!: Table<{
     id: string;
     userId: string;
@@ -270,6 +273,12 @@ class BotanicalDB extends Dexie {
     this.version(24).stores({
       reminders: 'id, plantId, kind, dueAt, [plantId+kind]',
       reminderLog: 'id, plantId, kind, firedAt, [plantId+kind]'
+    });
+    // v25: one-click weather protection (see src/services/weatherAdjustments.ts).
+    // Expiry is computed at read time — expired rows are filtered out, never
+    // deleted by a timer, matching the compute-where-possible precedent.
+    this.version(25).stores({
+      weatherAdjustments: 'id, kind, plantId, expiresAt'
     });
   }
 }

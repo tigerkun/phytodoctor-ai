@@ -38,6 +38,8 @@ import {
   formatFolioSerial,
   parseSettingToggle
 } from '../services/profileUtils';
+import { quizRecord, quizBestStreak, getStudiedPlates } from '../services/libraryEngagement';
+import { PHYTO_NOTES } from '../data/phytoNotes';
 
 export type ProfileFolio = 'passport' | 'knowledge' | 'mastery' | 'badges' | 'treasury';
 
@@ -292,13 +294,21 @@ export default function Profile() {
     }
   };
 
-  const badges = useMemo(() => evaluateProfileBadges({
-    currentStreak,
-    cardCount: cards.length,
-    tier: profile?.tier || 'free',
-    totalXP: effectiveXP,
-    mythicCount
-  }), [currentStreak, cards.length, profile?.tier, effectiveXP, mythicCount]);
+  const badges = useMemo(() => {
+    const quiz = quizRecord();
+    return evaluateProfileBadges({
+      currentStreak,
+      cardCount: cards.length,
+      tier: profile?.tier || 'free',
+      totalXP: effectiveXP,
+      mythicCount,
+      quizBestStreak: quizBestStreak(),
+      quizCorrect: quiz.correct,
+      quizTotal: quiz.total,
+      platesStudied: getStudiedPlates().size,
+      totalPlates: PHYTO_NOTES.length,
+    });
+  }, [currentStreak, cards.length, profile?.tier, effectiveXP, mythicCount]);
 
   if (!profile) {
     return (

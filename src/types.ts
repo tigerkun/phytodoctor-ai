@@ -43,6 +43,11 @@ export interface Plant {
   wateringIntervalDays?: number | null;
   lastWateredAt?: Date | null;
   nextWaterDue?: Date | null;
+  /** Per-plant reminder mute (the profile drawer's toggle). Skipped by the
+   *  client reminder engine and — once sql/plants_reminders_muted.sql is
+   *  applied — by the server's watering push daemon. Null/undefined reads as
+   *  unmuted; care facts (due counts, task queue) are unaffected. */
+  remindersMuted?: boolean | null;
   coldToleranceC?: number | null;
   heatToleranceC?: number | null;
   isDemo?: boolean;
@@ -395,5 +400,20 @@ export interface ReminderLogEntry {
   message: string;
   channel: 'toast' | 'notification';
   firedAt: Date;
+}
+
+/** A one-click weather protection the Keeper applied from a garden dashboard
+ *  alert — one row per affected plant. Expiry is computed at read time (no
+ *  cron): rows past their expiresAt simply stop being returned. Heat is the
+ *  only kind that moves watering (the reminder engine pulls it forward);
+ *  frost and dry-air mark protection active without touching the schedule,
+ *  because "bring plants indoors" and "cluster the pots" are physical acts
+ *  no scheduler can perform. */
+export interface WeatherAdjustment {
+  id: string;
+  kind: 'frost' | 'heat' | 'dry-air';
+  plantId: string;
+  createdAt: Date;
+  expiresAt: Date;
 }
 

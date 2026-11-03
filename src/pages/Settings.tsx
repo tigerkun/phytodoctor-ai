@@ -15,12 +15,14 @@ import {
   X,
   Sparkles,
   Smartphone,
+  Trash2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getTextSize, setTextSize, TEXT_SIZES, type TextSize } from '../utils/textSize';
 import { getMotionPreference, setMotionPreference, MOTION_PREFERENCES, type MotionPreference } from '../utils/motionPreference';
 import NotificationOptIn from '../components/NotificationOptIn';
 import { NotificationService, type ReminderPrefs } from '../services/notificationService';
+import { resetGardenProgress } from '../services/progressReset';
 import { gardenerProfile, saveGardenerProfile, type GardenerProfile } from '../services/gardenDashboardService';
 import { db } from '../db/database';
 import { useToast } from '../components/Toast';
@@ -94,6 +96,36 @@ export default function Settings() {
       handleReminderPref({ localNotifications: true });
     }
     if (hapticEnabled) triggerHaptic('light');
+  };
+
+  // Custom reminder window — the engine replaces the named slot with these
+  // hours when enabled (from===to falls back to the slot, so a misconfigured
+  // pair can never silently mute everything).
+  const customWindow = reminderPrefs.customWindow ?? { enabled: false, fromHour: 8, toHour: 20 };
+  const hourLabel = (h: number) => `${String(h).padStart(2, '0')}:00`;
+
+  // Danger zone: the local garden reset (progressReset.ts). Deliberately
+  // local-only — the modal copy says exactly what survives and what returns.
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetGarden = async () => {
+    if (resetting) return;
+    setResetting(true);
+    try {
+      await resetGardenProgress(userId);
+      if (hapticEnabled) triggerHaptic('medium');
+      success('Garden reset — a fresh seedbed awaits. 🌱');
+      // A reload is the clean slate: every in-memory cache (PlantService's
+      // subscriber list, GameService's profile) rebuilds from the emptied
+      // stores instead of stumbling over stale state.
+      setTimeout(() => { window.location.href = '/'; }, 900);
+    } catch (err) {
+      console.error('[settings] garden reset failed:', err);
+      error('Reset failed — nothing was cleared. Try again.');
+      setResetting(false);
+      setResetOpen(false);
+    }
   };
 
   // Gardener profile + data export (Section 2.5).
@@ -393,6 +425,62 @@ export default function Settings() {
                     </button>
                   ))}
                 </div>
+
+                {/* Custom window — replaces the named slot when enabled.
+                    Hours are 0–23; 22 → 6 wraps midnight. */}
+                <div className="mt-3 pt-3 border-t border-[#d8ccb8] dark:border-[#423528]">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="font-serif font-bold text-xs text-[#2e2117] dark:text-[#faebd7]">
+                        Custom Reminder Window
+                      </h4>
+                      <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087]">
+                        Nudges arrive only between the hours you set
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleReminderPref({
+                          customWindow: {
+                            enabled: !customWindow.enabled,
+                            fromHour: customWindow.fromHour,
+                            toHour: customWindow.toHour,
+                          },
+                        })
+                      }
+                      className={`passport-toggle-switch ${customWindow.enabled ? 'is-on' : ''}`}
+                      aria-label="Toggle custom reminder window"
+                    >
+                      <span className="passport-toggle-nub" />
+                    </button>
+                  </div>
+                  {customWindow.enabled && (
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      {(['fromHour', 'toHour'] as const).map((field) => (
+                        <label key={field} className="flex flex-col gap-1">
+                          <span className="text-[9px] font-mono uppercase tracking-widest text-[#8c7459] dark:text-[#bba388]">
+                            {field === 'fromHour' ? 'From' : 'Until'}
+                          </span>
+                          <select
+                            value={customWindow[field]}
+                            onChange={(e) =>
+                              handleReminderPref({
+                                customWindow: { ...customWindow, [field]: Number(e.target.value) },
+                              })
+                            }
+                            className="min-h-11 rounded-xl border border-[#d8ccb8] dark:border-[#423528] bg-[#faf4e6]/90 dark:bg-[#251e18]/90 px-3 text-xs font-mono font-bold text-[#3b2816] dark:text-[#ebd6b2]"
+                            aria-label={field === 'fromHour' ? 'Reminders from hour' : 'Reminders until hour'}
+                          >
+                            {Array.from({ length: 24 }, (_, h) => h).map((h) => (
+                              <option key={h} value={h}>{hourLabel(h)}</option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </section>
@@ -628,6 +716,27 @@ export default function Settings() {
               </h2>
             </div>
 
+            {/* Start fresh — the local garden reset. Deliberately local-only:
+                cloud rows survive and the copy says so. */}
+            <div className="p-4 bg-red-950/5 dark:bg-red-950/20 rounded-2xl border border-red-800/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="min-w-0">
+                <h3 className="font-serif font-bold text-sm text-red-900 dark:text-red-300">
+                  Start Fresh
+                </h3>
+                <p className="text-[10px] font-mono text-red-700/80 dark:text-red-400/80">
+                  Clears this device&apos;s garden — plants, check-ins, cards, XP, seeds.
+                  Cloud-synced plants return on the next sync; purchases and photos are kept.
+                </p>
+              </div>
+              <button
+                onClick={() => setResetOpen(true)}
+                className="min-h-[44px] py-2.5 px-4 bg-red-900/15 hover:bg-red-900/25 border border-red-800/40 text-red-800 dark:text-red-300 rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-colors shrink-0"
+              >
+                <Trash2 size={14} />
+                <span>Start Fresh…</span>
+              </button>
+            </div>
+
             <div className="p-4 bg-red-950/5 dark:bg-red-950/20 rounded-2xl border border-red-800/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <h3 className="font-serif font-bold text-sm text-red-900 dark:text-red-300">
@@ -648,6 +757,56 @@ export default function Settings() {
           </section>
         </div>
       </div>
+
+      {/* Reset confirmation — step two of the two-step confirm. Naming what
+          survives is the point: a reset that eats someone's Pro status or
+          photos is a bug wearing a feature's clothes. */}
+      {resetOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm garden reset"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+          <div className="absolute inset-0 bg-black/50" onClick={() => !resetting && setResetOpen(false)} />
+          <div className="relative passport-visa-folio rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl">
+            <h3 className="font-serif text-xl font-bold text-[#2e2117] dark:text-[#fbf7ee] mb-2">
+              Reset this garden?
+            </h3>
+            <p className="text-xs text-[#5f7161] dark:text-[#b6a087] leading-relaxed mb-2">
+              Cleared on this device: plants, check-ins, cards, XP, seed history,
+              quiz stats, reminders. The fresh garden re-runs onboarding.
+            </p>
+            <p className="text-xs text-[#5f7161] dark:text-[#b6a087] leading-relaxed mb-2">
+              Kept: your Pro status, purchased goods, and photos. Cloud-synced
+              plants return on the next sync — delete them from the cloud first
+              if you want them gone for good.
+            </p>
+            <p className="text-[10px] font-mono text-[#8a7258] dark:text-[#b6a087] mb-5">
+              Full account deletion remains a support contact — see Help.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setResetOpen(false)}
+                disabled={resetting}
+                className="min-h-[44px] px-4 py-2.5 rounded-xl border border-[#d8ccb8] dark:border-[#423528] text-xs font-mono font-bold uppercase tracking-wider text-[#5f7161] dark:text-[#b6a087] hover:border-[#c5a059]/60 transition-colors disabled:opacity-50"
+              >
+                Keep my garden
+              </button>
+              <button
+                type="button"
+                onClick={handleResetGarden}
+                disabled={resetting}
+                className="min-h-[44px] px-4 py-2.5 rounded-xl bg-red-900 hover:bg-red-800 text-[#f4eee1] text-xs font-mono font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+              >
+                {resetting ? 'Resetting…' : 'Reset everything'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PageWrapper>
   );
 }

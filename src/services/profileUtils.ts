@@ -6,6 +6,14 @@ export interface ProfileBadgeCriteria {
   tier: 'free' | 'pro';
   totalXP: number;
   mythicCount: number;
+  /** Best consecutive-correct quiz run (the Library's moss pole ladder). */
+  quizBestStreak?: number;
+  /** Lifetime quiz answers — the accuracy badge needs the denominator. */
+  quizCorrect?: number;
+  quizTotal?: number;
+  /** Folio plates studied vs. the corpus total (src/data/phytoNotes.ts). */
+  platesStudied?: number;
+  totalPlates?: number;
 }
 
 export interface ProfileBadgeStatus {
@@ -22,6 +30,11 @@ export function evaluateProfileBadges(criteria: ProfileBadgeCriteria): ProfileBa
   const tier = criteria?.tier || 'free';
   const totalXP = Math.max(0, criteria?.totalXP || 0);
   const mythicCount = Math.max(0, criteria?.mythicCount || 0);
+  const quizBestStreak = Math.max(0, criteria?.quizBestStreak || 0);
+  const quizCorrect = Math.max(0, criteria?.quizCorrect || 0);
+  const quizTotal = Math.max(0, criteria?.quizTotal || 0);
+  const platesStudied = Math.max(0, criteria?.platesStudied || 0);
+  const totalPlates = Math.max(0, criteria?.totalPlates || 0);
 
   return [
     {
@@ -65,6 +78,27 @@ export function evaluateProfileBadges(criteria: ProfileBadgeCriteria): ProfileBa
       description: 'Secured at least one legendary or mythic botanical accession',
       unlocked: mythicCount >= 1,
       category: 'collection'
+    },
+    {
+      id: 'quiz_climber',
+      label: 'Moss Pole Climber',
+      description: 'Answered seven Library puzzle questions correctly in a row',
+      unlocked: quizBestStreak >= 7,
+      category: 'mastery'
+    },
+    {
+      id: 'quiz_master',
+      label: 'Puzzle Master',
+      description: 'Held 90% accuracy across at least 25 answered puzzle questions',
+      unlocked: quizTotal >= 25 && (quizCorrect / quizTotal) * 100 >= 90,
+      category: 'mastery'
+    },
+    {
+      id: 'folio_botanist',
+      label: 'Folio Botanist',
+      description: 'Studied every folio plate in the herbarium library',
+      unlocked: totalPlates > 0 && platesStudied >= totalPlates,
+      category: 'mastery'
     }
   ];
 }

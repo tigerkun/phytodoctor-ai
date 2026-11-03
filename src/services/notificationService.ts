@@ -1,5 +1,6 @@
 import { db } from '../db/database';
-import type { Plant, ScheduledReminder, ReminderLogEntry } from '../db/database';
+import type { Plant, ScheduledReminder, ReminderLogEntry, WeatherAdjustment } from '../db/database';
+import { activeAdjustments, effectiveNextWaterDue } from './weatherAdjustments';
 
 /**
  * Client-side reminder engine — the counterpart to the server's push
@@ -33,6 +34,11 @@ export interface ReminderPrefs {
   /** Deliver as browser notifications (still permission-gated) when the tab
    *  is hidden, in addition to toasts. */
   localNotifications: boolean;
+  /** Optional custom delivery window (hours 0–23) that replaces the named
+   *  timeOfDay slot when enabled — "nudges at 8am, not midnight" in the
+   *  Keeper's own words. from=22 with to=6 wraps midnight. A degenerate
+   *  from===to falls back to the named slot rather than going silent. */
+  customWindow?: { enabled: boolean; fromHour: number; toHour: number };
 }
 
 const PREFS_KEY = 'phyto_reminder_prefs';
@@ -54,8 +60,23 @@ export function frequencyDays(frequency: ReminderPrefs['frequency']): number {
   return frequency === 'daily' ? 1 : frequency === 'every-2-days' ? 2 : 7;
 }
 
+const clampHour = (h: unknown): number =>
+  Math.min(23, Math.max(0, Math.floor(Number(h) || 0)));
+
 export function inPreferredWindow(prefs: ReminderPrefs, now: Date = new Date()): boolean {
   const hour = now.getHours();
+  const custom = prefs.customWindow;
+  if (custom?.enabled) {
+    const from = clampHour(custom.fromHour);
+    const to = clampHour(custom.toHour);
+    if (from === to) {
+      // A zero-length window would silently mute everything forever — never
+      // what a misconfigured toggle means. Fall back to the named slot.
+      const [f, t] = WINDOWS[prefs.timeOfDay];
+      return hour >= f && hour < t;
+    }
+    return from < to ? hour >= from && hour < to : hour >= from || hour < to;
+  }
   const [from, to] = WINDOWS[prefs.timeOfDay];
   return hour >= from && hour < to;
 }
@@ -189,6 +210,15 @@ export const NotificationService = {
     if (!masterEnabled() || !inPreferredWindow(prefs, now)) return [];
 
     const plants = await db.plants.toArray();
+    // Weather protections (weatherAdjustments.ts) — only heat moves
+    // watering, pulling it forward; expiry is filtered at read time.
+    let adjustments: WeatherAdjustment[] = [];
+    try {
+      adjustments = activeAdjustments(await db.weatherAdjustments.toArray(), now);
+    } catch {
+      // Table unreachable (private mode, mid-upgrade) — no adjustment is
+      // the safe default: the stored schedule is honoured as-is.
+    }
     const deliveredToday = new Set(
       (await db.reminderLog.where('firedAt').above(startOfToday(now)).toArray())
         .map(r => `${r.plantId}:${r.kind}`),
@@ -197,11 +227,16 @@ export const NotificationService = {
 
     for (const plant of plants) {
       if (!plant.name) continue;
+      // Per-plant mute (the profile drawer's toggle): the engine stays quiet
+      // about this plant entirely. The care facts don't change — it still
+      // shows in due counts and the task queue — only the nudges stop.
+      if (plant.remindersMuted) continue;
       const key = `${plant.id}:watering`;
       const custom = await db.reminders.where('[plantId+kind]').equals([plant.id, 'watering']).first();
+      const effectiveDue = effectiveNextWaterDue(plant, adjustments, now);
       if (
         !deliveredToday.has(key) &&
-        (wateringDue(plant, now) || (custom && new Date(custom.dueAt).getTime() <= now.getTime()))
+        (wateringDue({ nextWaterDue: effectiveDue }, now) || (custom && new Date(custom.dueAt).getTime() <= now.getTime()))
       ) {
         due.push({ kind: 'watering', plantId: plant.id, plantName: plant.name, title: 'Watering due', body: wateringMessage(plant.name) });
       }

@@ -7,6 +7,9 @@ import {
   markPlateStudied,
   getStudiedPlates,
   libraryStats,
+  quizRecord,
+  quizBestStreak,
+  folioMatchesForSpecies,
 } from '../libraryEngagement';
 import { safeStore } from '../../lib/safeStore';
 
@@ -65,5 +68,80 @@ describe('accuracy + studied plates (localStorage)', () => {
     markPlateStudied('Tetranychidae', true);
     const s = libraryStats(4, 9, 16);
     expect(s).toEqual({ streak: 4, bestStreak: 9, accuracyPct: 100, platesStudied: 1, totalPlates: 16 });
+  });
+});
+
+describe('quiz record + best streak (badge feed)', () => {
+  beforeEach(() => {
+    safeStore.removeItem('botanical_quiz_accuracy');
+    safeStore.removeItem('botanical_quiz_best_streak');
+  });
+
+  it('quizRecord exposes the denominator, not just the percentage', () => {
+    expect(quizRecord()).toEqual({ correct: 0, total: 0 });
+    recordQuizOutcome(true);
+    recordQuizOutcome(true);
+    recordQuizOutcome(false);
+    expect(quizRecord()).toEqual({ correct: 2, total: 3 });
+    expect(quizAccuracy()).toBe(67);
+  });
+
+  it('quizBestStreak owns its key and clamps garbage', () => {
+    expect(quizBestStreak()).toBe(0);
+    safeStore.setItem('botanical_quiz_best_streak', '9');
+    expect(quizBestStreak()).toBe(9);
+    safeStore.setItem('botanical_quiz_best_streak', '-4');
+    expect(quizBestStreak()).toBe(0);
+  });
+});
+
+describe('folioMatchesForSpecies', () => {
+  const folios = [
+    { name: 'Monstera deliciosa', scientific: 'Monstera deliciosa' },
+    { name: 'Ficus lyrata', scientific: 'Ficus lyrata' },
+    { name: 'Root Rot', scientific: 'Phytophthora root rot' },
+    { name: 'Ficus rubiginosa', scientific: 'Ficus rubiginosa' },
+  ];
+
+  it('the scan found the matcher it means to check', () => {
+    expect(folioMatchesForSpecies(folios, [])).toEqual([]);
+  });
+
+  it('matches an exact binomial and a longer varietal name', () => {
+    const hits = folioMatchesForSpecies(folios, ['Monstera deliciosa', 'Monstera Deliciosa Variegata']);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].scientific).toBe('Monstera deliciosa');
+  });
+
+  it('a bare genus resolves only when the corpus is unambiguous', () => {
+    const hits = folioMatchesForSpecies(folios, ['monstera']);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].scientific).toBe('Monstera deliciosa');
+    // Two ficus folios: 'ficus' alone must not guess.
+    expect(folioMatchesForSpecies(folios, ['ficus'])).toEqual([]);
+  });
+
+  it('matches the exact binomial even when the genus is ambiguous', () => {
+    const hits = folioMatchesForSpecies(folios, ['Ficus lyrata']);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].scientific).toBe('Ficus lyrata');
+  });
+
+  it('no species, empty garden, or non-matching genus renders nothing', () => {
+    expect(folioMatchesForSpecies(folios, ['  '])).toEqual([]);
+    expect(folioMatchesForSpecies(folios, ['Begonia maculata'])).toEqual([]);
+    expect(folioMatchesForSpecies([], ['Monstera deliciosa'])).toEqual([]);
+  });
+
+  it('returns matches in corpus order regardless of plant order', () => {
+    const hits = folioMatchesForSpecies(folios, ['Ficus lyrata', 'monstera deliciosa']);
+    expect(hits.map(f => f.scientific)).toEqual(['Monstera deliciosa', 'Ficus lyrata']);
+  });
+
+  it('does not recommend a folio for a different species in the same genus', () => {
+    // 'Monstera adansonii' is NOT 'Monstera deliciosa' — the deliciosa
+    // plate's advice would be wrong for it, and a wrong "this is your plant"
+    // is worse than no recommendation at all.
+    expect(folioMatchesForSpecies(folios, ['Monstera adansonii'])).toEqual([]);
   });
 });

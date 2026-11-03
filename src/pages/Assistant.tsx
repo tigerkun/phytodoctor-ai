@@ -9,6 +9,9 @@ import { triggerHaptic, playAudio } from '../utils/hapticAudio';
 import { db } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { buildPriorityQueue, summarizeGardenHealth } from '../services/gardenDashboardService';
+import { gardenerProfile } from '../services/gardenDashboardService';
+import { buildGardenContext, type GardenContext } from '../lib/assistantContext';
+import GardenActionChips from '../components/assistant/GardenActionChips';
 import { GameService } from '../services/gameService';
 import PageWrapper from '../components/home/PageWrapper';
 
@@ -63,6 +66,23 @@ export default function Assistant() {
   const plantName = searchParams.get('plantName');
   const species = searchParams.get('species');
   const initialQuery = searchParams.get('query');
+
+  /** Fresh garden briefing per send (see assistantContext.ts). Read at send
+   *  time, not at mount, so a long-lived conversation answers from the
+   *  garden as it is now. */
+  const gardenNow = async (): Promise<GardenContext | undefined> => {
+    try {
+      const plants = await db.plants.toArray();
+      if (!plants.length) return undefined;
+      return buildGardenContext({
+        plants: plants as any,
+        tasks: buildPriorityQueue(plants as any),
+        skill: gardenerProfile().skill,
+      }) ?? undefined;
+    } catch {
+      return undefined;
+    }
+  };
   // The real plant id, when the caller knows it. Without this the note-saving
   // path had to invent a slug, and every note it filed was orphaned: it was
   // written under e.g. "monstera-deliciosa" while the Field Notebook queries
@@ -135,21 +155,22 @@ export default function Assistant() {
       triggerHaptic('medium');
       playAudio('chime');
 
-      chatWithBotanist([
-        DEFAULT_WELCOME_MESSAGE,
-        userMessage
-      ]).then(response => {
-        setMessages(prev => [...prev, { role: 'model', content: response }]);
-        playAudio('leaf-rustle');
-        triggerHaptic('light');
-      }).catch((_err: any) => {
-        setMessages(prev => [...prev, {
-          role: 'model',
-          content: "I am having a momentary connection delay with the Royal Botanical archives. Please verify your connection and transmit your inquiry again."
-        }]);
-      }).finally(() => {
-        setLoading(false);
-      });
+      (async () => {
+        try {
+          const garden = await gardenNow();
+          const response = await chatWithBotanist([DEFAULT_WELCOME_MESSAGE, userMessage], garden);
+          setMessages(prev => [...prev, { role: 'model', content: response }]);
+          playAudio('leaf-rustle');
+          triggerHaptic('light');
+        } catch (_err: any) {
+          setMessages(prev => [...prev, {
+            role: 'model',
+            content: "I am having a momentary connection delay with the Royal Botanical archives. Please verify your connection and transmit your inquiry again."
+          }]);
+        } finally {
+          setLoading(false);
+        }
+      })();
     }
   }, [plantName, species, initialQuery]);
 
@@ -227,7 +248,7 @@ export default function Assistant() {
     setLoading(true);
 
     try {
-      const response = await chatWithBotanist(updatedMessages);
+      const response = await chatWithBotanist(updatedMessages, await gardenNow());
       setMessages(prev => [...prev, { role: 'model', content: response }]);
       playAudio('leaf-rustle');
       triggerHaptic('light');
@@ -562,6 +583,11 @@ export default function Assistant() {
               ))}
             </div>
           )}
+
+          {/* One-click garden acts — same queue the dashboard shows. */}
+          <div className="relative z-10 px-4 sm:px-6 py-2 bg-[#142419] border-t border-[#26402d] shrink-0">
+            <GardenActionChips variant="telegraph" />
+          </div>
 
           {/* Telegraph Dispatch Input Area */}
           <div className="relative z-10 p-3.5 sm:p-5 bg-[#172b1d] border-t border-[#284832] shrink-0">

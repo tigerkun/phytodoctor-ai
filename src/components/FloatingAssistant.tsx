@@ -4,6 +4,11 @@ import { Send, User, Bot, Loader2, MessageCircle, X, Mic } from 'lucide-react';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { chatWithGardener, type Message } from '../services/chatService';
 import { useToast } from '../components/Toast';
+import { db } from '../db/database';
+import { buildGardenContext, type GardenContext } from '../lib/assistantContext';
+import { buildPriorityQueue } from '../services/gardenDashboardService';
+import { gardenerProfile } from '../services/gardenDashboardService';
+import GardenActionChips from './assistant/GardenActionChips';
 
 export default function FloatingAssistant() {
   const { warning } = useToast();
@@ -11,6 +16,24 @@ export default function FloatingAssistant() {
   const location = useLocation();
   const plantName = searchParams.get('plantName');
   const species = searchParams.get('species');
+
+  /** Fresh garden briefing per send — one cheap Dexie read, so the model
+   *  always answers from the garden as it is right now, not as it was when
+   *  the drawer opened. Weather alerts are deliberately absent: there is no
+   *  consented location here to read a forecast for. */
+  const gardenNow = async (): Promise<GardenContext | undefined> => {
+    try {
+      const plants = await db.plants.toArray();
+      if (!plants.length) return undefined;
+      return buildGardenContext({
+        plants: plants as any,
+        tasks: buildPriorityQueue(plants as any),
+        skill: gardenerProfile().skill,
+      }) ?? undefined;
+    } catch {
+      return undefined; // private-mode Dexie — answer without the briefing
+    }
+  };
 
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -37,16 +60,20 @@ export default function FloatingAssistant() {
       setMessages(prev => [...prev, userMessage]);
       setLoading(true);
 
-      chatWithGardener([
-        { role: 'model', content: "Greetings. I am PhytoDoctor's Master Gardener. How can I assist you with your botanical specimens today?" },
-        userMessage
-      ]).then(response => {
-        setMessages(prev => [...prev, { role: 'model', content: response }]);
-      }).catch(() => {
-        setMessages(prev => [...prev, { role: 'model', content: "I'm having trouble connecting to my botanical knowledge base right now. Please try again later." }]);
-      }).finally(() => {
-        setLoading(false);
-      });
+      (async () => {
+        try {
+          const garden = await gardenNow();
+          const response = await chatWithGardener([
+            { role: 'model', content: "Greetings. I am PhytoDoctor's Master Gardener. How can I assist you with your botanical specimens today?" },
+            userMessage
+          ], garden);
+          setMessages(prev => [...prev, { role: 'model', content: response }]);
+        } catch {
+          setMessages(prev => [...prev, { role: 'model', content: "I'm having trouble connecting to my botanical knowledge base right now. Please try again later." }]);
+        } finally {
+          setLoading(false);
+        }
+      })();
     }
   }, [plantName, species, searchParams]);
 
@@ -83,7 +110,7 @@ export default function FloatingAssistant() {
     setMessages(prev => [...prev, userMessage]);
     setLoading(true);
     try {
-      const response = await chatWithGardener([...messages, userMessage]);
+      const response = await chatWithGardener([...messages, userMessage], await gardenNow());
       setMessages(prev => [...prev, { role: 'model', content: response }]);
     } catch (err: any) {
       setMessages(prev => [...prev, { role: 'model', content: "I'm having trouble connecting right now." }]);
@@ -122,7 +149,7 @@ export default function FloatingAssistant() {
     setLoading(true);
 
     try {
-      const response = await chatWithGardener([...messages, userMessage]);
+      const response = await chatWithGardener([...messages, userMessage], await gardenNow());
       setMessages(prev => [...prev, { role: 'model', content: response }]);
     } catch (err: any) {
       setMessages(prev => [...prev, { role: 'model', content: "I'm having trouble connecting right now." }]);
@@ -208,6 +235,9 @@ export default function FloatingAssistant() {
 
             {/* Footer Input */}
             <div className="p-4 bg-bg-secondary/50 border-t border-border-light shrink-0">
+              <div className="mb-2">
+                <GardenActionChips variant="glass" />
+              </div>
               {messages.length < 3 && (
                 <div className="mb-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                   {["Monstera Care", "Repotting", "Pest Control"].map((suggestion, i) => (

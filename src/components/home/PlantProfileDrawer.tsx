@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Droplets, Sprout, RefreshCw } from 'lucide-react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { X, Droplets, Sprout, RefreshCw, BellOff, Bell } from 'lucide-react';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
 import { usePageTransition } from './PageTransitionContext';
+import { db } from '@/db/database';
+import { PlantService } from '@/services/plantService';
+import type { Plant } from '@/types';
 
 interface PlantPhoto {
   url: string;
@@ -31,10 +35,35 @@ interface PlantProfileDrawerProps {
   };
 }
 
+const CADENCE_OPTIONS = [1, 2, 3, 4, 5, 7, 10, 14, 21, 30];
+
 export function PlantProfileDrawer({ isOpen, onClose, plant }: PlantProfileDrawerProps) {
   const { theme } = useDayNightTheme();
   const { transitionTo } = usePageTransition();
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [reminderBusy, setReminderBusy] = useState(false);
+
+  // Reminders read the live Dexie row rather than the display prop — the
+  // drawer is open while things change, and the prop predates the
+  // reminder fields entirely.
+  const livePlant = useLiveQuery(() => db.plants.get(plant.id), [plant.id]);
+  const muted = Boolean(livePlant?.remindersMuted);
+  const cadence = livePlant?.wateringIntervalDays ?? 7;
+
+  // Cloud-scoped writes throw when the plant never reached Postgres
+  // (created offline). The local row is still the plant the Keeper sees —
+  // patch it there rather than losing the toggle.
+  const patchPlant = async (updates: Partial<Plant>) => {
+    if (reminderBusy) return;
+    setReminderBusy(true);
+    try {
+      await PlantService.updatePlant(plant.id, updates);
+    } catch {
+      await db.plants.update(plant.id, updates);
+    } finally {
+      setReminderBusy(false);
+    }
+  };
 
   // Fallback defaults
   const plantBio = plant?.bio || "A precious addition to your home sanctuary.";
@@ -218,6 +247,91 @@ export function PlantProfileDrawer({ isOpen, onClose, plant }: PlantProfileDrawe
                       </p>
                     </motion.div>
                   ))}
+                </div>
+              </motion.div>
+
+              {/* Reminders — per-plant mute and watering cadence. The cadence
+                  IS the plant's wateringIntervalDays (one source of truth for
+                  the engine, quick actions and server push alike), not a
+                  parallel override field. */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.45 }}
+              >
+                <h3 className="text-lg font-serif font-bold mb-4" style={{ color: theme === 'day' ? '#3D405B' : '#E8DCC8' }}>
+                  Reminders
+                </h3>
+                <div
+                  className="rounded-lg p-4 space-y-4"
+                  style={{ background: theme === 'day' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.05)' }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {muted
+                        ? <BellOff size={18} style={{ color: theme === 'day' ? '#5F7161' : '#A8B5A0' }} aria-hidden="true" />
+                        : <Bell size={18} className="text-moss" aria-hidden="true" />}
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold" style={{ color: theme === 'day' ? '#3D405B' : '#E8DCC8' }}>
+                          {muted ? 'Reminders muted' : 'Reminders on'}
+                        </p>
+                        <p className="text-[11px]" style={{ color: theme === 'day' ? '#5F7161' : '#A8B5A0' }}>
+                          Skips watering nudges for this plant, here and on cloud push
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={muted}
+                      aria-label={muted ? 'Unmute reminders for this plant' : 'Mute reminders for this plant'}
+                      disabled={reminderBusy}
+                      onClick={() => patchPlant({ remindersMuted: !muted })}
+                      className="shrink-0 w-12 h-7 rounded-full transition-colors relative disabled:opacity-50"
+                      style={{ background: muted ? '#5a7a5a' : theme === 'day' ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)' }}
+                    >
+                      <span
+                        className="absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all"
+                        style={{ left: muted ? 26 : 4 }}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <label htmlFor="drawer-watering-cadence" className="text-sm font-bold" style={{ color: theme === 'day' ? '#3D405B' : '#E8DCC8' }}>
+                      Water every
+                    </label>
+                    <select
+                      id="drawer-watering-cadence"
+                      value={CADENCE_OPTIONS.includes(cadence) ? cadence : ''}
+                      disabled={reminderBusy}
+                      onChange={(e) => {
+                        const days = Number(e.target.value);
+                        if (!days) return;
+                        // setWateringInterval also recomputes nextWaterDue from
+                        // the last watering; the offline fallback below keeps
+                        // the cadence without it.
+                        PlantService.setWateringInterval(plant.id, days).catch(() =>
+                          db.plants.update(plant.id, { wateringIntervalDays: days })
+                        );
+                      }}
+                      className="rounded-md border px-2 py-1.5 text-sm font-bold disabled:opacity-50"
+                      style={{
+                        color: theme === 'day' ? '#3D405B' : '#E8DCC8',
+                        borderColor: theme === 'day' ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)',
+                        background: 'transparent',
+                      }}
+                    >
+                      {!CADENCE_OPTIONS.includes(cadence) && (
+                        <option value="" disabled>{cadence} days</option>
+                      )}
+                      {CADENCE_OPTIONS.map((days) => (
+                        <option key={days} value={days}>
+                          {days} {days === 1 ? 'day' : 'days'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </motion.div>
 
