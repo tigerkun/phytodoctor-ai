@@ -35,7 +35,13 @@ export default function AddPlantModal({
   const [propagationMethod, setPropagationMethod] = useState<Plant['propagationMethod']>(null);
 
   useEffect(() => {
-    if (isOpen) PlantService.fetchPlants().then(setExistingPlants);
+    if (!isOpen) return;
+    // Populates the propagation parent dropdown. fetchPlants reads Supabase
+    // first, so an unreachable cloud rejects — without this catch the
+    // rejection is unhandled and the dropdown stays empty with nothing said.
+    PlantService.fetchPlants()
+      .then(setExistingPlants)
+      .catch(() => { /* dropdown stays empty; manual entry still works */ });
   }, [isOpen]);
 
   if (!isOpen) return null;
