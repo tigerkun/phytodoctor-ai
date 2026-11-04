@@ -25,7 +25,7 @@ file host — there is no second server to configure.
 npm run dev      # tsx server.ts, port 3000
 npm run build    # vite build + esbuild bundle of server.ts -> dist/server.cjs
 npm start        # node dist/server.cjs  (what Render runs)
-npm test         # vitest run — 1020 tests
+npm test         # vitest run — 1037 tests
 npm run lint     # tsc --noEmit, the ONLY lint. There is no eslint config.
 ```
 

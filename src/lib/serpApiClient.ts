@@ -118,7 +118,7 @@ async function serpApiFetch(params: Record<string, string>): Promise<any> {
  * monthly searches. Returns null (never throws) on any failure.
  */
 export async function serpApiSearch(
-  engine: 'google' | 'google_news' | 'google_shopping',
+  engine: 'google' | 'google_news' | 'google_shopping' | 'youtube',
   params: Record<string, string>,
 ): Promise<any | null> {
   if (!serpApiEnabled()) return null;

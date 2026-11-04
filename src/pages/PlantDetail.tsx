@@ -11,7 +11,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { GameService } from '../services/gameService';
 import { PlantService, onPlantsChange } from '../services/plantService';
 import { RECOVERY_MILESTONES, type RecoveryMilestoneKind } from '../services/rewardService';
-import { ExternalLink, BookOpen } from 'lucide-react';
+import { ExternalLink, BookOpen, Video } from 'lucide-react';
 import type { Plant } from '../types';
 import { getPlantPhoto } from '../utils/plantImage';
 import PageWrapper from '../components/home/PageWrapper';
@@ -98,14 +98,55 @@ export default function PlantDetail() {
     try {
       const res = await fetch(`/api/library/care-guide?species=${encodeURIComponent(plant.species)}`);
       const data = await res.json();
+      // Same as the video loader: a non-OK response (rate limit, outage)
+      // carries an `error` body — surface it rather than a silent empty list.
       setCareGuides(data.guides ?? []);
-      setCareGuideNote(data.note ?? null);
-      try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), guides: data.guides ?? [], note: data.note ?? null })); } catch { /* noop */ }
+      setCareGuideNote(data.error ?? data.note ?? null);
+      try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), guides: data.guides ?? [], note: data.error ?? data.note ?? null })); } catch { /* noop */ }
     } catch (err) {
       console.error('[PlantDetail] care guide fetch failed:', err);
       setCareGuideNote('Care-guide lookup failed.');
     } finally {
       setCareGuideLoading(false);
+    }
+  };
+
+  // Video tutorials (SerpApi youtube engine) — the care-guide pattern with a
+  // 30-day window: the server shares one fetch per species per month, the
+  // client caches its copy for the same window.
+  const [videos, setVideos] = useState<{ title: string; url: string; thumbnail: string | null; channel: string | null; views: string | null; published: string | null; length: string | null }[] | null>(null);
+  const [videosNote, setVideosNote] = useState<string | null>(null);
+  const [videosLoading, setVideosLoading] = useState(false);
+
+  const loadVideos = async () => {
+    if (!plant?.species || videosLoading) return;
+    const key = `phyto_species_videos_${plant.species.toLowerCase().trim()}`;
+    try {
+      const cachedRaw = sessionStorage.getItem(key);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw) as { at: number; videos: typeof videos; note: string | null };
+        if (Date.now() - cached.at < 30 * 86_400_000 && cached.videos) {
+          setVideos(cached.videos);
+          setVideosNote(cached.note);
+          return;
+        }
+      }
+    } catch { /* private mode — fetch live */ }
+    setVideosLoading(true);
+    try {
+      const res = await fetch(`/api/library/videos?species=${encodeURIComponent(plant.species)}`);
+      const data = await res.json();
+      // A non-OK response (rate limit, outage) carries an `error` body, not
+      // `videos` — swallowing it into an empty list would render a silent
+      // empty section instead of an honest explanation.
+      setVideos(data.videos ?? []);
+      setVideosNote(data.error ?? data.note ?? null);
+      try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), videos: data.videos ?? [], note: data.error ?? data.note ?? null })); } catch { /* noop */ }
+    } catch (err) {
+      console.error('[PlantDetail] video lookup failed:', err);
+      setVideosNote('Video lookup failed.');
+    } finally {
+      setVideosLoading(false);
     }
   };
   const [plantLoading, setPlantLoading] = useState(true);
@@ -945,6 +986,66 @@ const children = lineage?.filter(candidate => candidate.parentPlantId === plant?
                                 </a>
                                 <span className="text-[10px] font-mono text-[#8c765c] ml-2">{g.source}</span>
                                 {g.summary && <p className="text-[11px] text-text-stone leading-snug mt-0.5">{g.summary}</p>}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Video tutorials — real keepers demonstrating care for
+                        this species, fetched on demand (one shared youtube
+                        call per species per MONTH, served from the server
+                        cache). View counts and dates appear exactly as the
+                        engine printed them, or not at all. */}
+                    {plant?.species && (
+                      <div className="p-4 rounded-2xl bg-white/60 dark:bg-[#251d16] border border-[#dcd0bd]">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <Video size={14} className="text-[#c5a059]" aria-hidden="true" />
+                            <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
+                              Watch &amp; learn — {plant.species}
+                            </h4>
+                          </div>
+                          {!videos && (
+                            <button
+                              type="button"
+                              onClick={() => { void loadVideos(); }}
+                              disabled={videosLoading}
+                              className="min-h-[36px] px-4 py-1.5 rounded-lg border border-[#c5a059]/50 text-[10px] font-mono font-black uppercase tracking-wider text-[#7a602f] dark:text-[#d4af37] hover:bg-[#c5a059]/10 transition-colors disabled:opacity-50"
+                            >
+                              {videosLoading ? 'Searching the archive…' : 'Find video tutorials'}
+                            </button>
+                          )}
+                        </div>
+                        {videosNote && (
+                          <p className="text-[10px] font-mono text-[#8c765c] mt-2">{videosNote}</p>
+                        )}
+                        {videos && videos.length > 0 && (
+                          <ul className="mt-3 space-y-3">
+                            {videos.map((v, i) => (
+                              <li key={`${v.url}-${i}`} className="text-xs">
+                                <a
+                                  href={v.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-start gap-3 group"
+                                >
+                                  {v.thumbnail && (
+                                    <img src={v.thumbnail} alt="" loading="lazy" className="w-24 h-14 object-cover rounded-md shrink-0 border border-[#dcd0bd]" />
+                                  )}
+                                  <span className="min-w-0 flex-1">
+                                    <span className="font-semibold text-[#2d6a4f] dark:text-[#95d5b2] group-hover:underline inline-flex items-center gap-1 line-clamp-2">
+                                      {v.title} <ExternalLink size={10} aria-hidden="true" />
+                                    </span>
+                                    <span className="block text-[10px] font-mono text-[#8c765c] mt-0.5">
+                                      {v.channel ?? 'YouTube'}
+                                      {v.views ? ` · ${v.views}` : ''}
+                                      {v.length ? ` · ${v.length}` : ''}
+                                      {v.published ? ` · ${v.published}` : ''}
+                                    </span>
+                                  </span>
+                                </a>
                               </li>
                             ))}
                           </ul>

@@ -21,6 +21,7 @@ import { log, withRequestContext, setRequestUser, currentRequestId } from "./src
 import { registerLibraryDailyRoute } from "./src/server/libraryDaily";
 import { registerCareGuideRoute } from "./src/server/careGuide";
 import { registerMarketLiveRoute } from "./src/server/marketLive";
+import { registerSpeciesVideosRoute } from "./src/server/speciesVideos";
 import { serpApiStatus } from "./src/lib/serpApiClient";
 
 dotenv.config();
@@ -1379,6 +1380,7 @@ async function generateWithRetry(params: any, retries = 1, client: GoogleGenAI =
 registerLibraryDailyRoute(app, { aiFast, log, generateWithRetry }, [generalLimiter]);
 registerCareGuideRoute(app, [generalLimiter]);
 registerMarketLiveRoute(app, [generalLimiter]);
+registerSpeciesVideosRoute(app, [generalLimiter]);
 
 // ── Scan report persistence ────────────────────────────────────────────────
 // Every finished analysis is recorded in scan_reports: the account (or hashed
