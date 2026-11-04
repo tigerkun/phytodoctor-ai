@@ -11,7 +11,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { GameService } from '../services/gameService';
 import { PlantService, onPlantsChange } from '../services/plantService';
 import { RECOVERY_MILESTONES, type RecoveryMilestoneKind } from '../services/rewardService';
-import { ExternalLink, BookOpen, Video } from 'lucide-react';
+import { ExternalLink, BookOpen, Video, Users } from 'lucide-react';
 import type { Plant } from '../types';
 import { getPlantPhoto } from '../utils/plantImage';
 import PageWrapper from '../components/home/PageWrapper';
@@ -147,6 +147,51 @@ export default function PlantDetail() {
       setVideosNote('Video lookup failed.');
     } finally {
       setVideosLoading(false);
+    }
+  };
+
+  // Community threads (SerpApi, real Reddit posts — never simulated). The
+  // issue phrase comes from the plant's own state: a struggling plant asks
+  // about problems, a healthy one about care. 7-day window on both caches.
+  const [threads, setThreads] = useState<{ title: string; url: string; snippet: string; subreddit: string | null }[] | null>(null);
+  const [threadsNote, setThreadsNote] = useState<string | null>(null);
+  const [threadsLoading, setThreadsLoading] = useState(false);
+
+  const communityIssue = useMemo(
+    () => (plant && plant.status !== 'Stable' ? `${plant.species} problem care help` : ''),
+    [plant?.species, plant?.status],
+  );
+
+  const loadThreads = async () => {
+    if (!plant?.species || threadsLoading) return;
+    const key = `phyto_community_${plant.species.toLowerCase().trim()}_${communityIssue.toLowerCase().trim()}`;
+    try {
+      const cachedRaw = sessionStorage.getItem(key);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw) as { at: number; threads: typeof threads; note: string | null };
+        if (Date.now() - cached.at < 7 * 86_400_000 && cached.threads) {
+          setThreads(cached.threads);
+          setThreadsNote(cached.note);
+          return;
+        }
+      }
+    } catch { /* private mode — fetch live */ }
+    setThreadsLoading(true);
+    try {
+      const params = new URLSearchParams({ species: plant.species });
+      if (communityIssue) params.set('issue', communityIssue);
+      const res = await fetch(`/api/library/community?${params.toString()}`);
+      const data = await res.json();
+      // Same as the other content loaders: a non-OK response (rate limit,
+      // outage) carries an `error` body — surface it, never a silent empty.
+      setThreads(data.threads ?? []);
+      setThreadsNote(data.error ?? data.note ?? null);
+      try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), threads: data.threads ?? [], note: data.error ?? data.note ?? null })); } catch { /* noop */ }
+    } catch (err) {
+      console.error('[PlantDetail] community lookup failed:', err);
+      setThreadsNote('Community lookup failed.');
+    } finally {
+      setThreadsLoading(false);
     }
   };
   const [plantLoading, setPlantLoading] = useState(true);
@@ -1053,8 +1098,59 @@ const children = lineage?.filter(candidate => candidate.parentPlantId === plant?
                       </div>
                     )}
 
-                    {/* Session deltas — the same telemetry as the chart, one
-                        row per check-in, with the change against the previous
+                    {/* Community threads — REAL Reddit posts from r/houseplants.
+                        The app's one answer to "who else had this problem?" is
+                        real people, never simulated activity. On-demand like
+                        the other content sections; subreddit is derived from
+                        the thread URL, and no upvote counts are rendered
+                        because the engine doesn't reliably carry them. */}
+                    {plant?.species && (
+                      <div className="p-4 rounded-2xl bg-white/60 dark:bg-[#251d16] border border-[#dcd0bd]">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <Users size={14} className="text-[#c5a059]" aria-hidden="true" />
+                            <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
+                              From the community — {plant.species}
+                            </h4>
+                          </div>
+                          {!threads && (
+                            <button
+                              type="button"
+                              onClick={() => { void loadThreads(); }}
+                              disabled={threadsLoading}
+                              className="min-h-[36px] px-4 py-1.5 rounded-lg border border-[#c5a059]/50 text-[10px] font-mono font-black uppercase tracking-wider text-[#7a602f] dark:text-[#d4af37] hover:bg-[#c5a059]/10 transition-colors disabled:opacity-50"
+                            >
+                              {threadsLoading ? 'Asking around…' : 'Find community threads'}
+                            </button>
+                          )}
+                        </div>
+                        {threadsNote && (
+                          <p className="text-[10px] font-mono text-[#8c765c] mt-2">{threadsNote}</p>
+                        )}
+                        {threads && threads.length > 0 && (
+                          <ul className="mt-3 space-y-2">
+                            {threads.map((t, i) => (
+                              <li key={`${t.url}-${i}`} className="text-xs">
+                                <a
+                                  href={t.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-semibold text-[#2d6a4f] dark:text-[#95d5b2] hover:underline inline-flex items-center gap-1"
+                                >
+                                  {t.title} <ExternalLink size={10} aria-hidden="true" />
+                                </a>
+                                {t.subreddit && (
+                                  <span className="text-[10px] font-mono text-[#8c765c] ml-2">{t.subreddit}</span>
+                                )}
+                                {t.snippet && <p className="text-[11px] text-text-stone leading-snug mt-0.5">{t.snippet}</p>}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Session deltas — the same telemetry as the chart, one                        row per check-in, with the change against the previous
                         reading. Four vitality bands, the same thresholds the
                         care engine uses (80 / 60 / 40). */}
                     {history && history.length > 1 && (
