@@ -119,8 +119,7 @@ export function plantToPostgres(plant: Partial<Plant>, userId?: string): Record<
   return payload;
 }
 
-type PlantChangeListener = (plants: Plant[]) => void;
-const listeners = new Set<PlantChangeListener>();
+type PlantChangeListener = (plants: Plant[]) => void;const listeners = new Set<PlantChangeListener>();
 
 export function onPlantsChange(listener: PlantChangeListener): () => void {
   listeners.add(listener);
@@ -192,6 +191,28 @@ function preserveLocalFields(mapped: Plant, local: Plant | undefined): Plant {
   return merged as unknown as Plant;
 }
 
+/**
+ * Is there a live Supabase session to write through? The client being
+ * CONFIGURED is not the same as the Keeper being CLOUD-authenticated.
+ * Local-only accounts (`sb_…` ids from GameService) have no session, and
+ * every cloud write they attempted failed: inserts carried a non-uuid
+ * user_id (Postgres rejected them outright), updates matched zero rows
+ * under RLS, and fetches returned an empty list that blanked the garden
+ * view. Session-less therefore means offline-first: Dexie is the source of
+ * truth and the Settings "Sync Local Ledger" button is the opt-in
+ * migration path into the cloud.
+ */
+async function resolveCloudSession(): Promise<{ cloud: boolean; userId: string | null }> {
+  if (!supabase) return { cloud: false, userId: null };
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id) return { cloud: true, userId: session.user.id };
+  } catch {
+    // A dead auth client is not a reason to skip the local path.
+  }
+  return { cloud: false, userId: null };
+}
+
 export const PlantService = {
   /**
    * Fetches all plants ordered by creation date descending.
@@ -199,9 +220,13 @@ export const PlantService = {
    * Fallback: Dexie IndexedDB.
    */
   async fetchPlants(): Promise<Plant[]> {
-    if (supabase) {
+    // Cloud reads need a session, not just a configured client: without one
+    // RLS filters everything and this would broadcast an empty garden over
+    // the Keeper's real local plants.
+    const client = (await resolveCloudSession()).cloud ? supabase : null;
+    if (client) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await client
           .from('plants')
           .select('*')
           .order('created_at', { ascending: false });
@@ -235,9 +260,10 @@ export const PlantService = {
    * Fetches a single plant by its unique UUID.
    */
   async getPlant(id: string): Promise<Plant | null> {
-    if (supabase) {
+    const client = (await resolveCloudSession()).cloud ? supabase : null;
+    if (client) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await client
           .from('plants')
           .select('*')
           .eq('id', id)
@@ -273,9 +299,12 @@ export const PlantService = {
     const id = input.id || crypto.randomUUID();
     const now = new Date();
 
+    const client = (await resolveCloudSession()).cloud ? supabase : null;
+
     let resolvedUserId = input.userId;
-    if (supabase) {
-      const { data: { session } } = await supabase.auth.getSession();
+    if (client) {
+      // Session confirmed by resolveCloudSession — the id is a real uuid.
+      const { data: { session } } = await client.auth.getSession();
       if (session?.user?.id) {
         resolvedUserId = session.user.id;
       }
@@ -325,7 +354,11 @@ export const PlantService = {
       recoveryRoadmap: input.recoveryRoadmap ?? null,
     };
 
-    if (supabase) {
+    // A cloud insert requires a live session: a local-only account's `sb_…`
+    // id is not a uuid, and Postgres rejects the row outright. Without a
+    // session the plant lives in Dexie (offline-first); the Settings
+    // "Sync Local Ledger" button is how it later reaches the cloud.
+    if (client) {
       const pgPayload = plantToPostgres(newPlant, resolvedUserId);
       const { data, error } = await supabase
         .from('plants')
@@ -410,12 +443,16 @@ export const PlantService = {
 
   /**
    * Updates an existing plant in Supabase Postgres and mirrors locally.
+   * With no cloud session the update is local-only — a local account's
+   * plants live in Dexie, and attempting the write anyway would either
+   * 0-match under RLS or (before this gate) send a non-uuid user_id.
    */
   async updatePlant(id: string, updates: Partial<Plant>): Promise<void> {
     const now = new Date();
     const payloadUpdates = { ...updates, updatedAt: now };
 
-    if (supabase) {
+    const client = (await resolveCloudSession()).cloud ? supabase : null;
+    if (client) {
       const pgPayload = plantToPostgres(payloadUpdates);
       // `.select()` is load-bearing. A bare `.update().eq()` reports success
       // when ZERO rows matched — only returning the rows reveals the miss. The
@@ -424,7 +461,7 @@ export const PlantService = {
       // nothing, the local write went through, and the fetchPlants() below then
       // returned the server list without that plant and broadcast it to every
       // subscriber — the plant disappeared from the whole app, with no error.
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('plants')
         .update(pgPayload)
         .eq('id', id)
@@ -458,8 +495,9 @@ export const PlantService = {
    * Deletes a plant by ID in Supabase Postgres and mirrors locally.
    */
   async deletePlant(id: string): Promise<void> {
-    if (supabase) {
-      const { error } = await supabase
+    const client = (await resolveCloudSession()).cloud ? supabase : null;
+    if (client) {
+      const { error } = await client
         .from('plants')
         .delete()
         .eq('id', id);
