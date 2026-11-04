@@ -21,6 +21,7 @@ import { log, withRequestContext, setRequestUser, currentRequestId } from "./src
 import { registerLibraryDailyRoute } from "./src/server/libraryDaily";
 import { registerCareGuideRoute } from "./src/server/careGuide";
 import { registerMarketLiveRoute } from "./src/server/marketLive";
+import { serpApiStatus } from "./src/lib/serpApiClient";
 
 dotenv.config();
 
@@ -1234,11 +1235,17 @@ app.get('/healthz', async (_req, res) => {
   // found something missing.
   const drift = process.env.NODE_ENV === 'production' && rpcCheck !== null && !rpcCheck.ok;
 
+  // Quota burn for the metered engines — the operator's first stop when the
+  // circuit breaker trips is "how much of the plan did we spend?"
   res.status(isMisconfigured || drift ? 503 : 200).json({
     status: isMisconfigured || drift ? 'degraded' : 'ok',
     configured,
     ready,
     schema: rpcCheck,
+    quota: {
+      serpapi: serpApiStatus(),
+      imagga: imaggaStatus(),
+    },
   });
 });
 
