@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Calendar, ShieldCheck, Activity, AlertCircle, Droplets, Sun, TrendingUp, TrendingDown, Minus, Box, Camera, Clock, Sprout, Crown, Zap, Plus, Loader2, Book, Send, Share2, Microscope } from 'lucide-react';
+import { ChevronLeft, Calendar, ShieldCheck, Activity, AlertCircle, Droplets, Sun, TrendingUp, TrendingDown, Minus, Box, Camera, Clock, Sprout, Crown, Zap, Plus, Loader2, Book, Send, Share2, Microscope, AlertTriangle, PawPrint } from 'lucide-react';
+import { lookupToxicity, aspcaLookupUrl } from '../data/toxicity';
 import { db, type PlantNote } from '../db/database';
 import { useAppBack } from '../hooks/useAppBack';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -365,6 +366,14 @@ const children = lineage?.filter(candidate => candidate.parentPlantId === plant?
 
   const toleranceProfile = useMemo(
     () => deriveToleranceProfile(plant?.species || 'Plant'),
+    [plant?.species]
+  );
+
+  // Pet & human toxicity — curated ASPCA-sourced verdict (static; see
+  // src/data/toxicity.ts). null = the database has no verdict for this
+  // species, and the card renders nothing rather than guessing.
+  const toxicity = useMemo(
+    () => (plant?.species ? lookupToxicity(plant.species) : null),
     [plant?.species]
   );
 
@@ -847,6 +856,52 @@ const children = lineage?.filter(candidate => candidate.parentPlantId === plant?
                             );
                           })}
                         </ul>
+                      </div>
+                    )}
+
+                    {/* Pet & human toxicity — curated, source-linked, static.
+                        Prominent placement: a missed warning costs more than
+                        a visible one. No verdict = no card, never a guess. */}
+                    {toxicity && (
+                      <div
+                        className={`p-4 rounded-2xl border ${
+                          toxicity.toxicTo.length
+                            ? 'border-[#c45b4a]/50 bg-[#c45b4a]/10'
+                            : 'border-[#52b788]/50 bg-[#52b788]/10'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1.5">
+                          {toxicity.toxicTo.length ? (
+                            <AlertTriangle size={14} className="text-[#8f2f26] dark:text-[#e07a5f]" aria-hidden="true" />
+                          ) : (
+                            <PawPrint size={14} className="text-[#2d6a4f] dark:text-[#95d5b2]" aria-hidden="true" />
+                          )}
+                          <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
+                            Pet Safety — {toxicity.name}
+                          </h4>
+                        </div>
+                        {toxicity.toxicTo.length ? (
+                          <>
+                            <p className="text-xs font-bold text-[#8f2f26] dark:text-[#e07a5f]">
+                              ⚠️ Toxic to {toxicity.toxicTo.join(', ')}
+                              {toxicity.severity === 'severe' && ' — veterinary emergency risk'}
+                              {toxicity.severity === 'moderate' && ' — worth a vet call'}
+                            </p>
+                            <p className="text-[11px] text-text-stone leading-snug mt-1">{toxicity.note}</p>
+                          </>
+                        ) : (
+                          <p className="text-xs font-bold text-[#2d6a4f] dark:text-[#95d5b2]">
+                            Pet-friendly — listed non-toxic to cats, dogs and people.
+                          </p>
+                        )}
+                        <a
+                          href={aspcaLookupUrl(toxicity.scientific)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] font-mono uppercase tracking-wider text-[#7a602f] dark:text-[#d4af37] hover:underline inline-flex items-center gap-1 mt-2"
+                        >
+                          Confirm on the ASPCA's list <ExternalLink size={10} aria-hidden="true" />
+                        </a>
                       </div>
                     )}
 
