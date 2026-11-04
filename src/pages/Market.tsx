@@ -514,7 +514,7 @@ function FeaturedCrateSlideshow({ onClaim, seeds, products }: { onClaim: (id: st
     meta: [
       { label: 'Stall price', value: `₹${p.cashPrice}` },
       { label: 'After seed refund', value: `₹${p.cashPrice - refundValueFor(p)}` },
-      { label: 'Keepers rate it', value: `${p.rating} ★ · ${p.reviewCount}` },
+      { label: 'Curated crate', value: 'Picked for the season' },
     ],
   }));
 
@@ -560,9 +560,6 @@ function FeaturedCrateSlideshow({ onClaim, seeds, products }: { onClaim: (id: st
                 {WHY_BUY[product.id] ?? `${product.subtitle} — spend seeds here and the stall clips real rupees off the checkout.`}
               </p>
               <p className="mt-3 text-xs text-[#e8d5b0]/75 flex items-center gap-1.5 flex-wrap">
-                <Star size={12} className="text-[#d4af37]" aria-hidden="true" />
-                {product.rating} ★ across {product.reviewCount} keepers
-                <span className="text-[#e8d5b0]/40">·</span>
                 <Leaf size={12} className="text-[#9cba9c]" aria-hidden="true" />
                 Spend {product.seedPrice.toLocaleString()} seeds at this stall → ₹{refundValue} clipped off the Amazon checkout.
               </p>
@@ -798,11 +795,6 @@ function ProductCard({ product, onClaim, onAddToCart, wished, onToggleWish, seed
               {product.name}
             </h3>
             <p className="text-xs text-[#7a6a50] mt-1 line-clamp-1">{product.subtitle}</p>
-          </div>
-          <div className="flex items-center gap-1 shrink-0 rounded-md bg-black/[0.03] dark:bg-white/[0.04] border border-[#d9c4a0]/60 px-1.5 py-1" title={`${product.reviewCount} keeper reviews`}>
-            <Star size={11} fill="currentColor" className="text-[#c4a035]" aria-hidden="true" />
-            <span className="text-xs font-bold text-[#3d2a1c]">{product.rating}</span>
-            <span className="text-[9px] text-[#a08d6e]">({product.reviewCount})</span>
           </div>
         </div>
 
@@ -1624,6 +1616,205 @@ function RequestBoard({ notify }: { userId: string; notify: (ok: boolean, msg: s
   );
 }
 
+// ── Live store + trending (SerpApi, shared weekly server cache) ─────────────
+// Real listings fetched through /api/market/live and /api/market/trending:
+// the first Keeper to open a category pays the one-search quota for the
+// week, everyone else reads the cache. Ratings and review counts render
+// ONLY when the engine actually supplied them — and the curated crates on
+// this page carry no invented numbers at all.
+
+interface LiveItem {
+  title: string;
+  source: string;
+  priceDisplay: string | null;
+  priceValue: number | null;
+  rating: number | null;
+  reviews: number | null;
+  thumbnail: string | null;
+  url: string | null;
+  previousPrice: number | null;
+}
+
+interface LiveFeedResponse {
+  items: Array<Record<string, any>>;
+  cached: boolean;
+  fetchedAt: string | null;
+  note: string | null;
+}
+
+const LIVE_CATEGORY_LABELS: Array<[string, string]> = [
+  ['care', 'Care'],
+  ['home', 'Pots'],
+  ['tools', 'Tools'],
+  ['seeds', 'Seeds'],
+];
+
+function LiveStoreSection() {
+  const [category, setCategory] = useState<string>('care');
+  const [data, setData] = useState<LiveFeedResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/market/live?category=${encodeURIComponent(category)}`)
+      .then(r => r.json())
+      .then((payload: LiveFeedResponse) => {
+        if (!cancelled) setData(payload);
+      })
+      .catch(() => {
+        if (!cancelled) setData({ items: [], cached: false, fetchedAt: null, note: 'Live listings are unavailable right now.' });
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [category]);
+
+  const items = (data?.items ?? []) as unknown as LiveItem[];
+
+  return (
+    <div>
+      <motion.h2
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="font-serif text-3xl font-semibold mb-2 text-[#3d2a1c]"
+      >
+        Garden store · live from the web
+      </motion.h2>
+      <p className="text-sm text-[#7a6a50] mb-4">
+        Real listings and real prices, fetched fresh from shopping results. No seed economy here — the crates below are the stall's own currency.
+        {data?.fetchedAt && (
+          <span className="block text-[10px] font-mono mt-1">
+            Fetched {new Date(data.fetchedAt).toLocaleString()} · one shared weekly fetch keeps the search budget alive
+          </span>
+        )}
+      </p>
+      <div className="flex flex-wrap gap-2 mb-6" role="group" aria-label="Live store category">
+        {LIVE_CATEGORY_LABELS.map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => setCategory(value)}
+            aria-pressed={category === value}
+            className={`bazaar-tab ${category === value ? 'is-on' : ''}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-xs font-mono text-[#7a6a50] py-6">Checking the web stalls…</p>
+      ) : items.length === 0 ? (
+        <p className="text-xs font-mono text-[#7a6a50] py-6">
+          {data?.note ?? 'No live listings right now — the curated crates below are always open.'}
+        </p>
+      ) : (
+        <>
+          {data?.note && (
+            <p className="text-[10px] font-mono text-[#8c6d46] bg-[#d4af37]/10 border border-[#d4af37]/40 rounded-md px-3 py-2 mb-4">
+              {data.note}
+            </p>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {items.map((item, i) => (
+              <a
+                key={`${item.title}-${i}`}
+                href={item.url ?? '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group rounded-lg border border-[#d9c4a0]/70 bg-[#fff8e8] overflow-hidden hover:border-[#c17f59] transition-colors flex flex-col"
+                aria-label={`View listing: ${item.title}${item.priceDisplay ? ` at ${item.priceDisplay}` : ''}`}
+              >
+                {item.thumbnail && (
+                  <img src={item.thumbnail} alt="" className="w-full h-32 object-cover" loading="lazy" />
+                )}
+                <div className="p-3 flex flex-col gap-1.5 flex-1">
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-[#a08d6e]">{item.source}</p>
+                  <p className="text-xs font-semibold text-[#2c2419] leading-snug line-clamp-2 flex-1">{item.title}</p>
+                  {item.priceDisplay && (
+                    <p className="text-sm font-bold font-mono text-[#3d2a1c]">
+                      {item.priceDisplay}
+                      {item.priceValue !== null && item.previousPrice !== null && item.previousPrice !== item.priceValue && (
+                        <span className="text-[10px] font-mono text-[#8c6d46] ml-1.5">
+                          (was ₹{item.previousPrice})
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  {/* Real rating only — the engine supplies it or it does not show. */}
+                  {item.rating !== null && (
+                    <p className="text-[10px] text-[#7a6a50] flex items-center gap-1">
+                      <Star size={10} fill="currentColor" className="text-[#c4a035]" aria-hidden="true" />
+                      {item.rating}
+                      {item.reviews !== null && <span>· {item.reviews} reviews</span>}
+                    </p>
+                  )}
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-[#c17f59] group-hover:underline inline-flex items-center gap-1 mt-auto">
+                    View listing <ExternalLink size={10} aria-hidden="true" />
+                  </span>
+                </div>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function TrendingStrip() {
+  const [data, setData] = useState<LiveFeedResponse | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/market/trending')
+      .then(r => r.json())
+      .then((payload: LiveFeedResponse) => {
+        if (!cancelled) setData(payload);
+      })
+      .catch(() => {
+        if (!cancelled) setData({ items: [], cached: false, fetchedAt: null, note: null });
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  // No filler: no items, no strip. A quiet week is a quiet strip.
+  const items = (data?.items ?? []) as unknown as Array<{ title: string; source: string; url: string; snippet: string }>;
+  if (!items.length) return null;
+
+  return (
+    <div>
+      <motion.h2
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="font-serif text-2xl font-semibold mb-2 text-[#3d2a1c]"
+      >
+        In plant writing this week
+      </motion.h2>
+      <p className="text-xs text-[#7a6a50] mb-4">
+        What the web's plant writing is actually publishing — real headlines, not a popularity rank.
+        {data?.fetchedAt && ` Fetched ${new Date(data.fetchedAt).toLocaleDateString()}.`}
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {items.map((item, i) => (
+          <a
+            key={`${item.title}-${i}`}
+            href={item.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-lg border border-[#d9c4a0]/70 bg-[#fff8e8] p-4 hover:border-[#c17f59] transition-colors block"
+          >
+            <p className="text-[10px] font-mono uppercase tracking-wider text-[#a08d6e] mb-1">{item.source}</p>
+            <p className="text-sm font-bold text-[#2c2419] leading-snug mb-1.5">{item.title}</p>
+            {item.snippet && <p className="text-xs text-[#7a6a50] line-clamp-2">{item.snippet}</p>}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function GardenMarket() {
   const { toasts, success, error, reward } = useToast();
   // Six stalls, not eight: "Open stall", "Pots & hangers" and "Oils & soil"
@@ -2029,7 +2220,7 @@ export default function GardenMarket() {
                 <option value="new">New crate</option>
                 <option value="price-low">₹ low</option>
                 <option value="price-high">₹ high</option>
-                <option value="rating">Rating</option>
+                <option value="rating">Curated</option>
               </select>
               <button onClick={() => setShowFilters(!showFilters)} className="min-h-[44px] px-3 py-2 text-[11px] font-black uppercase tracking-widest border border-[#d9c4a0] text-[#3d2a1c]">
                 Filter
@@ -2198,6 +2389,12 @@ export default function GardenMarket() {
                     </div>
                   </>
                 )}
+
+                {/* Live web listings + trending — real data, shared weekly
+                    cache, honest about what it is. Rendered OUTSIDE the stall
+                    lock: real prices help before the seed economy opens. */}
+                <LiveStoreSection />
+                <TrendingStrip />
 
                 <ProBanner />
               </motion.div>
