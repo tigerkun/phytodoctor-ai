@@ -86,6 +86,7 @@ type Phase = 'show' | 'leaving' | 'gone';
 export default function SplashGate() {
   const [phase, setPhase] = useState<Phase>('show');
   const timers = useRef<number[]>([]);
+  const previousOverflow = useRef<string>('');
 
   useEffect(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -96,14 +97,28 @@ export default function SplashGate() {
       window.setTimeout(() => setPhase((p) => (p === 'show' ? 'leaving' : p)), hold),
       window.setTimeout(() => setPhase('gone'), hold + FADE_MS),
     );
-    // The overlay is the only interactive thing while it is up.
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     return () => {
       timers.current.forEach(clearTimeout);
-      document.body.style.overflow = previousOverflow;
     };
   }, []);
+
+  // The scroll lock lives in a phase-driven effect, NOT the mount effect:
+  // this component stays mounted after the splash (it renders null), so a
+  // cleanup-on-unmount never runs and the lock used to outlive the splash —
+  // freezing the whole app's scrolling until a hard reload. Release the
+  // lock the moment the splash is gone; re-locking across the show→leaving
+  // transition re-captures the previous value, which stays correct.
+  useEffect(() => {
+    if (phase === 'gone') {
+      document.body.style.overflow = previousOverflow.current;
+      return;
+    }
+    previousOverflow.current = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow.current;
+    };
+  }, [phase]);
 
   const leave = () => setPhase((p) => (p === 'show' ? 'leaving' : p));
 
