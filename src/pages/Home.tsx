@@ -14,6 +14,7 @@ import { PlantGallery } from '@/components/home/PlantGallery';
 import { PlantProfileDrawer } from '@/components/home/PlantProfileDrawer';
 import { QuickstartGuide } from '@/components/home/QuickstartGuide';
 import GardenDashboard from '@/components/home/GardenDashboard';
+import SeasonalCareCard from '@/components/home/SeasonalCareCard';
 import AddPlantModal from '@/components/home/AddPlantModal';
 import { useEcoMode } from '@/hooks/useEcoMode';
 import PageWrapper from '@/components/home/PageWrapper';
@@ -239,6 +240,12 @@ export default function HomePage() {
             plants={mappedPlants as any[]}
             weather={weather}
           />
+        </div>
+
+        {/* The calendar's ask: season-scoped care notes, climate taken from
+            the collection's own hardiness zones when known. */}
+        <div className="pt-4">
+          <SeasonalCareCard />
         </div>
 
         {/* Hero Section */}

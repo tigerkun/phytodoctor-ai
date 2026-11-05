@@ -11,7 +11,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { GameService } from '../services/gameService';
 import { PlantService, onPlantsChange } from '../services/plantService';
 import { RECOVERY_MILESTONES, type RecoveryMilestoneKind } from '../services/rewardService';
-import { ExternalLink, BookOpen, Video, Users } from 'lucide-react';
+import { ExternalLink, BookOpen, Video, Users, Leaf, Bug } from 'lucide-react';
 import type { Plant } from '../types';
 import { getPlantPhoto } from '../utils/plantImage';
 import PageWrapper from '../components/home/PageWrapper';
@@ -192,6 +192,79 @@ export default function PlantDetail() {
       setThreadsNote('Community lookup failed.');
     } finally {
       setThreadsLoading(false);
+    }
+  };
+
+  // Conservation status (SerpApi heuristic read — the UI labels it as a
+  // hint and links to the source for the authoritative answer). 180-day
+  // window: IUCN/CITES classifications barely move.
+  const [conservation, setConservation] = useState<{ species: string; status: string | null; protected: boolean; citesListed: boolean; description: string | null; source: string; url: string; lastUpdated: string | null } | null>(null);
+  const [conservationNote, setConservationNote] = useState<string | null>(null);
+  const [conservationLoading, setConservationLoading] = useState(false);
+
+  const loadConservation = async () => {
+    if (!plant?.species || conservationLoading) return;
+    const key = `phyto_conservation_${plant.species.toLowerCase().trim()}`;
+    try {
+      const cachedRaw = sessionStorage.getItem(key);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw) as { at: number; status: typeof conservation; note: string | null };
+        if (Date.now() - cached.at < 180 * 86_400_000 && cached.status !== undefined) {
+          setConservation(cached.status);
+          setConservationNote(cached.note);
+          return;
+        }
+      }
+    } catch { /* private mode — fetch live */ }
+    setConservationLoading(true);
+    try {
+      const res = await fetch(`/api/library/conservation?species=${encodeURIComponent(plant.species)}`);
+      const data = await res.json();
+      setConservation(data.status ?? null);
+      setConservationNote(data.error ?? data.note ?? null);
+      try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), status: data.status ?? null, note: data.error ?? data.note ?? null })); } catch { /* noop */ }
+    } catch (err) {
+      console.error('[PlantDetail] conservation lookup failed:', err);
+      setConservationNote('Conservation lookup failed.');
+    } finally {
+      setConservationLoading(false);
+    }
+  };
+
+  // Pest-treatment research — gated on a diagnosis: without one there is no
+  // pest to research, and a generic "pest treatments" list would be filler.
+  const diagnosis = plant?.recoveryRoadmap?.diagnosis?.trim() || null;
+  const [treatments, setTreatments] = useState<{ treatment: string; source: string; url: string; summary: string; effectiveness: string | null }[] | null>(null);
+  const [treatmentsNote, setTreatmentsNote] = useState<string | null>(null);
+  const [treatmentsLoading, setTreatmentsLoading] = useState(false);
+
+  const loadTreatments = async () => {
+    if (!plant?.species || !diagnosis || treatmentsLoading) return;
+    const key = `phyto_pest_treatments_${diagnosis.toLowerCase().trim()}_${plant.species.toLowerCase().trim()}`;
+    try {
+      const cachedRaw = sessionStorage.getItem(key);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw) as { at: number; treatments: typeof treatments; note: string | null };
+        if (Date.now() - cached.at < 14 * 86_400_000 && cached.treatments) {
+          setTreatments(cached.treatments);
+          setTreatmentsNote(cached.note);
+          return;
+        }
+      }
+    } catch { /* private mode — fetch live */ }
+    setTreatmentsLoading(true);
+    try {
+      const params = new URLSearchParams({ pest: diagnosis, species: plant.species });
+      const res = await fetch(`/api/library/pest-treatments?${params.toString()}`);
+      const data = await res.json();
+      setTreatments(data.treatments ?? []);
+      setTreatmentsNote(data.error ?? data.note ?? null);
+      try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), treatments: data.treatments ?? [], note: data.error ?? data.note ?? null })); } catch { /* noop */ }
+    } catch (err) {
+      console.error('[PlantDetail] treatment research failed:', err);
+      setTreatmentsNote('Treatment research failed.');
+    } finally {
+      setTreatmentsLoading(false);
     }
   };
   const [plantLoading, setPlantLoading] = useState(true);
@@ -1143,6 +1216,114 @@ const children = lineage?.filter(candidate => candidate.parentPlantId === plant?
                                   <span className="text-[10px] font-mono text-[#8c765c] ml-2">{t.subreddit}</span>
                                 )}
                                 {t.snippet && <p className="text-[11px] text-text-stone leading-snug mt-0.5">{t.snippet}</p>}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Conservation — a heuristic read of search results,
+                        labelled as a hint and linked to the source for the
+                        authoritative answer. 180-day window. */}
+                    {plant?.species && (
+                      <div className="p-4 rounded-2xl bg-white/60 dark:bg-[#251d16] border border-[#dcd0bd]">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <Leaf size={14} className="text-[#c5a059]" aria-hidden="true" />
+                            <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
+                              Conservation — {plant.species}
+                            </h4>
+                          </div>
+                          {!conservation && (
+                            <button
+                              type="button"
+                              onClick={() => { void loadConservation(); }}
+                              disabled={conservationLoading}
+                              className="min-h-[36px] px-4 py-1.5 rounded-lg border border-[#c5a059]/50 text-[10px] font-mono font-black uppercase tracking-wider text-[#7a602f] dark:text-[#d4af37] hover:bg-[#c5a059]/10 transition-colors disabled:opacity-50"
+                            >
+                              {conservationLoading ? 'Checking registries…' : 'Check conservation status'}
+                            </button>
+                          )}
+                        </div>
+                        {conservationNote && (
+                          <p className="text-[10px] font-mono text-[#8c765c] mt-2">{conservationNote}</p>
+                        )}
+                        {conservation && (
+                          conservation.status ? (
+                            <div className="mt-2">
+                              <p className="text-xs font-bold text-[#2e2117] dark:text-[#faebd7]">
+                                {conservation.status}
+                                {conservation.protected && <span className="text-[10px] font-mono text-[#8c765c] ml-2">· protected</span>}
+                                {conservation.citesListed && <span className="text-[10px] font-mono text-[#8c765c] ml-2">· CITES-listed</span>}
+                              </p>
+                              {conservation.description && (
+                                <p className="text-[11px] text-text-stone leading-snug mt-1">{conservation.description}</p>
+                              )}
+                              <a
+                                href={conservation.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] font-mono uppercase tracking-wider text-[#7a602f] dark:text-[#d4af37] hover:underline inline-flex items-center gap-1 mt-2"
+                              >
+                                {conservation.source || 'Source'} <ExternalLink size={10} aria-hidden="true" />
+                              </a>
+                              <p className="text-[9px] font-mono text-text-stone mt-1">
+                                Heuristic read of search results — confirm the listing on the source page.
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-text-stone mt-2">
+                              No conservation listing surfaced for this species — most houseplant cultivars aren't tracked.
+                            </p>
+                          )
+                        )}
+                      </div>
+                    )}
+
+                    {/* Treatment research — gated on a diagnosis: the pest is
+                        the plant's own recorded one, not a guess. 14-day
+                        window. */}
+                    {diagnosis && (
+                      <div className="p-4 rounded-2xl bg-white/60 dark:bg-[#251d16] border border-[#dcd0bd]">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <Bug size={14} className="text-[#c5a059]" aria-hidden="true" />
+                            <h4 className="font-serif font-bold text-sm text-[#2e2117] dark:text-[#faebd7]">
+                              Treatment research — {diagnosis}
+                            </h4>
+                          </div>
+                          {!treatments && (
+                            <button
+                              type="button"
+                              onClick={() => { void loadTreatments(); }}
+                              disabled={treatmentsLoading}
+                              className="min-h-[36px] px-4 py-1.5 rounded-lg border border-[#c5a059]/50 text-[10px] font-mono font-black uppercase tracking-wider text-[#7a602f] dark:text-[#d4af37] hover:bg-[#c5a059]/10 transition-colors disabled:opacity-50"
+                            >
+                              {treatmentsLoading ? 'Researching treatments…' : 'Find what works'}
+                            </button>
+                          )}
+                        </div>
+                        {treatmentsNote && (
+                          <p className="text-[10px] font-mono text-[#8c765c] mt-2">{treatmentsNote}</p>
+                        )}
+                        {treatments && treatments.length > 0 && (
+                          <ul className="mt-3 space-y-2">
+                            {treatments.map((t, i) => (
+                              <li key={`${t.url}-${i}`} className="text-xs">
+                                <a
+                                  href={t.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-semibold text-[#2d6a4f] dark:text-[#95d5b2] hover:underline inline-flex items-center gap-1"
+                                >
+                                  {t.treatment} <ExternalLink size={10} aria-hidden="true" />
+                                </a>
+                                <span className="text-[10px] font-mono text-[#8c765c] ml-2">{t.source}</span>
+                                {t.effectiveness && (
+                                  <span className="text-[10px] font-mono text-[#2d6a4f] dark:text-[#95d5b2] ml-2">· {t.effectiveness}</span>
+                                )}
+                                {t.summary && <p className="text-[11px] text-text-stone leading-snug mt-0.5">{t.summary}</p>}
                               </li>
                             ))}
                           </ul>

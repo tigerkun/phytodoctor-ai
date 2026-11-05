@@ -80,7 +80,7 @@ describe('server wiring', () => {
 
 describe('stale-over-empty discipline (consolidation hardening)', () => {
   it('a transient no-status result never poisons the 180-day cache', () => {
-    expect(conservation).toContain('if (conservationStatus) {');
+    expect(conservation).toContain('if (conservationStatus?.status) {');
     expect(conservation).toContain('cache.set(cacheKey, { status: conservationStatus, fetchedAt: Date.now() })');
   });
 

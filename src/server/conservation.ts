@@ -125,14 +125,14 @@ export function registerConservationRoute(app: any): void {
 
       const conservationStatus = extractConservationStatus(payload, normalizedSpecies);
 
-      // Stale-over-empty: a transient "no status found" must not poison the
-      // key for the next 180 days — an existing cache row survives a blank
-      // fetch.
-      if (conservationStatus) {
+      // Stale-over-empty: the extractor ALWAYS returns an object, so the
+      // cacheable verdict is a real status string — a "nothing matched"
+      // object must not freeze a null verdict in for 180 days.
+      if (conservationStatus?.status) {
         cache.set(cacheKey, { status: conservationStatus, fetchedAt: Date.now() });
       }
 
-      res.json({ status: conservationStatus, fetchedAt: conservationStatus ? Date.now() : cached?.fetchedAt ?? null });
+      res.json({ status: conservationStatus, fetchedAt: conservationStatus?.status ? Date.now() : cached?.fetchedAt ?? null });
     } catch (err) {
       // The response below carries the failure; no console noise needed.
       const species = req.query.species as string;
