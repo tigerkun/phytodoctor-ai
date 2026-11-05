@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion, type TargetAndTransition, type Transition } from 'framer-motion';
 import {
@@ -1651,6 +1651,31 @@ const LIVE_CATEGORY_LABELS: Array<[string, string]> = [
   ['books', 'Books'],
   ['other', 'Supplies'],
 ];
+
+// Shared frame for the web-driven stalls — the same parchment panel
+// language as MarketPulse, so the live sections read as stalls of the
+// bazaar instead of utility boxes bolted to the page.
+function WebStallPanel({ label, caption, action, children }: {
+  label: string;
+  caption?: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mb-12 rounded-xl border border-[#d9c4a0] bg-[#fff8e8] p-5"
+    >
+      <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8c6d46]">{label}</p>
+        {caption && <p className="text-[10px] text-[#a09070]">{caption}</p>}
+      </div>
+      {action}
+      {children}
+    </motion.div>
+  );
+}
 
 function LiveStoreSection({ wishlist, onToggleWatch }: { wishlist: string[]; onToggleWatch: (id: string) => void }) {
   const [category, setCategory] = useState<string>('care');
