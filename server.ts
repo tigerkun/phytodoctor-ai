@@ -1378,11 +1378,12 @@ async function generateWithRetry(params: any, retries = 1, client: GoogleGenAI =
 }
 
 // ── Daily Library Feed (SerpApi Q&A + Top 10 Environmental News) ───────────
-registerLibraryDailyRoute(app, { aiFast, log, generateWithRetry }, [generalLimiter]);
-registerCareGuideRoute(app, [generalLimiter]);
-registerMarketLiveRoute(app, [generalLimiter]);
-registerSpeciesVideosRoute(app, [generalLimiter]);
-registerCommunityThreadsRoute(app, [generalLimiter]);
+// Global limiter already covers /api routes — no per-route limiter needed
+registerLibraryDailyRoute(app, { aiFast, log, generateWithRetry });
+registerCareGuideRoute(app);
+registerMarketLiveRoute(app);
+registerSpeciesVideosRoute(app);
+registerCommunityThreadsRoute(app);
 
 // ── Scan report persistence ────────────────────────────────────────────────
 // Every finished analysis is recorded in scan_reports: the account (or hashed

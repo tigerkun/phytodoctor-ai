@@ -145,7 +145,7 @@ export default function QuickActionsFab() {
         dragElastic={0.08}
         initial={false}
         animate={{ x: pos.x, y: pos.y }}
-        style={{ position: 'fixed', bottom: 96, right: 24, zIndex: 40 }}
+        style={{ position: 'fixed', bottom: 120, right: 24, zIndex: 40 }}
         onDragEnd={(_, info) => {
           // Swipe down while closed = dismiss for this session. Ctrl+K or a
           // fresh session brings it back.

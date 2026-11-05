@@ -78,9 +78,10 @@ describe('server wiring', () => {
     expect(server).toContain('registerMarketLiveRoute');
   });
 
-  it('registers the live + trending routes on the metered limiter', () => {
+  it('registers the live + trending routes (global limiter covers /api)', () => {
     expect(serverEntry).toContain('import { registerMarketLiveRoute } from "./src/server/marketLive";');
-    expect(serverEntry).toContain('registerMarketLiveRoute(app, [generalLimiter]);');
+    // Global /api limiter at server.ts:123 covers all routes — no per-route limiter
+    expect(serverEntry).toContain('registerMarketLiveRoute(app);');
   });
 
   it('the shared cache is the quota story: one call per category per week', () => {
