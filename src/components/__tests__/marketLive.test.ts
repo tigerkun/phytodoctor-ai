@@ -26,11 +26,11 @@ describe('the invented ratings are gone from the crates', () => {
   });
 
   it('the rating field survives only as the sort heuristic and live data', () => {
-    // Live-section ratings are real (engine-supplied); the live section is
-    // the only place a star renders. The tag spans lines, so count usages
+    // Live-section ratings are real (engine-supplied); the live sections are
+    // the only places a star renders. The tag spans lines, so count usages
     // and check position rather than matching one line.
     const starUsages = market.split('<Star').length - 1;
-    expect(starUsages).toBe(1);
+    expect(starUsages).toBe(2); // LiveStoreSection + RealProductsSection
     expect(market.indexOf('<Star')).toBeGreaterThan(market.indexOf('Garden store · live from the web'));
   });
 });
