@@ -179,7 +179,7 @@ export default function Layout({ children }: LayoutProps) {
             <main
               id="main-content"
               tabIndex={-1}
-              className="flex-grow relative z-10 w-full min-w-0 pb-28 md:pb-12 overflow-x-visible overflow-y-auto focus:outline-none"
+              className="flex-grow relative z-10 w-full min-w-0 pb-28 md:pb-12 overflow-x-hidden overflow-y-auto focus:outline-none"
             >
               {children}
             </main>
