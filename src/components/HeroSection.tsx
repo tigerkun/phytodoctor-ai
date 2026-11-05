@@ -42,7 +42,12 @@ export const HeroSection = ({ today }: HeroSectionProps) => {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="font-serif text-3xl text-[var(--text-bark)]">{today.nickname}</h2>
-              <button className="text-[var(--text-muted)] hover:text-[var(--moss)]"><Pencil className="w-4 h-4" /></button>
+              <button
+                aria-label="Edit plant"
+                className="text-[var(--text-muted)] hover:text-[var(--moss)] rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--moss)] focus-visible:ring-offset-2"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
             </div>
             <p className="text-sm text-[var(--text-stone)] mt-0.5">{today.speciesName}</p>
           </div>
@@ -78,7 +83,7 @@ export const HeroSection = ({ today }: HeroSectionProps) => {
           ))}
         </div>
         
-        <button className="w-full py-3.5 rounded-2xl bg-[var(--terracotta)] text-white font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-[var(--terracotta)]/20">
+        <button className="w-full py-3.5 rounded-2xl bg-[var(--terracotta)] text-white font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-[var(--terracotta)]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terracotta)] focus-visible:ring-offset-2">
           <Plus className="w-4 h-4" />
           Add a Plant
         </button>
