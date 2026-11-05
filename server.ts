@@ -21,6 +21,7 @@ import { log, withRequestContext, setRequestUser, currentRequestId } from "./src
 import { registerLibraryDailyRoute } from "./src/server/libraryDaily";
 import { registerCareGuideRoute } from "./src/server/careGuide";
 import { registerMarketLiveRoute } from "./src/server/marketLive";
+import { registerLocalNurseriesRoute } from "./src/server/localNurseries";
 import { registerSpeciesVideosRoute } from "./src/server/speciesVideos";
 import { registerCommunityThreadsRoute } from "./src/server/communityThreads";
 import { registerPestTreatmentsRoute } from "./src/server/pestTreatments";
@@ -1385,6 +1386,7 @@ async function generateWithRetry(params: any, retries = 1, client: GoogleGenAI =
 registerLibraryDailyRoute(app, { aiFast, log, generateWithRetry });
 registerCareGuideRoute(app);
 registerMarketLiveRoute(app);
+registerLocalNurseriesRoute(app);
 registerSpeciesVideosRoute(app);
 registerCommunityThreadsRoute(app);
 registerPestTreatmentsRoute(app);

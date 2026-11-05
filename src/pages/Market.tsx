@@ -1633,6 +1633,7 @@ interface LiveItem {
   thumbnail: string | null;
   url: string | null;
   previousPrice: number | null;
+  priceDeltaPct: number | null;
 }
 
 interface LiveFeedResponse {
@@ -1651,7 +1652,7 @@ const LIVE_CATEGORY_LABELS: Array<[string, string]> = [
   ['other', 'Supplies'],
 ];
 
-function LiveStoreSection() {
+function LiveStoreSection({ wishlist, onToggleWatch }: { wishlist: string[]; onToggleWatch: (id: string) => void }) {
   const [category, setCategory] = useState<string>('care');
   const [data, setData] = useState<LiveFeedResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1719,27 +1720,37 @@ function LiveStoreSection() {
             </p>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {items.map((item, i) => (
-              <a
+            {items.map((item, i) => {
+              const watchId = `live:${item.url ?? item.title}`;
+              const watched = wishlist.includes(watchId);
+              return (
+              <div
                 key={`${item.title}-${i}`}
-                href={item.url ?? '#'}
-                target="_blank"
-                rel="noopener noreferrer"
                 className="group rounded-lg border border-[#d9c4a0]/70 bg-[#fff8e8] overflow-hidden hover:border-[#c17f59] transition-colors flex flex-col"
-                aria-label={`View listing: ${item.title}${item.priceDisplay ? ` at ${item.priceDisplay}` : ''}`}
               >
                 {item.thumbnail && (
                   <img src={item.thumbnail} alt="" className="w-full h-32 object-cover" loading="lazy" />
                 )}
                 <div className="p-3 flex flex-col gap-1.5 flex-1">
                   <p className="text-[10px] font-mono uppercase tracking-wider text-[#a08d6e]">{item.source}</p>
-                  <p className="text-xs font-semibold text-[#2c2419] leading-snug line-clamp-2 flex-1">{item.title}</p>
+                  {item.url ? (
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-semibold text-[#2c2419] leading-snug line-clamp-2 flex-1 hover:underline"
+                    >
+                      {item.title}
+                    </a>
+                  ) : (
+                    <p className="text-xs font-semibold text-[#2c2419] leading-snug line-clamp-2 flex-1">{item.title}</p>
+                  )}
                   {item.priceDisplay && (
                     <p className="text-sm font-bold font-mono text-[#3d2a1c]">
                       {item.priceDisplay}
-                      {item.priceValue !== null && item.previousPrice !== null && item.previousPrice !== item.priceValue && (
-                        <span className="text-[10px] font-mono text-[#8c6d46] ml-1.5">
-                          (was ₹{item.previousPrice})
+                      {item.priceDeltaPct !== null && item.priceDeltaPct !== 0 && (
+                        <span className={`text-[10px] font-mono ml-1.5 ${item.priceDeltaPct < 0 ? 'text-[#2d6a4f] dark:text-[#95d5b2]' : 'text-[#8f2f26] dark:text-[#e07a5f]'}`}>
+                          {item.priceDeltaPct < 0 ? '▼' : '▲'} {Math.abs(item.priceDeltaPct)}% this week
                         </span>
                       )}
                     </p>
@@ -1752,13 +1763,182 @@ function LiveStoreSection() {
                       {item.reviews !== null && <span>· {item.reviews} reviews</span>}
                     </p>
                   )}
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-[#c17f59] group-hover:underline inline-flex items-center gap-1 mt-auto">
-                    View listing <ExternalLink size={10} aria-hidden="true" />
-                  </span>
+                  <div className="flex items-center justify-between gap-2 mt-auto pt-1">
+                    {item.url ? (
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-mono uppercase tracking-wider text-[#c17f59] group-hover:underline inline-flex items-center gap-1"
+                      >
+                        View listing <ExternalLink size={10} aria-hidden="true" />
+                      </a>
+                    ) : <span />}
+                    <button
+                      type="button"
+                      onClick={() => onToggleWatch(watchId)}
+                      aria-pressed={watched}
+                      aria-label={watched ? `Stop watching ${item.title}` : `Watch ${item.title} for price changes`}
+                      className={`min-h-7 px-2 py-0.5 rounded-md border text-[10px] font-mono font-bold uppercase tracking-wider transition-colors ${
+                        watched
+                          ? 'border-[#c5a059] bg-[#c5a059]/15 text-[#7a602f] dark:text-[#d4af37]'
+                          : 'border-[#d9c4a0] text-[#8a7258] hover:border-[#c5a059]/60'
+                      }`}
+                    >
+                      {watched ? '✓ Watching' : 'Watch'}
+                    </button>
+                  </div>
                 </div>
-              </a>
-            ))}
+              </div>
+              );
+            })}
           </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Buy locally (SerpApi google engine) ─────────────────────────────────────
+// Real nurseries for a text query — never a location prompt: the input
+// prefills from the city the app already holds (botanical_city) and asks
+// for one otherwise. "Get directions" is a Google Maps navigation link
+// built from the returned name + address, not generated content.
+
+interface Nursery {
+  name: string;
+  address: string | null;
+  phone: string | null;
+  rating: number | null;
+  hours: string | null;
+  website: string | null;
+  thumbnail: string | null;
+}
+
+function directionsUrl(name: string, address: string | null): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([name, address].filter(Boolean).join(' '))}`;
+}
+
+function BuyLocallySection() {
+  const [query, setQuery] = useState<string>(() => {
+    try { return localStorage.getItem('botanical_city') ?? ''; } catch { return ''; }
+  });
+  const [draft, setDraft] = useState<string>(() => {
+    try { return localStorage.getItem('botanical_city') ?? ''; } catch { return ''; }
+  });
+  const [nurseries, setNurseries] = useState<Nursery[] | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const find = () => {
+    const q = draft.trim();
+    if (!q || loading) return;
+    setQuery(q);
+    setLoading(true);
+    fetch(`/api/market/nurseries?q=${encodeURIComponent(q)}`)
+      .then(r => r.json())
+      .then((data: { nurseries?: Nursery[]; error?: string; note?: string | null }) => {
+        setNurseries(data.nurseries ?? []);
+        setNote(data.error ?? data.note ?? null);
+      })
+      .catch(() => {
+        setNurseries([]);
+        setNote('Nursery lookup failed.');
+      })
+      .finally(() => setLoading(false));
+  };
+
+  return (
+    <div>
+      <motion.h2
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="font-serif text-2xl font-semibold mb-2 text-[#3d2a1c]"
+      >
+        Buy locally
+      </motion.h2>
+      <p className="text-xs text-[#7a6a50] mb-4">
+        Real nurseries · from Google results. Type a city or area — the search is shared per query, not per visitor.
+      </p>
+      <form
+        onSubmit={(e) => { e.preventDefault(); find(); }}
+        className="flex flex-wrap gap-2 mb-5"
+        role="search"
+        aria-label="Find local nurseries"
+      >
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="City or area — e.g. Pune, Kothrud"
+          aria-label="Search area for plant nurseries"
+          className="flex-grow min-w-0 max-w-sm px-4 py-2.5 rounded-xl border border-[#d9c4a0]/70 bg-[#fff8e8] text-xs text-[#2c2419] placeholder:text-[#a08d6e] focus:outline-none focus:border-[#c17f59]"
+        />
+        <button
+          type="submit"
+          disabled={loading || !draft.trim()}
+          className="min-h-[44px] px-5 py-2 rounded-xl bg-[#2e4a34] hover:bg-[#395c41] text-[#f4eee1] text-[10px] font-mono font-bold uppercase tracking-wider disabled:opacity-50 transition-colors"
+        >
+          {loading ? 'Searching…' : 'Find nurseries'}
+        </button>
+      </form>
+
+      {nurseries === null ? (
+        <p className="text-xs font-mono text-[#7a6a50] py-2">
+          {query ? 'Nothing searched yet.' : 'Enter a city or area to find plant nurseries near you.'}
+        </p>
+      ) : nurseries.length === 0 ? (
+        <p className="text-xs font-mono text-[#7a6a50] py-2">
+          {note ?? 'No nurseries found for that search — try a city or area name.'}
+        </p>
+      ) : (
+        <>
+          {note && (
+            <p className="text-[10px] font-mono text-[#8c6d46] bg-[#d4af37]/10 border border-[#d4af37]/40 rounded-md px-3 py-2 mb-4">
+              {note}
+            </p>
+          )}
+          <ul className="space-y-3">
+            {nurseries.map((n, i) => (
+              <li
+                key={`${n.name}-${i}`}
+                className="p-3 rounded-xl border border-[#d9c4a0]/70 bg-[#fff8e8] flex items-start gap-3"
+              >
+                {n.thumbnail && (
+                  <img src={n.thumbnail} alt="" loading="lazy" className="w-14 h-14 rounded-lg object-cover shrink-0 border border-[#dcd0bd]" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-[#2c2419] leading-snug">{n.name}</p>
+                  {n.address && <p className="text-[11px] text-[#7a6a50] mt-0.5">{n.address}</p>}
+                  <p className="text-[10px] font-mono text-[#8c765c] mt-1 flex flex-wrap items-center gap-x-2">
+                    {n.rating !== null && <span>★ {n.rating}</span>}
+                    {n.phone && <span>· {n.phone}</span>}
+                    {n.hours && <span>· {n.hours}</span>}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1.5 shrink-0">
+                  <a
+                    href={directionsUrl(n.name, n.address)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="min-h-7 px-2.5 py-0.5 rounded-md border border-[#3c6b44]/50 text-[10px] font-mono font-bold uppercase tracking-wider text-[#2d6a4f] dark:text-[#95d5b2] hover:bg-[#3c6b44]/10 transition-colors text-center inline-flex items-center gap-1"
+                  >
+                    Get directions
+                  </a>
+                  {n.website && (
+                    <a
+                      href={n.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-mono uppercase tracking-wider text-[#c17f59] hover:underline text-center inline-flex items-center justify-center gap-1"
+                    >
+                      Website <ExternalLink size={9} aria-hidden="true" />
+                    </a>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
         </>
       )}
     </div>
@@ -2395,7 +2575,8 @@ export default function GardenMarket() {
                 {/* Live web listings + trending — real data, shared weekly
                     cache, honest about what it is. Rendered OUTSIDE the stall
                     lock: real prices help before the seed economy opens. */}
-                <LiveStoreSection />
+                <LiveStoreSection wishlist={wishlist} onToggleWatch={toggleWish} />
+                <BuyLocallySection />
                 <TrendingStrip />
 
                 <ProBanner />

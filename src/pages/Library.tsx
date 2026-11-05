@@ -498,6 +498,40 @@ export default function Library() {
     [dbPlants],
   );
 
+  // Trending in plant writing — consumes the EXISTING /api/market/trending
+  // endpoint (marketLive.getTrendingPlants: one call per week shared by
+  // every account). Rule 1: the owner already existed, so no new module.
+  // A trending name that matches a folio deep-links into the plate; the
+  // rest link to the source article. Empty week → no strip, no filler.
+  const [trending, setTrending] = useState<Array<{ title: string; source: string; url: string; snippet: string }> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/market/trending')
+      .then(r => r.json())
+      .then((payload: { items?: Array<{ title: string; source: string; url: string; snippet: string }> }) => {
+        if (!cancelled) setTrending(payload.items ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setTrending([]);
+      });
+    return () => { cancelled = true; };
+  }, []);
+  const trendingStrip = useMemo(
+    () =>
+      (trending ?? []).map(t => ({
+        ...t,
+        folio: folioMatchesForSpecies(PHYTO_NOTES, [t.title])[0] ?? null,
+      })),
+    [trending],
+  );
+  const openTrendingFolio = (t: { title: string; url: string; snippet: string; folio: PhytoNote | null }) => {
+    if (t.folio) {
+      openGardenFolio(t.folio);
+    } else {
+      window.open(t.url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   const openGardenFolio = (folio: PhytoNote) => {
     const idx = PHYTO_NOTES.findIndex(n => n.name === folio.name && n.scientific === folio.scientific);
     if (idx === -1) return;
@@ -990,6 +1024,31 @@ export default function Library() {
                   className="min-h-[44px] px-3 py-1.5 shrink-0 rounded-lg border border-[#8c7355]/30 bg-[#fdfaf3]/90 dark:bg-[#201a14]/90 text-[11px] font-serif text-text-bark hover:border-[#c5a059]/60 transition-colors"
                 >
                   {folio.name} <span className="text-text-stone">· {folio.type}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Trending in plant writing — real search interest from the shared
+            weekly engine call. A chip deep-links into a matched folio plate;
+            the rest open the source article. Empty week → no strip. */}
+        {trendingStrip.length > 0 && (
+          <div role="region" aria-label="Trending this week" className="mb-6 px-4 py-3 rounded-xl border border-[#8c7355]/30 bg-black/[0.02] dark:bg-white/[0.03]">
+            <p className="text-[9px] font-mono uppercase tracking-widest text-[#8c7355] dark:text-[#caa651] mb-1.5">
+              Trending this week · real search interest
+            </p>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {trendingStrip.map((t, i) => (
+                <button
+                  key={`${t.title}-${i}`}
+                  type="button"
+                  onClick={() => openTrendingFolio(t)}
+                  title={t.snippet || t.title}
+                  className="min-h-[44px] px-3 py-1.5 shrink-0 rounded-lg border border-[#8c7355]/30 bg-[#fdfaf3]/90 dark:bg-[#201a14]/90 text-[11px] font-serif text-text-bark hover:border-[#c5a059]/60 transition-colors text-left max-w-[240px]"
+                >
+                  <span className="block truncate font-bold">{t.title}</span>
+                  <span className="block truncate text-[9px] font-mono text-text-stone">{t.source}</span>
                 </button>
               ))}
             </div>

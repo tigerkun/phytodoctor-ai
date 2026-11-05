@@ -58,8 +58,10 @@ describe('live store section', () => {
   });
 
   it('shows price history without inventing a trend', () => {
-    expect(market).toContain('(was ₹{item.previousPrice})');
-    expect(market).toContain('item.previousPrice !== item.priceValue');
+    // The delta chip replaced the "(was ₹X)" fragment: signed percentage,
+    // rendered only when the server computed one (both prices existed).
+    expect(market).toContain('{item.priceDeltaPct !== null && item.priceDeltaPct !== 0 && (');
+    expect(market).toContain("{item.priceDeltaPct < 0 ? '▼' : '▲'} {Math.abs(item.priceDeltaPct)}% this week");
   });
 });
 

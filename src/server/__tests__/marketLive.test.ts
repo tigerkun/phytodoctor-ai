@@ -85,6 +85,31 @@ describe('marketLive cache + quota', () => {
     expect(refresh.items[0].previousPrice).toBe(349);
   });
 
+  it('computes the signed price delta only when both prices exist', async () => {
+    // A drop is negative, a rise positive, a first sighting null — the card
+    // renders the chip only when this field is a number.
+    vi.mocked(serpApiSearch)
+      .mockResolvedValueOnce({ shopping_results: [listing('Neem oil', 349), listing('Moss pole', 500)] })
+      .mockResolvedValueOnce({
+        shopping_results: [
+          listing('Neem oil', 299), // ▼ (349 → 299) ≈ -14%
+          listing('Moss pole', 560), // ▲ (500 → 560) = +12%
+        ],
+      });
+    await getMarketLive('care', NOW);
+    const refresh = await getMarketLive('care', NOW + 8 * DAY);
+    const [neem, moss] = refresh.items;
+    expect(neem.priceDeltaPct).toBe(-14);
+    expect(moss.priceDeltaPct).toBe(12);
+  });
+
+  it('a first sighting has no delta — nothing to compare against', async () => {
+    vi.mocked(serpApiSearch).mockResolvedValue({ shopping_results: [listing('Brand new listing', 199)] });
+    const { items } = await getMarketLive('care', NOW);
+    expect(items[0].previousPrice).toBeNull();
+    expect(items[0].priceDeltaPct).toBeNull();
+  });
+
   it('an unknown category is an honest empty answer, not a search', async () => {
     const result = await getMarketLive('crypto', NOW);
     expect(result.items).toEqual([]);

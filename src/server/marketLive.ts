@@ -40,6 +40,9 @@ export interface MarketLiveItem {
   url: string | null;
   /** The price at the previous weekly fetch, when one exists. */
   previousPrice: number | null;
+  /** Percentage change vs the previous fetch, when both prices exist and
+   *  the previous was non-zero. Signed: negative = cheaper this week. */
+  priceDeltaPct: number | null;
 }
 
 export interface TrendingPlantItem {
@@ -113,6 +116,7 @@ function extractLiveItems(payload: any): MarketLiveItem[] {
           ? r.link
           : null,
       previousPrice: null,
+      priceDeltaPct: null,
     });
     if (items.length >= MAX_ITEMS) break;
   }
@@ -124,6 +128,9 @@ function attachPriceHistory(items: MarketLiveItem[], prevPrices: Record<string, 
     const key = item.title.toLowerCase();
     if (item.priceValue !== null && prevPrices[key] !== undefined) {
       item.previousPrice = prevPrices[key];
+      if (prevPrices[key] > 0) {
+        item.priceDeltaPct = Math.round(((item.priceValue - prevPrices[key]) / prevPrices[key]) * 100);
+      }
     }
   }
 }
