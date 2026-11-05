@@ -23,6 +23,7 @@ import { registerCareGuideRoute } from "./src/server/careGuide";
 import { registerMarketLiveRoute } from "./src/server/marketLive";
 import { registerSpeciesVideosRoute } from "./src/server/speciesVideos";
 import { registerCommunityThreadsRoute } from "./src/server/communityThreads";
+import { registerPestTreatmentsRoute } from "./src/server/pestTreatments";
 import { serpApiStatus } from "./src/lib/serpApiClient";
 
 dotenv.config();
@@ -1384,6 +1385,7 @@ registerCareGuideRoute(app);
 registerMarketLiveRoute(app);
 registerSpeciesVideosRoute(app);
 registerCommunityThreadsRoute(app);
+registerPestTreatmentsRoute(app);
 
 // ── Scan report persistence ────────────────────────────────────────────────
 // Every finished analysis is recorded in scan_reports: the account (or hashed
