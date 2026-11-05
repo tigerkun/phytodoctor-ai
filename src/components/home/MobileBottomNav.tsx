@@ -1,11 +1,12 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { Sun, Moon } from 'lucide-react';
 import { useDayNightTheme } from '@/hooks/useDayNightTheme';
 import { bottomBarDestinations, isDestinationActive } from '@/lib/navRoutes';
 
 export default function MobileBottomNav() {
   const location = useLocation();
-  const { theme } = useDayNightTheme();
+  const { theme, toggleTheme, isAutomatic } = useDayNightTheme();
   const navItems = bottomBarDestinations();
 
   return (
@@ -62,6 +63,26 @@ export default function MobileBottomNav() {
           </NavLink>
         );
       })}
+
+      {/* Day/Night Toggle */}
+      <button
+        onClick={toggleTheme}
+        aria-label={theme === 'day' ? 'Switch to night theme' : 'Switch to day theme'}
+        className="relative flex min-w-0 flex-1 flex-col items-center justify-center rounded-2xl py-1.5 px-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+        style={{
+          color: 'var(--text-secondary)'
+        }}
+      >
+        <motion.div
+          whileTap={{ scale: 0.98 }}
+          className="relative z-10 flex flex-col items-center gap-1"
+        >
+          {theme === 'day' ? <Moon size={18} aria-hidden="true" className="stroke-[1.8]" /> : <Sun size={18} aria-hidden="true" className="stroke-[1.8]" />}
+          <span aria-hidden="true" className="whitespace-nowrap text-[8px] font-black uppercase tracking-[0.08em] font-sans">
+            {theme === 'day' ? 'Night' : 'Day'}
+          </span>
+        </motion.div>
+      </button>
     </nav>
   );
 }
