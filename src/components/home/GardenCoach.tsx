@@ -5,8 +5,7 @@ import { useEcoMode } from '@/hooks/useEcoMode';
 import { triggerHaptic, playAudio } from '@/utils/hapticAudio';
 import { GameService } from '@/services/gameService';
 import { usePageTransition } from '@/components/home/PageTransitionContext';
-import { useToast } from '../market/ToastNotification';
-import ToastContainer from '../market/ToastNotification';
+import { useToast } from '../../components/Toast';
 
 interface GardenCoachProps {
   profile: any;
@@ -517,7 +516,6 @@ export function GardenCoach({ selectedPlant, weather, onRefreshProfile }: Garden
         </motion.div>
       </div>
     </section>
-    <ToastContainer toasts={toast.toasts} onRemove={toast.remove} position="bottom" />
     </>
   );
 }

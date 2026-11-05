@@ -1,8 +1,8 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, AlertTriangle, AlertCircle, Info, X } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, AlertCircle, Info, X, Leaf } from 'lucide-react';
 
-export type ToastType = 'success' | 'error' | 'warning' | 'info';
+export type ToastType = 'success' | 'error' | 'warning' | 'info' | 'reward';
 
 interface ToastOptions {
   message: string;
@@ -16,6 +16,7 @@ interface ToastContextType {
   error: (message: string) => void;
   info: (message: string) => void;
   warning: (message: string) => void;
+  reward: (message: string) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -59,6 +60,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     error: (message: string) => addToast({ message, type: 'error' }),
     info: (message: string) => addToast({ message, type: 'info' }),
     warning: (message: string) => addToast({ message, type: 'warning' }),
+    reward: (message: string) => addToast({ message, type: 'reward' }),
   };
 
   return (
@@ -80,6 +82,7 @@ const iconMap = {
   error: <AlertCircle size={20} className="text-terracotta" />,
   warning: <AlertTriangle size={20} className="text-gold" />,
   info: <Info size={20} className="text-sage" />,
+  reward: <Leaf size={20} className="text-moss" />,
 };
 
 function Toast({ toast, onClose }: { toast: ToastMessage; onClose: () => void }) {

@@ -29,7 +29,7 @@ import { canSyncMarketLedger, pullServerLedger, pushServerLedger, resolveLedger 
 import EnhancedWalletDisplay from '../components/market/EnhancedWalletDisplay';
 import ProductFilters from '../components/market/ProductFilters';
 import CheckoutSummary from '../components/market/CheckoutSummary';
-import { useToast } from '../components/market/ToastNotification';
+import { useToast } from '../components/Toast';
 import PageWrapper from '../components/home/PageWrapper';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/feedback/ErrorState';
@@ -1816,7 +1816,7 @@ function TrendingStrip() {
 }
 
 export default function GardenMarket() {
-  const { toasts, success, error, reward } = useToast();
+  const { success, error, reward } = useToast();
   // Six stalls, not eight: "Open stall", "Pots & hangers" and "Oils & soil"
   // rendered the same grid three times over, differing only by category —
   // which is what the shop's chip row does in one place.
@@ -2838,34 +2838,6 @@ export default function GardenMarket() {
         )}
       </AnimatePresence>
 
-      {/* ── TOAST NOTIFICATIONS ── */}
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[999] space-y-3">
-        <AnimatePresence>
-          {toasts.map((toast) => (
-            <motion.div
-              key={toast.id}
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              className={`px-6 py-4 rounded-full backdrop-blur-md border text-sm font-bold flex items-center gap-3 whitespace-nowrap shadow-2xl ${
-                toast.type === 'success' ? 'bg-moss border-moss text-white' :
-                toast.type === 'error' ? 'bg-terracotta border-terracotta text-white' :
-                toast.type === 'reward' ? 'bg-gold border-gold text-text-bark' :
-                'bg-white/10 border-white/20 text-white'
-              }`}
-            >
-              <span>
-                {toast.type === 'success' && '✓'}
-                {toast.type === 'error' && '✕'}
-                {toast.type === 'reward' && '⭐'}
-                {toast.type === 'warning' && '⚠'}
-                {toast.type === 'info' && 'ℹ'}
-              </span>
-              {toast.message}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
     </PageWrapper>
   );
 }

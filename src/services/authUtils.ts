@@ -23,11 +23,7 @@ export function evaluatePasswordStrength(password: string): {
 }
 
 export function generateLocalUserId(email: string): string {
-  const clean = email.toLowerCase().trim();
-  if (typeof btoa !== 'undefined') {
-    return btoa(clean).replace(/=/g, '');
-  }
-  return Buffer.from(clean).toString('base64').replace(/=/g, '');
+  return btoa(email.toLowerCase().trim()).replace(/=/g, '');
 }
 
 
