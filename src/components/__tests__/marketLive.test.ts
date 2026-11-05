@@ -48,7 +48,7 @@ describe('live store section', () => {
   });
 
   it('names the fetch date and the shared weekly budget', () => {
-    expect(market).toContain('Fetched {new Date(data.fetchedAt).toLocaleString()}');
+    expect(market).toContain('Fetched ${new Date(data.fetchedAt).toLocaleString()}');
     expect(market).toContain('one shared weekly fetch keeps the search budget alive');
   });
 
@@ -67,12 +67,12 @@ describe('live store section', () => {
 
 describe('trending strip', () => {
   it('renders nothing on a quiet week — no filler', () => {
-    expect(market).toContain('In plant writing this week');
+    expect(market).toContain('Trending in plant writing · real search interest');
     expect(market).toContain('if (!items.length) return null;');
   });
 
   it('says what it is: real headlines, not a popularity rank', () => {
-    expect(market).toContain('real headlines, not a popularity rank');
+    expect(market).toContain('Real headlines, not a popularity rank');
   });
 });
 

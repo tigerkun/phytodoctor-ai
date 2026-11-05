@@ -1702,34 +1702,26 @@ function LiveStoreSection({ wishlist, onToggleWatch }: { wishlist: string[]; onT
   const items = (data?.items ?? []) as unknown as LiveItem[];
 
   return (
-    <div>
-      <motion.h2
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="font-serif text-3xl font-semibold mb-2 text-[#3d2a1c]"
-      >
-        Garden store · live from the web
-      </motion.h2>
-      <p className="text-sm text-[#7a6a50] mb-4">
-        Real listings and real prices, fetched fresh from shopping results. No seed economy here — the crates below are the stall's own currency.
-        {data?.fetchedAt && (
-          <span className="block text-[10px] font-mono mt-1">
-            Fetched {new Date(data.fetchedAt).toLocaleString()} · one shared weekly fetch keeps the search budget alive
-          </span>
-        )}
-      </p>
-      <div className="flex flex-wrap gap-2 mb-6" role="group" aria-label="Live store category">
-        {LIVE_CATEGORY_LABELS.map(([value, label]) => (
-          <button
-            key={value}
-            onClick={() => setCategory(value)}
-            aria-pressed={category === value}
-            className={`bazaar-tab ${category === value ? 'is-on' : ''}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+    <WebStallPanel
+      label="Garden store · live from the web"
+      caption={data?.fetchedAt
+        ? `Fetched ${new Date(data.fetchedAt).toLocaleString()} · one shared weekly fetch keeps the search budget alive`
+        : 'Real listings and real prices · one shared weekly fetch keeps the search budget alive'}
+      action={
+        <div className="flex flex-wrap gap-2 mb-4" role="group" aria-label="Live store category">
+          {LIVE_CATEGORY_LABELS.map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setCategory(value)}
+              aria-pressed={category === value}
+              className={`bazaar-tab ${category === value ? 'is-on' : ''}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      }
+    >
 
       {loading ? (
         <p className="text-xs font-mono text-[#7a6a50] py-6">Checking the web stalls…</p>
@@ -1751,7 +1743,7 @@ function LiveStoreSection({ wishlist, onToggleWatch }: { wishlist: string[]; onT
               return (
               <div
                 key={`${item.title}-${i}`}
-                className="group rounded-lg border border-[#d9c4a0]/70 bg-[#fff8e8] overflow-hidden hover:border-[#c17f59] transition-colors flex flex-col"
+                className="group rounded-lg border border-[#d9c4a0]/70 bg-white overflow-hidden hover:border-[#c17f59] transition-colors flex flex-col shadow-xs"
               >
                 {item.thumbnail && (
                   <img src={item.thumbnail} alt="" className="w-full h-32 object-cover" loading="lazy" />
@@ -1820,7 +1812,7 @@ function LiveStoreSection({ wishlist, onToggleWatch }: { wishlist: string[]; onT
           </div>
         </>
       )}
-    </div>
+    </WebStallPanel>
   );
 }
 
@@ -1874,39 +1866,34 @@ function BuyLocallySection() {
   };
 
   return (
-    <div>
-      <motion.h2
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="font-serif text-2xl font-semibold mb-2 text-[#3d2a1c]"
-      >
-        Buy locally
-      </motion.h2>
-      <p className="text-xs text-[#7a6a50] mb-4">
-        Real nurseries · from Google results. Type a city or area — the search is shared per query, not per visitor.
-      </p>
-      <form
-        onSubmit={(e) => { e.preventDefault(); find(); }}
-        className="flex flex-wrap gap-2 mb-5"
-        role="search"
-        aria-label="Find local nurseries"
-      >
-        <input
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="City or area — e.g. Pune, Kothrud"
-          aria-label="Search area for plant nurseries"
-          className="flex-grow min-w-0 max-w-sm px-4 py-2.5 rounded-xl border border-[#d9c4a0]/70 bg-[#fff8e8] text-xs text-[#2c2419] placeholder:text-[#a08d6e] focus:outline-none focus:border-[#c17f59]"
-        />
-        <button
-          type="submit"
-          disabled={loading || !draft.trim()}
-          className="min-h-[44px] px-5 py-2 rounded-xl bg-[#2e4a34] hover:bg-[#395c41] text-[#f4eee1] text-[10px] font-mono font-bold uppercase tracking-wider disabled:opacity-50 transition-colors"
+    <WebStallPanel
+      label="Buy locally · real nurseries from Google results"
+      caption="Type a city or area — the search is shared per query, not per visitor"
+      action={
+        <form
+          onSubmit={(e) => { e.preventDefault(); find(); }}
+          className="flex flex-wrap gap-2 mb-4"
+          role="search"
+          aria-label="Find local nurseries"
         >
-          {loading ? 'Searching…' : 'Find nurseries'}
-        </button>
-      </form>
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="City or area — e.g. Pune, Kothrud"
+            aria-label="Search area for plant nurseries"
+            className="flex-grow min-w-0 max-w-sm px-4 py-2.5 rounded-xl border border-[#d9c4a0]/70 bg-white text-xs text-[#2c2419] placeholder:text-[#a08d6e] focus:outline-none focus:border-[#c17f59]"
+          />
+          <button
+            type="submit"
+            disabled={loading || !draft.trim()}
+            className="min-h-[44px] px-5 py-2 rounded-xl bg-[#2e4a34] hover:bg-[#395c41] text-[#f4eee1] text-[10px] font-mono font-bold uppercase tracking-wider disabled:opacity-50 transition-colors"
+          >
+            {loading ? 'Searching…' : 'Find nurseries'}
+          </button>
+        </form>
+      }
+    >
 
       {nurseries === null ? (
         <p className="text-xs font-mono text-[#7a6a50] py-2">
@@ -1966,7 +1953,7 @@ function BuyLocallySection() {
           </ul>
         </>
       )}
-    </div>
+    </WebStallPanel>
   );
 }
 
@@ -1991,18 +1978,10 @@ function TrendingStrip() {
   if (!items.length) return null;
 
   return (
-    <div>
-      <motion.h2
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="font-serif text-2xl font-semibold mb-2 text-[#3d2a1c]"
-      >
-        In plant writing this week
-      </motion.h2>
-      <p className="text-xs text-[#7a6a50] mb-4">
-        What the web's plant writing is actually publishing — real headlines, not a popularity rank.
-        {data?.fetchedAt && ` Fetched ${new Date(data.fetchedAt).toLocaleDateString()}.`}
-      </p>
+    <WebStallPanel
+      label="Trending in plant writing · real search interest"
+      caption={data?.fetchedAt ? `Real headlines, not a popularity rank · Fetched ${new Date(data.fetchedAt).toLocaleDateString()}` : 'Real headlines, not a popularity rank'}
+    >
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {items.map((item, i) => (
           <a
@@ -2010,7 +1989,7 @@ function TrendingStrip() {
             href={item.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-lg border border-[#d9c4a0]/70 bg-[#fff8e8] p-4 hover:border-[#c17f59] transition-colors block"
+            className="rounded-lg border border-[#d9c4a0]/70 bg-white p-4 hover:border-[#c17f59] transition-colors block"
           >
             <p className="text-[10px] font-mono uppercase tracking-wider text-[#a08d6e] mb-1">{item.source}</p>
             <p className="text-sm font-bold text-[#2c2419] leading-snug mb-1.5">{item.title}</p>
@@ -2018,7 +1997,7 @@ function TrendingStrip() {
           </a>
         ))}
       </div>
-    </div>
+    </WebStallPanel>
   );
 }
 

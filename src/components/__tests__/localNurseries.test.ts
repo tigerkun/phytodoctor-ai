@@ -34,7 +34,7 @@ describe('Buy locally section (Market)', () => {
   });
 
   it('names its source honestly', () => {
-    expect(market).toContain('Real nurseries · from Google results');
+    expect(market).toContain('Buy locally · real nurseries from Google results');
   });
 });
 
