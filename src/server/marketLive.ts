@@ -61,12 +61,18 @@ interface TrendingCacheRow {
 }
 
 /** The market's own crate categories, mapped to honest shopping queries.
- *  Four categories, one call each per week — the entire quota cost. */
+ *  Six categories, one call each per week — the entire shopping quota cost
+ *  (plus one weekly trending call, ~32/month total against the 250 plan).
+ *  Consolidated: a parallel session's marketProducts.ts duplicated this
+ *  cache with USD pricing and empty-result poisoning; its categories live
+ *  here now. */
 export const LIVE_CATEGORIES: Record<string, string> = {
   care: 'indoor plant fertilizer',
   home: 'indoor plant pots decorative',
   tools: 'houseplant pruning gardening tools',
   seeds: 'houseplant seeds succulent seeds',
+  books: 'plant care books gardening',
+  other: 'houseplant supplies accessories',
 };
 
 const liveCache = new Map<string, LiveCacheRow>();

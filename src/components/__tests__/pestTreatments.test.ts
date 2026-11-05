@@ -63,3 +63,14 @@ describe('server wiring', () => {
     expect(serverEntry).toContain('registerPestTreatmentsRoute(app);');
   });
 });
+
+describe('stale-over-empty discipline (consolidation hardening)', () => {
+  it('a transient empty result never poisons the 14-day cache', () => {
+    expect(pestTreatments).toContain('if (treatments.length > 0) {');
+    expect(pestTreatments).toContain('cache.set(cacheKey, { treatments, fetchedAt: Date.now() })');
+  });
+
+  it('degrades without console noise', () => {
+    expect(pestTreatments).not.toContain('console.error');
+  });
+});

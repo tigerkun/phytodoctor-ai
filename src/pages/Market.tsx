@@ -1644,9 +1644,11 @@ interface LiveFeedResponse {
 
 const LIVE_CATEGORY_LABELS: Array<[string, string]> = [
   ['care', 'Care'],
-  ['home', 'Pots'],
+  ['home', 'Pots & Plants'],
   ['tools', 'Tools'],
   ['seeds', 'Seeds'],
+  ['books', 'Books'],
+  ['other', 'Supplies'],
 ];
 
 function LiveStoreSection() {
@@ -1811,135 +1813,6 @@ function TrendingStrip() {
           </a>
         ))}
       </div>
-    </div>
-  );
-}
-
-// ── Real Products Section (SERP Shopping) ──
-
-interface RealProduct {
-  title: string;
-  price: number;
-  currency: string;
-  rating: number | null;
-  reviews: number | null;
-  thumbnail: string | null;
-  link: string;
-  source: string;
-  shipping: string | null;
-  condition: string | null;
-}
-
-interface MarketProductsResponse {
-  products: RealProduct[];
-  fetchedAt: number | null;
-  stale?: boolean;
-  error?: string;
-}
-
-const PRODUCT_CATEGORY_LABELS: [string, string][] = [
-  ['pots', 'Pots & Planters'],
-  ['care', 'Plant Care'],
-  ['tools', 'Gardening Tools'],
-  ['seeds', 'Seeds'],
-  ['home', 'Indoor Plants'],
-  ['books', 'Plant Books'],
-  ['other', 'Other Supplies'],
-];
-
-function RealProductsSection() {
-  const [category, setCategory] = useState<string>('care');
-  const [data, setData] = useState<MarketProductsResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    fetch(`/api/market/products?category=${category}`)
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled) setData(d); })
-      .catch(() => { if (!cancelled) setData(null); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [category]);
-
-  const products = data?.products ?? [];
-
-  return (
-    <div className="mb-8">
-      <motion.h2
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="font-serif text-2xl font-semibold mb-2 text-[#3d2a1c]"
-      >
-        Real products · from the web
-      </motion.h2>
-      <p className="text-xs text-[#7a6a50] mb-4">
-        Real prices and reviews from Amazon, Etsy, Walmart. One shared weekly fetch keeps the search budget alive.
-        {data?.fetchedAt && (
-          <span className="block text-[10px] font-mono mt-1">
-            Fetched {new Date(data.fetchedAt).toLocaleString()}
-            {data.stale && ' · showing cached results'}
-          </span>
-        )}
-      </p>
-      <div className="flex flex-wrap gap-2 mb-6" role="group" aria-label="Product category">
-        {PRODUCT_CATEGORY_LABELS.map(([value, label]) => (
-          <button
-            key={value}
-            onClick={() => setCategory(value)}
-            aria-pressed={category === value}
-            className={`bazaar-tab ${category === value ? 'is-on' : ''}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <p className="text-xs font-mono text-[#7a6a50] py-6">Checking the web stalls…</p>
-      ) : products.length === 0 ? (
-        <p className="text-xs font-mono text-[#7a6a50] py-6">
-          {data?.error ?? 'No real products right now — the curated crates below are always open.'}
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {products.map((product, i) => (
-            <a
-              key={`${product.title}-${i}`}
-              href={product.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group rounded-lg border border-[#d9c4a0]/70 bg-[#fff8e8] overflow-hidden hover:border-[#c17f59] transition-colors flex flex-col"
-              aria-label={`View product: ${product.title} at ${product.currency} ${product.price}`}
-            >
-              {product.thumbnail && (
-                <img src={product.thumbnail} alt="" className="w-full h-32 object-cover" loading="lazy" />
-              )}
-              <div className="p-3 flex flex-col gap-1.5 flex-1">
-                <p className="text-[10px] font-mono uppercase tracking-wider text-[#a08d6e]">{product.source}</p>
-                <p className="text-xs font-semibold text-[#2c2419] leading-snug line-clamp-2 flex-1">{product.title}</p>
-                <p className="text-sm font-bold font-mono text-[#3d2a1c]">
-                  {product.currency} {product.price.toFixed(2)}
-                </p>
-                {product.rating !== null && (
-                  <p className="text-[10px] text-[#7a6a50] flex items-center gap-1">
-                    <Star size={10} fill="currentColor" className="text-[#c4a035]" aria-hidden="true" />
-                    {product.rating}
-                    {product.reviews !== null && <span>· {product.reviews} reviews</span>}
-                  </p>
-                )}
-                {product.shipping && (
-                  <p className="text-[10px] font-mono text-[#8c6d46]">{product.shipping}</p>
-                )}
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[#c17f59] group-hover:underline inline-flex items-center gap-1 mt-auto">
-                  View product <ExternalLink size={10} aria-hidden="true" />
-                </span>
-              </div>
-            </a>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -2523,7 +2396,6 @@ export default function GardenMarket() {
                     cache, honest about what it is. Rendered OUTSIDE the stall
                     lock: real prices help before the seed economy opens. */}
                 <LiveStoreSection />
-                <RealProductsSection />
                 <TrendingStrip />
 
                 <ProBanner />

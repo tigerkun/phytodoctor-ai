@@ -25,7 +25,6 @@ import { registerSpeciesVideosRoute } from "./src/server/speciesVideos";
 import { registerCommunityThreadsRoute } from "./src/server/communityThreads";
 import { registerPestTreatmentsRoute } from "./src/server/pestTreatments";
 import { registerSeasonalAlertsRoute } from "./src/server/seasonalAlerts";
-import { registerMarketProductsRoute } from "./src/server/marketProducts";
 import { registerConservationRoute } from "./src/server/conservation";
 import { serpApiStatus } from "./src/lib/serpApiClient";
 
@@ -1390,7 +1389,6 @@ registerSpeciesVideosRoute(app);
 registerCommunityThreadsRoute(app);
 registerPestTreatmentsRoute(app);
 registerSeasonalAlertsRoute(app);
-registerMarketProductsRoute(app);
 registerConservationRoute(app);
 
 // ── Scan report persistence ────────────────────────────────────────────────

@@ -132,13 +132,15 @@ export function registerSeasonalAlertsRoute(app: any): void {
 
       const tips = extractTips(payload);
 
-      // Cache the result
-      cache.set(cacheKey, { tips, fetchedAt: Date.now() });
+      // Stale-over-empty: a transient empty result must not poison the key
+      // for the next 90 days — an existing cache row survives a blank fetch.
+      if (tips.length > 0) {
+        cache.set(cacheKey, { tips, fetchedAt: Date.now() });
+      }
 
-      res.json({ tips, fetchedAt: Date.now() });
+      res.json({ tips, fetchedAt: tips.length > 0 ? Date.now() : cached?.fetchedAt ?? null });
     } catch (err) {
-      console.error('[seasonal-alerts] error:', err);
-      // Serve stale cache on error
+      // The response below carries the failure; no console noise needed.
       const season = req.query.season as string;
       const climate = req.query.climate as string;
       const cacheKey = `${normalizeSeason(season)}:${normalizeClimate(climate)}`;

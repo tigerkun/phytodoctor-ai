@@ -75,3 +75,14 @@ describe('server wiring', () => {
     expect(serverEntry).toContain('registerSeasonalAlertsRoute(app);');
   });
 });
+
+describe('stale-over-empty discipline (consolidation hardening)', () => {
+  it('a transient empty result never poisons the 90-day cache', () => {
+    expect(seasonalAlerts).toContain('if (tips.length > 0) {');
+    expect(seasonalAlerts).toContain('cache.set(cacheKey, { tips, fetchedAt: Date.now() })');
+  });
+
+  it('degrades without console noise', () => {
+    expect(seasonalAlerts).not.toContain('console.error');
+  });
+});

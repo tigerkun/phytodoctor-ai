@@ -117,13 +117,15 @@ export function registerPestTreatmentsRoute(app: any): void {
 
       const treatments = extractTreatments(payload);
 
-      // Cache the result
-      cache.set(cacheKey, { treatments, fetchedAt: Date.now() });
+      // Stale-over-empty: a transient empty result must not poison the key
+      // for the next 14 days — an existing cache row survives a blank fetch.
+      if (treatments.length > 0) {
+        cache.set(cacheKey, { treatments, fetchedAt: Date.now() });
+      }
 
-      res.json({ treatments, fetchedAt: Date.now() });
+      res.json({ treatments, fetchedAt: treatments.length > 0 ? Date.now() : cached?.fetchedAt ?? null });
     } catch (err) {
-      console.error('[pest-treatments] error:', err);
-      // Serve stale cache on error
+      // The response below carries the failure; no console noise needed.
       const pest = req.query.pest as string;
       const species = req.query.species as string;
       const cacheKey = `${normalizePest(pest)}:${normalizeSpecies(species)}`;

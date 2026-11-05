@@ -42,7 +42,10 @@ describe('marketLive cache + quota', () => {
 
   it('the scan found the module it means to check', () => {
     expect(marketLiveCacheSize()).toBe(0);
-    expect(Object.keys(LIVE_CATEGORIES)).toEqual(['care', 'home', 'tools', 'seeds']);
+    // Six categories — the parallel session's marketProducts.ts was
+    // consolidated into this cache (books, other absorbed; one shopping
+    // surface, one quota cost).
+    expect(Object.keys(LIVE_CATEGORIES)).toEqual(['care', 'home', 'tools', 'seeds', 'books', 'other']);
   });
 
   it('extracts only real fields — rating present only when the engine has one', async () => {
